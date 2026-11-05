@@ -1,0 +1,7 @@
+allowBuilds:
+  "@marimo-team/client@https://codeload.github.com/marimo-team/marimo/tar.gz/0a3d31844e4ba7076be127399cc6d01a86a05cf1#path:/packages/client": true
+overrides:
+  vite@*: npm:@voidzero-dev/vite-plus-core@1.5.0
+peerDependencyRules:
+  allowedVersions:
+    vite: "1.5.0"

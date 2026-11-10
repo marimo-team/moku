@@ -170,8 +170,8 @@ importers:
   .:
     dependencies:
       '@marimo-team/client':
-        specifier: github:marimo-team/marimo#0a3d31844e4ba7076be127399cc6d01a86a05cf1&path:/packages/client
-        version: https://codeload.github.com/marimo-team/marimo/tar.gz/0a3d31844e4ba7076be127399cc6d01a86a05cf1#path:/packages/client
+        specifier: github:marimo-team/marimo#d0495d66839b13d34624a8a4dac16f23637cbb4e&path:/packages/client
+        version: https://codeload.github.com/marimo-team/marimo/tar.gz/d0495d66839b13d34624a8a4dac16f23637cbb4e#path:/packages/client
       react:
         specifier: ^19.3.0
         version: 19.3.1
@@ -222,8 +222,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@marimo-team/client@https://codeload.github.com/marimo-team/marimo/tar.gz/0a3d31844e4ba7076be127399cc6d01a86a05cf1#path:/packages/client':
-    resolution: {gitHosted: true, integrity: sha512-Q4zr/JCqxOByNigVOX8IdXgIlHYKVngX24Cps858w4px9+bSFEFDu3w5EkI9u9LA+X3LTAwpAr7F2UFfM2C0Qw==, path: /packages/client, tarball: https://codeload.github.com/marimo-team/marimo/tar.gz/0a3d31844e4ba7076be127399cc6d01a86a05cf1}
+  '@marimo-team/client@https://codeload.github.com/marimo-team/marimo/tar.gz/d0495d66839b13d34624a8a4dac16f23637cbb4e#path:/packages/client':
+    resolution: {gitHosted: true, integrity: sha512-NzBm6upn7tPC2Qv2gXKXWAmaNCovOjBsUsP6UJPeGTuJLAgPFgAjMtlRA69Zb7aSPebb/xvV0j1Dd/irJ6SRaQ==, path: /packages/client, tarball: https://codeload.github.com/marimo-team/marimo/tar.gz/d0495d66839b13d34624a8a4dac16f23637cbb4e}
     version: 0.1.0
 
   '@oxc-project/runtime@0.157.0':
@@ -1175,7 +1175,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@marimo-team/client@https://codeload.github.com/marimo-team/marimo/tar.gz/0a3d31844e4ba7076be127399cc6d01a86a05cf1#path:/packages/client':
+  '@marimo-team/client@https://codeload.github.com/marimo-team/marimo/tar.gz/d0495d66839b13d34624a8a4dac16f23637cbb4e#path:/packages/client':
     dependencies:
       zod: 4.6.7
 

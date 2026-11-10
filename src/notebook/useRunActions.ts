@@ -14,10 +14,13 @@ function nextAction(state: NotebookState, run: Protocol.RunOutput | undefined): 
 function unavailableReason(state: NotebookState, kind: RunAction, busy: boolean) {
   if (busy) return "Waiting for the host to acknowledge the previous action";
   if (!state.ready) return "Waiting for the notebook snapshot";
-  // Interrupt uses the same capability as run in the host protocol.
-  const capability = kind === "interrupt" ? "runtime.run" : `runtime.${kind}`;
-  if (!state.notebook?.operations.includes(capability))
-    return `The host does not support runtime.${kind}`;
+  // Hosts that support either cells or scratch execution can interrupt runs.
+  const operations = state.notebook?.operations ?? [];
+  const supported =
+    kind === "interrupt"
+      ? operations.includes("runtime.run") || operations.includes("runtime.execute")
+      : operations.includes(`runtime.${kind}`);
+  if (!supported) return `The host does not support runtime.${kind}`;
   if (kind === "start" && state.runtime) return `Runtime is ${state.runtime.status}`;
   if (kind === "run" && !Object.values(state.cells).some((cell) => !cell.config.disabled))
     return "No enabled cells to run";
@@ -53,7 +56,7 @@ export function useRunActions(
           const cell = state.cells[id];
           return cell && !cell.config.disabled ? [{ id, etag: cell.etag }] : [];
         });
-        result = await notebook.run({ cells }, options);
+        result = await notebook.run({ cells, ...options });
       }
       if (!result.ok) setActionError(result.problem.detail ?? result.problem.title);
     } catch (error) {

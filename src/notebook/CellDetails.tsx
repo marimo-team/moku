@@ -109,7 +109,7 @@ export function CellDetails({
               <CellOutput {...execution.outcome.error.traceback} />
             )}
             {displays.map((display) => (
-              <CellOutput key={display.id} {...display} />
+              <CellOutput key={display.id} {...display.content} />
             ))}
             {!displays.length &&
               !(execution?.outcome?.kind === "value" && execution.outcome.display) &&

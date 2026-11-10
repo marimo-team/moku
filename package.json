@@ -12,7 +12,7 @@
     "test": "vp test run"
   },
   "dependencies": {
-    "@marimo-team/client": "github:marimo-team/marimo#0a3d31844e4ba7076be127399cc6d01a86a05cf1&path:/packages/client",
+    "@marimo-team/client": "github:marimo-team/marimo#d0495d66839b13d34624a8a4dac16f23637cbb4e&path:/packages/client",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

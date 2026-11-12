@@ -1,36 +1,23 @@
-import { useEffect, useState } from "react";
+import { useAtomValue } from "@effect/atom-react";
+import { AsyncResult } from "effect/reactivity";
 import { Workspace } from "./Workspace.tsx";
-
-async function authenticate() {
-  const key = new URLSearchParams(location.hash.slice(1)).get("key");
-  if (key) history.replaceState(null, "", location.pathname + location.search);
-  const response = await fetch(
-    "/api/session",
-    key ? { method: "POST", headers: { Authorization: `Bearer ${key}` } } : undefined,
-  );
-  if (!response.ok)
-    throw new Error("Open the authenticated launch link printed by bun dev:dag.");
-}
+import { workspaceAtom } from "./runtime.ts";
 
 export function App() {
-  const [auth, setAuth] = useState<"loading" | "ready" | "locked">("loading");
-  useEffect(() => {
-    void authenticate().then(
-      () => setAuth("ready"),
-      () => setAuth("locked"),
-    );
-  }, []);
-  if (auth !== "ready")
+  const workspace = useAtomValue(workspaceAtom);
+  if (!AsyncResult.isSuccess(workspace)) {
+    const failed = AsyncResult.isFailure(workspace);
     return (
       <div className="auth-screen">
         <h1>dag</h1>
         <p>
-          {auth === "loading"
-            ? "Connecting…"
-            : "Open the authenticated launch link printed in your terminal."}
+          {failed
+            ? "Open the authenticated launch link printed in your terminal."
+            : "Connecting…"}
         </p>
-        {auth === "locked" && <code>bun dev:dag</code>}
+        {failed && <code>bun dev:dag</code>}
       </div>
     );
-  return <Workspace />;
+  }
+  return <Workspace workspace={workspace.value} />;
 }

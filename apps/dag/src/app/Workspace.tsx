@@ -1,40 +1,20 @@
-import { useEffect, useState } from "react";
-import type { HostSummary } from "@momo/proxy";
+import { useState } from "react";
+import { useAtomValue } from "@effect/atom-react";
+import { Effect } from "effect";
+import type * as ModelWorkspace from "@momo/model/Workspace";
 import { useCatalog } from "../notebook/connection.ts";
 import { NotebookView } from "../notebook/NotebookView.tsx";
 
-export function Workspace() {
-  const [hosts, setHosts] = useState<HostSummary[]>([]);
-  const [hostId, setHostId] = useState("");
+export function Workspace({ workspace }: { workspace: ModelWorkspace.Workspace }) {
+  const hosts = useAtomValue(workspace.connections);
+  const { pending: discovering, error } = useAtomValue(workspace.status);
+  const [selectedHost, setHostId] = useState("");
+  const hostId =
+    hosts.find((host) => host.id === selectedHost)?.id ?? hosts[0]?.id ?? "";
   const [notebookId, setNotebookId] = useState("");
-  const [error, setError] = useState("");
-  const [discovering, setDiscovering] = useState(true);
-  async function refresh() {
-    setDiscovering(true);
-    setError("");
-    try {
-      const response = await fetch("/api/hosts");
-      if (!response.ok)
-        throw new Error(
-          response.status === 401
-            ? "Session expired. Reopen the launch link from your terminal."
-            : "Could not discover local hosts.",
-        );
-      const found: HostSummary[] = await response.json();
-      setHosts(found);
-      setHostId((current) =>
-        found.some((host) => host.id === current) ? current : (found[0]?.id ?? ""),
-      );
-    } catch (error) {
-      setError(String(error));
-    } finally {
-      setDiscovering(false);
-    }
-  }
-  useEffect(() => {
-    void refresh();
-  }, []);
-  const catalog = useCatalog(hostId);
+  const refresh = () =>
+    Effect.runPromise(workspace.refresh.pipe(Effect.catch(() => Effect.void)));
+  const catalog = useCatalog(workspace, hostId);
   const chosen =
     catalog.notebooks.find((notebook) => notebook.id === notebookId) ??
     catalog.notebooks[0];
@@ -95,13 +75,13 @@ export function Workspace() {
       </div>
       {(error || catalog.error) && (
         <div className="error-banner" role="alert">
-          {error || catalog.error}
+          {error?.message || catalog.error}
         </div>
       )}
       {chosen ? (
         <NotebookView
           key={`${hostId}:${chosen.id}`}
-          client={catalog.client}
+          connectionId={hostId}
           id={chosen.id}
           name={chosen.name}
         />

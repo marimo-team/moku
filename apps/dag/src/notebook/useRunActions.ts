@@ -1,16 +1,17 @@
 import { useState } from "react";
-import type { NotebookClient } from "@marimo-team/client";
-import type * as Protocol from "@marimo-team/client/protocol";
+import { Effect } from "effect";
+import type { Handle } from "@momo/model/Notebook";
+import type * as Protocol from "@momo/model/Protocol";
 import type { NotebookState } from "./model.ts";
 
-type RunAction = "start" | "run" | "interrupt";
-const ACTION_LABELS = { start: "Start runtime", run: "Run", interrupt: "Interrupt" };
+type RunAction = "start" | "run" | "cancel";
+const ACTION_LABELS = { start: "Start runtime", run: "Run", cancel: "Cancel run" };
 
 function nextAction(
   state: NotebookState,
   run: Protocol.RunOutput | undefined,
 ): RunAction {
-  if (run && run.status !== "completed") return "interrupt";
+  if (run && run.status !== "completed") return "cancel";
   return state.runtime?.status === "running" ? "run" : "start";
 }
 
@@ -20,7 +21,7 @@ function unavailableReason(state: NotebookState, kind: RunAction, busy: boolean)
   // Hosts that support either cells or scratch execution can interrupt runs.
   const operations = state.notebook?.operations ?? [];
   const supported =
-    kind === "interrupt"
+    kind === "cancel"
       ? operations.includes("runtime.run") || operations.includes("runtime.execute")
       : operations.includes(`runtime.${kind}`);
   if (!supported) return `The host does not support runtime.${kind}`;
@@ -34,18 +35,20 @@ function unavailableReason(state: NotebookState, kind: RunAction, busy: boolean)
 }
 
 export function useRunActions(
-  notebook: NotebookClient | null,
+  notebook: Handle,
   state: NotebookState,
   run: Protocol.RunOutput | undefined,
+  connected: boolean,
 ) {
   const [actionError, setActionError] = useState("");
   const [busy, setBusy] = useState(false);
   const actionKind = nextAction(state, run);
   const actionLabel = ACTION_LABELS[actionKind];
-  const disabledReason = unavailableReason(state, actionKind, busy);
+  const disabledReason = connected
+    ? unavailableReason(state, actionKind, busy)
+    : "Waiting for the notebook connection";
   let cellRunDisabled = disabledReason;
-  if (actionKind === "interrupt")
-    cellRunDisabled = "Wait for the current run to finish";
+  if (actionKind === "cancel") cellRunDisabled = "Wait for the current run to finish";
   else if (actionKind !== "run") cellRunDisabled = "Start the runtime first";
 
   async function action(kind: RunAction, cellId?: string) {
@@ -53,22 +56,21 @@ export function useRunActions(
     setBusy(true);
     setActionError("");
     try {
-      const options = { signal: AbortSignal.timeout(10000) };
-      let result;
-      if (kind === "start") result = await notebook.start(options);
-      else if (kind === "interrupt" && run)
-        result = await notebook.interrupt(run.id, options);
+      const requestId = crypto.randomUUID();
+      let request: Effect.Effect<unknown, unknown>;
+      if (kind === "start") request = notebook.start(requestId);
+      else if (kind === "cancel" && run) request = notebook.cancel(run.id, requestId);
       else {
         const ids = cellId ? [cellId] : (state.document?.order ?? []);
         const cells = ids.flatMap((id) => {
           const cell = state.cells[id];
           return cell && !cell.config.disabled ? [{ id, etag: cell.etag }] : [];
         });
-        result = await notebook.run({ cells, ...options });
+        request = notebook.run({ cells }, requestId);
       }
-      if (!result.ok) setActionError(result.problem.detail ?? result.problem.title);
+      await Effect.runPromise(request.pipe(Effect.timeout("10 seconds")));
     } catch (error) {
-      const timedOut = error instanceof DOMException && error.name === "TimeoutError";
+      const timedOut = error instanceof Error && error.name === "TimeoutError";
       setActionError(
         timedOut
           ? "The host did not acknowledge the action within 10 seconds. Check the run status before retrying."

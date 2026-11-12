@@ -7,7 +7,7 @@
     "./vite": "./src/vite.ts"
   },
   "dependencies": {
-    "@marimo-team/client": "file:../../vendor/marimo-client-d0495d6.tgz"
+    "@marimo-team/client": "file:../../vendor/marimo-client-29327a665.tgz"
   },
   "peerDependencies": {
     "vite-plus": "1.5.0"

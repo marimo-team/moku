@@ -21,8 +21,8 @@ bun run build  # build the DAG app
 ```
 
 `apps/dag` is the working app. `@momo/proxy` supplies its local server and Vite
-plugin. `@momo/client`, `@momo/editor`, and `@momo/outputs` are private package
-scaffolds; their READMEs describe the planned interfaces.
+plugin. `@momo/model` owns shared workspace and notebook state.
+`@momo/editor` and `@momo/outputs` remain private package scaffolds.
 
 Workspace exports point directly to TypeScript source. There are no package
 compilation steps, project references, or publishing configuration. Vite+ owns
@@ -33,6 +33,6 @@ outputs renderer will retain its explicit bundle step when it is migrated.
 DAG's upstream protocol client is preserved as a [pinned local archive](vendor/README.md)
 because Bun does not support its former pnpm Git-subdirectory dependency.
 
-See the [glossary](GLOSSARY.md) and package interfaces: [client](packages/client/README.md),
+See the [glossary](GLOSSARY.md) and package interfaces: [model](packages/model/README.md),
 [editor](packages/editor/README.md), [outputs](packages/outputs/README.md),
 [proxy](packages/proxy/README.md).

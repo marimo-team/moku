@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type * as Protocol from "@marimo-team/client/protocol";
+import type * as Protocol from "@momo/model/Protocol";
 import { cellLabel, type NotebookState } from "./model.ts";
 
 export function RunLog({

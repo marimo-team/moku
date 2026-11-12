@@ -1,4 +1,4 @@
-import type * as Protocol from "@marimo-team/client/protocol";
+import type * as Protocol from "@momo/model/Protocol";
 import {
   cellLabel,
   cellStatus,

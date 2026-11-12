@@ -8,8 +8,10 @@
     "preview": "vp preview"
   },
   "dependencies": {
-    "@marimo-team/client": "file:../../vendor/marimo-client-d0495d6.tgz",
+    "@effect/atom-react": "4.1.0",
+    "@momo/model": "workspace:*",
     "@momo/proxy": "workspace:*",
+    "effect": "4.1.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

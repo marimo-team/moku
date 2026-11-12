@@ -14,8 +14,10 @@
     "apps/dag": {
       "name": "@momo/dag",
       "dependencies": {
-        "@marimo-team/client": "file:../../vendor/marimo-client-d0495d6.tgz",
+        "@effect/atom-react": "4.1.0",
+        "@momo/model": "workspace:*",
         "@momo/proxy": "workspace:*",
+        "effect": "4.1.0",
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
       },
@@ -23,11 +25,15 @@
         "@vitejs/plugin-react": "^6.1.2",
       },
     },
-    "packages/client": {
-      "name": "@momo/client",
-    },
     "packages/editor": {
       "name": "@momo/editor",
+    },
+    "packages/model": {
+      "name": "@momo/model",
+      "dependencies": {
+        "@marimo-team/client": "file:../../vendor/marimo-client-29327a665.tgz",
+        "effect": "4.1.0",
+      },
     },
     "packages/outputs": {
       "name": "@momo/outputs",
@@ -35,7 +41,7 @@
     "packages/proxy": {
       "name": "@momo/proxy",
       "dependencies": {
-        "@marimo-team/client": "file:../../vendor/marimo-client-d0495d6.tgz",
+        "@marimo-team/client": "file:../../vendor/marimo-client-29327a665.tgz",
       },
       "peerDependencies": {
         "vite-plus": "1.5.0",
@@ -54,19 +60,21 @@
 
     "@blazediff/core": ["@blazediff/core@1.10.0", "", {}, "sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ=="],
 
+    "@effect/atom-react": ["@effect/atom-react@4.1.0", "", { "peerDependencies": { "effect": "^4.1.0", "react": ">=19.0.0 <20.0.0", "scheduler": ">=0.25.0 <0.29.0" } }, "sha512-PeaBDmwqG9BPQfaPHeWCB2NF4NQaFlI6poKxjlBHMrMjKqV+LVBdryhpDNqSZOhqGgT+qnh9gV+19MYjNOQ+bg=="],
+
     "@jridgewell/resolve-uri": ["@jridgewell/resolve-uri@3.1.2", "", {}, "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw=="],
 
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.6.0", "", {}, "sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw=="],
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@marimo-team/client": ["@marimo-team/client@../../vendor/marimo-client-d0495d6.tgz", { "dependencies": { "zod": "^4.6.5" } }, "sha512-5Yqv8aQpid8kQgSQKnV6eBF5Oe6zpu+cB8cOWKxTBoDQmubpzBG0o407SHPhjGEgHf9tFzj71jpcF9E5gvJuKQ=="],
-
-    "@momo/client": ["@momo/client@workspace:packages/client"],
+    "@marimo-team/client": ["@marimo-team/client@../../vendor/marimo-client-29327a665.tgz", { "dependencies": { "zod": "^4.6.7" } }, "sha512-klNLJkorb0H80u4/Att6yyxrQmmDqlsFw1Rnoy4jSe/Qt1ka18hmXYrJAqu7AgEv/9TndReDE6SAfAnPV1J/QA=="],
 
     "@momo/dag": ["@momo/dag@workspace:apps/dag"],
 
     "@momo/editor": ["@momo/editor@workspace:packages/editor"],
+
+    "@momo/model": ["@momo/model@workspace:packages/model"],
 
     "@momo/outputs": ["@momo/outputs@workspace:packages/outputs"],
 
@@ -267,6 +275,8 @@
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
 
     "dom-accessibility-api": ["dom-accessibility-api@0.5.16", "", {}, "sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg=="],
+
+    "effect": ["effect@4.1.0", "", {}, "sha512-lGx2MJJyrXA8RZb2UpQ/0Nkb5Utaimby7oD92+18noBxLPE85IFOvptdzau8dvcxAOwfwHo9iqapbKeFzqQM/Q=="],
 
     "es-module-lexer": ["es-module-lexer@2.3.2", "", {}, "sha512-poHGpORABojJJucnV9KbOavETW8lBVnphkW77ER5/BQ5Fz7oXSoCNek7IH3vR5nRjdsEz926ibFYX8KtLQmdyw=="],
 

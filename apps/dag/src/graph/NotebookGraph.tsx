@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type * as Protocol from "@marimo-team/client/protocol";
+import type * as Protocol from "@momo/model/Protocol";
 import type { NotebookState } from "../notebook/model.ts";
 import { TimelineAxis, TimelinePlayhead } from "../timeline/Timeline.tsx";
 import { useTimeline } from "../timeline/useTimeline.ts";

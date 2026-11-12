@@ -1,19 +1,18 @@
 # Pinned marimo client
 
-`marimo-client-d0495d6.tgz` contains DAG's existing `@marimo-team/client` build
-from `marimo-team/marimo` commit `d0495d66839b13d34624a8a4dac16f23637cbb4e`,
-including experimental analysis events.
+`marimo-client-29327a665.tgz` is built from the local marimo integration commit
+`29327a665d69810fcb7f5d879eb98b217661b15e`, including its generated
+experimental analysis protocol. This revision is local, not a published release.
 
-Bun does not support the previous pnpm Git-subdirectory dependency. This local
-archive preserves its installed `dist` files byte-for-byte while the shared
-client is migrated. The package manifest omits build scripts and development
-dependencies because this is an already-built dependency. The upstream Apache
-2.0 license is included.
+The archive includes compiled `dist`, the upstream README and Apache 2.0 license.
+Build scripts and development dependencies are omitted from the package manifest.
+Bun consumes this archive because it does not support the former pnpm
+Git-subdirectory dependency.
 
-SHA-256: `da409d048cd768bea135784ad9b005c5db4a339eb3d02e74c5a54f8c7530b236`
+SHA-256: `6e09f8557675fcfe1b7e07dc9314c407a5ae4bf91dbb3654209fca03b91d5f33`
 
-Source: https://github.com/marimo-team/marimo/tree/d0495d66839b13d34624a8a4dac16f23637cbb4e/packages/client
-
-To replace this archive, build that upstream package with experimental analysis
-enabled, verify DAG's graph/model tests against it, and record the new revision
-and archive checksum here. Do not substitute a newer stable-only protocol.
+To update, build `packages/client` at the desired marimo revision with
+`bun run build`, archive its `dist` with the manifest, README, and license,
+and update both workspace dependencies and this revision/checksum. The generated
+protocol must include experimental analysis. Run the model and DAG tests after
+updating; runtime interruption and individual run cancellation are distinct.

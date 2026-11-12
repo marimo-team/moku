@@ -5,6 +5,7 @@
  *
  * @module
  */
+import { Equivalence } from "effect";
 import type { Confirmed as Document } from "@moku/core/Notebook";
 import * as Protocol from "@moku/core/Protocol";
 
@@ -102,9 +103,7 @@ function isEmpty(object: object): boolean {
   return Object.keys(object).length === 0;
 }
 
-function sameOrder(a: readonly CellId[], b: readonly CellId[]): boolean {
-  return a.length === b.length && a.every((id, index) => id === b[index]);
-}
+const sameOrder = Equivalence.Array(Equivalence.String);
 
 /** Combine two edits, the later one winning field by field. */
 function mergeEdit(previous: CellEdit, edit: CellEdit): CellEdit {
@@ -127,14 +126,12 @@ function applyEdit(cell: EditableCell, edit: CellEdit): EditableCell {
   };
 }
 
-function sameCell(a: EditableCell, b: EditableCell): boolean {
-  return (
-    a.id === b.id &&
-    a.code === b.code &&
-    a.name === b.name &&
-    isEmpty(differingFields(a.config, b.config))
-  );
-}
+const sameCell: Equivalence.Equivalence<EditableCell> = Equivalence.Struct({
+  id: Equivalence.String,
+  code: Equivalence.strictEqual<string | null>(),
+  name: Equivalence.String,
+  config: Equivalence.Record(Equivalence.strictEqual()),
+});
 
 /** The edit that turns `from` into `to`. Empty when they are the same. */
 function editBetween(from: CellWithSource, to: CellWithSource): CellEdit {

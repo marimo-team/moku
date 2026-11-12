@@ -21,8 +21,8 @@ bun run test   # all workspace tests through vp
 bun run build  # build the launcher and registered views
 ```
 
-`apps/launcher` owns the catalog, authentication, and open views. It loads plugins
-from `apps/launcher/src/plugins.ts`. `apps/dag` exports its graph through
+`apps/@momo-launcher` owns the catalog, authentication, and open views. It loads plugins
+from `apps/@momo-launcher/src/plugins.ts`. `apps/@momo-dag` exports its graph through
 `@momo/dag/plugin`; Vite serves and bundles the launcher.
 
 `@momo/plugin` defines view registrations. Each renderer receives a notebook
@@ -33,17 +33,20 @@ its registrations before the remaining plugins load.
 
 `@momo/proxy` supplies the local server. `@momo/model` owns shared workspace and
 notebook state. `@momo/editor/Document` adds scoped local drafts and synchronization.
-`@momo/outputs` remains a package scaffold.
+`@momo/outputs` renders display data, console chunks, and execution outcomes.
+Build its embedded marimo renderer with `bun run --filter @momo/outputs build`
+before running workspace checks or using rich outputs. The build defaults to
+`~/github/marimo-team/marimo`; set `MARIMO_CHECKOUT` to choose another checkout.
 
 Workspace exports point directly to TypeScript source. There are no package
 compilation steps, project references, or publishing configuration. Vite+ owns
 the shared formatting and lint/typecheck settings in `vite.config.ts`;
 `tsconfig.json` checks all app and package source without emitting files. The
-outputs renderer will retain its explicit bundle step when it is migrated.
+outputs renderer has its own explicit bundle and declaration-generation step.
 
 DAG's upstream protocol client is preserved as a [pinned local archive](vendor/README.md)
 because Bun does not support its former pnpm Git-subdirectory dependency.
 
-See the [glossary](GLOSSARY.md) and package interfaces: [model](packages/model/README.md),
-[editor](packages/editor/README.md), [outputs](packages/outputs/README.md),
-[proxy](packages/proxy/README.md), [plugin](packages/plugin/README.md).
+See the [glossary](GLOSSARY.md) and package interfaces: [model](packages/@momo-model/README.md),
+[editor](packages/@momo-editor/README.md), [outputs](packages/@momo-outputs/README.md),
+[proxy](packages/@momo-proxy/README.md), [plugin](packages/@momo-plugin/README.md).

@@ -1,0 +1,67 @@
+.momo-cell-outputs {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.momo-display {
+  min-width: 0;
+}
+.momo-display > .marimo {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+.momo-display .output > .markdown > :first-child {
+  margin-block-start: 0;
+}
+.momo-display .output > .markdown > :last-child {
+  margin-block-end: 0;
+}
+.momo-output-text,
+.momo-console {
+  margin: 0;
+  overflow: auto;
+  font-family: ui-monospace, monospace;
+  font-size: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.momo-console [data-channel="stderr"] {
+  color: var(--momo-output-error, #b54040);
+}
+.momo-error {
+  --momo-diagnostic-color: var(--momo-output-error, #b54040);
+}
+.momo-error[data-severity="warning"] {
+  --momo-diagnostic-color: #986800;
+}
+.momo-error[data-severity="information"],
+.momo-error[data-severity="hint"] {
+  --momo-diagnostic-color: currentColor;
+}
+.momo-error-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.momo-error-heading strong {
+  color: var(--momo-diagnostic-color);
+}
+.momo-error summary {
+  cursor: pointer;
+}
+.momo-error summary .momo-error-heading {
+  display: inline-flex;
+}
+.momo-traceback {
+  margin-top: 8px;
+  padding: 12px;
+  border-left: 2px solid var(--momo-diagnostic-color);
+}
+.momo-output-notice {
+  margin: 0;
+  color: inherit;
+  opacity: 0.7;
+}

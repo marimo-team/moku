@@ -2,5 +2,8 @@ import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   fmt: { printWidth: 88 },
-  lint: { options: { typeAware: true, typeCheck: true } },
+  lint: {
+    options: { typeAware: true, typeCheck: true },
+    ignorePatterns: ["packages/@momo-outputs/bundle/**"],
+  },
 });

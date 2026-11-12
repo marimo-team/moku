@@ -11,7 +11,7 @@
         "vite-plus": "1.5.0",
       },
     },
-    "apps/dag": {
+    "apps/@momo-dag": {
       "name": "@momo/dag",
       "dependencies": {
         "@effect/atom-react": "4.1.0",
@@ -21,7 +21,7 @@
         "react": "^19.3.0",
       },
     },
-    "apps/launcher": {
+    "apps/@momo-launcher": {
       "name": "@momo/launcher",
       "dependencies": {
         "@effect/atom-react": "4.1.0",
@@ -37,7 +37,7 @@
         "@vitejs/plugin-react": "^6.1.2",
       },
     },
-    "packages/editor": {
+    "packages/@momo-editor": {
       "name": "@momo/editor",
       "dependencies": {
         "@codemirror/merge": "^6.12.3",
@@ -53,17 +53,28 @@
         "effect": "4.1.0",
       },
     },
-    "packages/model": {
+    "packages/@momo-model": {
       "name": "@momo/model",
       "dependencies": {
         "@marimo-team/client": "file:../../vendor/marimo-client-29327a665.tgz",
         "effect": "4.1.0",
       },
     },
-    "packages/outputs": {
+    "packages/@momo-outputs": {
       "name": "@momo/outputs",
+      "dependencies": {
+        "@momo/model": "workspace:*",
+      },
+      "devDependencies": {
+        "happy-dom": "^21.0.4",
+        "typescript": "^5.9.3",
+      },
+      "peerDependencies": {
+        "react": "^19.3.0",
+        "react-dom": "^19.3.0",
+      },
     },
-    "packages/plugin": {
+    "packages/@momo-plugin": {
       "name": "@momo/plugin",
       "dependencies": {
         "@momo/model": "workspace:*",
@@ -73,7 +84,7 @@
         "react": "^19.3.0",
       },
     },
-    "packages/proxy": {
+    "packages/@momo-proxy": {
       "name": "@momo/proxy",
       "dependencies": {
         "@marimo-team/client": "file:../../vendor/marimo-client-29327a665.tgz",
@@ -125,19 +136,19 @@
 
     "@marimo-team/client": ["@marimo-team/client@../../vendor/marimo-client-29327a665.tgz", { "dependencies": { "zod": "^4.6.7" } }, "sha512-klNLJkorb0H80u4/Att6yyxrQmmDqlsFw1Rnoy4jSe/Qt1ka18hmXYrJAqu7AgEv/9TndReDE6SAfAnPV1J/QA=="],
 
-    "@momo/dag": ["@momo/dag@workspace:apps/dag"],
+    "@momo/dag": ["@momo/dag@workspace:apps/@momo-dag"],
 
-    "@momo/editor": ["@momo/editor@workspace:packages/editor"],
+    "@momo/editor": ["@momo/editor@workspace:packages/@momo-editor"],
 
-    "@momo/launcher": ["@momo/launcher@workspace:apps/launcher"],
+    "@momo/launcher": ["@momo/launcher@workspace:apps/@momo-launcher"],
 
-    "@momo/model": ["@momo/model@workspace:packages/model"],
+    "@momo/model": ["@momo/model@workspace:packages/@momo-model"],
 
-    "@momo/outputs": ["@momo/outputs@workspace:packages/outputs"],
+    "@momo/outputs": ["@momo/outputs@workspace:packages/@momo-outputs"],
 
-    "@momo/plugin": ["@momo/plugin@workspace:packages/plugin"],
+    "@momo/plugin": ["@momo/plugin@workspace:packages/@momo-plugin"],
 
-    "@momo/proxy": ["@momo/proxy@workspace:packages/proxy"],
+    "@momo/proxy": ["@momo/proxy@workspace:packages/@momo-proxy"],
 
     "@oxc-project/runtime": ["@oxc-project/runtime@0.157.0", "", {}, "sha512-srnUknwVoji5JdmU664pA4XyjBJXmgxP8rWlnZhFovzw6XQxaICGWAuScZdlLmIHI+ZRc7WgeiC2CURF4tAszQ=="],
 
@@ -444,6 +455,8 @@
     "tinyrainbow": ["tinyrainbow@3.2.0", "", {}, "sha512-LgO3D9yZJjApUiuUfl9iFAwrtaX4+lok3wJIqttGoKCHlWUqHqbQpnxCf82L8FjgKsh4iGo78hqJwgL8F6To2A=="],
 
     "totalist": ["totalist@3.0.1", "", {}, "sha512-sf4i37nQ2LBx4m3wB74y+ubopq6W/dIzXg0FDGjsYnZHVa1Da8FH853wlL2gtUhg+xJXjfk3kUZS3BRoQeoQBQ=="],
+
+    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
 

@@ -1,30 +1,31 @@
 {
-  "name": "@marimo-team/dag",
-  "version": "0.1.0",
+  "name": "momo",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "type": "module",
   "scripts": {
-    "dev": "vp dev",
-    "build": "vp build",
-    "preview": "vp preview",
+    "dev": "bun run dev:dag",
+    "dev:dag": "bun run --filter @momo/dag dev",
+    "build": "bun run --filter @momo/dag build",
+    "preview": "bun run --filter @momo/dag preview",
     "check": "vp check",
     "format": "vp fmt",
     "test": "vp test run"
-  },
-  "dependencies": {
-    "@marimo-team/client": "github:marimo-team/marimo#d0495d66839b13d34624a8a4dac16f23637cbb4e&path:/packages/client",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.1.2",
     "vite-plus": "1.5.0"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.5.0"
   },
   "engines": {
     "node": "^22.18.0 || ^24.11.0 || >=26.0.0"
   },
-  "packageManager": "pnpm@12.10.1"
+  "packageManager": "bun@1.4.4"
 }

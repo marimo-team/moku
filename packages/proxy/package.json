@@ -1,0 +1,15 @@
+{
+  "name": "@momo/proxy",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./vite": "./src/vite.ts"
+  },
+  "dependencies": {
+    "@marimo-team/client": "file:../../vendor/marimo-client-d0495d6.tgz"
+  },
+  "peerDependencies": {
+    "vite-plus": "1.5.0"
+  }
+}

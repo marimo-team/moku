@@ -1,0 +1,8 @@
+{
+  "name": "@momo/outputs",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

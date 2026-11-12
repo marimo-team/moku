@@ -1,0 +1,19 @@
+{
+  "name": "@momo/dag",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview"
+  },
+  "dependencies": {
+    "@marimo-team/client": "file:../../vendor/marimo-client-d0495d6.tgz",
+    "@momo/proxy": "workspace:*",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.2"
+  }
+}

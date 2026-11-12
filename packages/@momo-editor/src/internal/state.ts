@@ -26,9 +26,6 @@ interface State {
 
 export interface Interface {
   readonly state: Atom.Atom<State>;
-  readonly document: Atom.Atom<Draft.EditableDocument | null>;
-  readonly canEdit: Atom.Atom<boolean>;
-  readonly dirty: Atom.Atom<boolean>;
   readonly edit: Atom.Writable<void, Edit>;
   readonly get: () => State;
   readonly capture: () => Submission | null;
@@ -91,14 +88,6 @@ export function makeState(
     );
   });
 
-  const document = Atom.make((get) => {
-    const current = get(state);
-    return current.source.document
-      ? Draft.viewDocument(current.source.document, current.draft)
-      : null;
-  });
-  const canEdit = Atom.make((get) => !closed && get(state).source.canEdit);
-  const dirty = Atom.make((get) => !Draft.isEmptyDraft(get(state).draft));
   const edit = Atom.writable(
     () => undefined,
     (ctx, edit: Edit) => {
@@ -125,9 +114,6 @@ export function makeState(
 
   return {
     state,
-    document,
-    canEdit,
-    dirty,
     edit,
     get: () => registry.get(state),
     capture(): Submission | null {

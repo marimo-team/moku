@@ -22,13 +22,14 @@ export interface CellOptions {
 const documentUpdate = Annotation.define<boolean>();
 
 function readCode({ document, cellId }: CellOptions): string | null | undefined {
-  return document.registry.get(document.document)?.cells.get(cellId)?.code;
+  return document.registry.get(document.state).document?.cells.get(cellId)?.code;
 }
 
 function canEdit(options: CellOptions): boolean {
   const { document } = options;
   return (
-    document.registry.get(document.canEdit) && typeof readCode(options) === "string"
+    document.registry.get(document.state).canEdit &&
+    typeof readCode(options) === "string"
   );
 }
 
@@ -95,7 +96,6 @@ class CellBinding {
   private editable: boolean | undefined;
   private compositionTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly stopDocument: () => void;
-  private readonly stopPermissions: () => void;
 
   constructor(
     private readonly view: EditorView,
@@ -103,10 +103,7 @@ class CellBinding {
     private readonly permissionCompartment: Compartment,
   ) {
     const { document } = options;
-    this.stopDocument = document.registry.subscribe(document.document, () => {
-      this.schedulePull();
-    });
-    this.stopPermissions = document.registry.subscribe(document.canEdit, () => {
+    this.stopDocument = document.registry.subscribe(document.state, () => {
       this.schedulePull();
     });
     this.schedulePull();
@@ -136,7 +133,7 @@ class CellBinding {
       return;
     }
 
-    document.registry.set(document.edit, (transaction) => {
+    document.edit((transaction) => {
       transaction.setCode(cellId, update.state.doc.toString());
     });
   }
@@ -204,6 +201,5 @@ class CellBinding {
     this.destroyed = true;
     clearTimeout(this.compositionTimer);
     this.stopDocument();
-    this.stopPermissions();
   }
 }

@@ -82,5 +82,5 @@ export const make = (plugins: readonly Plugin.Plugin[]) =>
         fail(plugin.id, Cause.pretty(result.cause));
       }
     }
-    return { state: state as Atom.Atom<State> };
+    return { state: Atom.readable((get) => get(state)) };
   });

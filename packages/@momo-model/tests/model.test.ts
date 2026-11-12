@@ -1,6 +1,6 @@
-import { expect, onTestFinished, test, vi } from "vite-plus/test";
+import { expect, expectTypeOf, onTestFinished, test, vi } from "vite-plus/test";
 import { Effect, Exit, Layer, Scope } from "effect";
-import { AtomRegistry } from "effect/reactivity";
+import { Atom, AtomRegistry } from "effect/reactivity";
 import * as Model from "../src/index.ts";
 import * as Notebook from "../src/Notebook.ts";
 import * as Workspace from "../src/Workspace.ts";
@@ -197,9 +197,14 @@ const settled = async () => {
 test("workspace authenticates, shares catalog atoms, and refreshes after manual connections", async () => {
   const f = await fixture();
   const workspace = await f.run(Workspace.make({ launchKey: "launch-key" }));
-  await vi.waitFor(() => expect(f.registry.get(workspace.connections)).toHaveLength(1));
+  expectTypeOf(workspace.state).not.toExtend<Atom.Writable<Workspace.State>>();
+  expect(Atom.isWritable(workspace.state)).toBe(false);
+  await vi.waitFor(() =>
+    expect(f.registry.get(workspace.state).connections).toHaveLength(1),
+  );
   expect(f.requests[0].headers.get("authorization")).toBe("Bearer launch-key");
   const catalog = workspace.catalog("local");
+  expect(Atom.isWritable(catalog)).toBe(false);
   expect(workspace.catalog("local")).toBe(catalog);
   expect(f.streams).toHaveLength(0);
   const unmount = f.registry.mount(catalog);
@@ -213,11 +218,16 @@ test("workspace authenticates, shares catalog atoms, and refreshes after manual 
   await f.run(
     workspace.connect({ url: "http://manual/api/marimo/v1", token: "secret" }),
   );
-  expect(f.registry.get(workspace.connections)).toHaveLength(2);
-  expect(JSON.stringify(f.registry.get(workspace.connections))).not.toContain("secret");
+  expect(f.registry.get(workspace.state).connections).toHaveLength(2);
+  expect(JSON.stringify(f.registry.get(workspace.state).connections)).not.toContain(
+    "secret",
+  );
   await f.run(workspace.refresh);
-  expect(f.registry.get(workspace.connections)).toHaveLength(2);
-  expect(f.registry.get(workspace.status)).toEqual({ pending: false, error: null });
+  expect(f.registry.get(workspace.state).connections).toHaveLength(2);
+  expect(f.registry.get(workspace.state).status).toEqual({
+    pending: false,
+    error: null,
+  });
   unmount();
   await vi.waitFor(() => expect(stream.closed).toBe(true));
 });
@@ -225,28 +235,37 @@ test("workspace authenticates, shares catalog atoms, and refreshes after manual 
 test("only coherent document revisions become editable; output replacement, removal, and reset remain intact", async () => {
   const f = await fixture();
   const handle = await f.attach();
+  expectTypeOf(handle.state).not.toExtend<Atom.Writable<Notebook.State>>();
+  expect(Atom.isWritable(handle.state)).toBe(false);
   const stream = await f.stream();
   stream.send("notebook", { notebook });
   stream.send("cell", { cell });
   stream.send("document", { document });
   await settled();
-  expect(f.registry.get(handle.source)).toEqual({ document: null, canEdit: false });
+  expect(f.registry.get(handle.state).source).toEqual({
+    document: null,
+    canEdit: false,
+  });
   stream.send("ready", {}, "1");
-  await vi.waitFor(() => expect(f.registry.get(handle.source).canEdit).toBe(true));
+  await vi.waitFor(() =>
+    expect(f.registry.get(handle.state).source.canEdit).toBe(true),
+  );
   stream.send(
     "cell",
     { cell: { ...cell, version: 2, code: "x = 2", etag: "cell-2" } },
     "2",
   );
   await settled();
-  expect(f.registry.get(handle.source).document?.cells.get("a")?.code).toBe("x = 1");
+  expect(f.registry.get(handle.state).source.document?.cells.get("a")?.code).toBe(
+    "x = 1",
+  );
   stream.send(
     "document",
     { document: { ...document, version: 2, etag: "doc-2" } },
     "3",
   );
   await vi.waitFor(() =>
-    expect(f.registry.get(handle.source).document?.revision.etag).toBe("doc-2"),
+    expect(f.registry.get(handle.state).source.document?.revision.etag).toBe("doc-2"),
   );
   expect(f.registry.get(handle.state).value.cells.a.code).toBe("x = 2");
   stream.send(
@@ -315,8 +334,10 @@ test("only coherent document revisions become editable; output replacement, remo
   );
   expect(f.registry.get(handle.state).value.inputs).toEqual({});
   stream.send("reset", {});
-  await vi.waitFor(() => expect(f.registry.get(handle.source).document).toBeNull());
-  expect(f.registry.get(handle.source).canEdit).toBe(false);
+  await vi.waitFor(() =>
+    expect(f.registry.get(handle.state).source.document).toBeNull(),
+  );
+  expect(f.registry.get(handle.state).source.canEdit).toBe(false);
   expect(f.registry.get(handle.state).value.runs).toEqual({});
 });
 
@@ -325,25 +346,33 @@ test("replay retains the confirmed revision but disables editing until ready; re
   const handle = await f.attach();
   const first = await f.stream();
   snapshot(first);
-  await vi.waitFor(() => expect(f.registry.get(handle.source).canEdit).toBe(true));
+  await vi.waitFor(() =>
+    expect(f.registry.get(handle.state).source.canEdit).toBe(true),
+  );
   first.end();
   await vi.waitFor(() =>
     expect(f.registry.get(handle.state).status).toBe("reconnecting"),
   );
-  expect(f.registry.get(handle.source).canEdit).toBe(false);
-  expect(f.registry.get(handle.source).document?.revision.etag).toBe("doc-1");
+  expect(f.registry.get(handle.state).source.canEdit).toBe(false);
+  expect(f.registry.get(handle.state).source.document?.revision.etag).toBe("doc-1");
   const second = await f.stream(1);
   expect(second.request.headers.get("last-event-id")).toBe("1");
   second.send("ready", {}, "2");
-  await vi.waitFor(() => expect(f.registry.get(handle.source).canEdit).toBe(true));
+  await vi.waitFor(() =>
+    expect(f.registry.get(handle.state).source.canEdit).toBe(true),
+  );
   second.send("reset", {}, "2");
   second.send("cell", { cell });
-  await vi.waitFor(() => expect(f.registry.get(handle.source).document).toBeNull());
+  await vi.waitFor(() =>
+    expect(f.registry.get(handle.state).source.document).toBeNull(),
+  );
   second.end();
   const third = await f.stream(2);
   expect(third.request.headers.get("last-event-id")).toBeNull();
   snapshot(third);
-  await vi.waitFor(() => expect(f.registry.get(handle.source).canEdit).toBe(true));
+  await vi.waitFor(() =>
+    expect(f.registry.get(handle.state).source.canEdit).toBe(true),
+  );
 }, 10000);
 
 test("attachments isolate identical notebook IDs and stop on incoherent document events", async () => {
@@ -354,17 +383,19 @@ test("attachments isolate identical notebook IDs and stop on incoherent document
   const streamB = await f.stream(1);
   snapshot(streamA);
   snapshot(streamB);
-  await vi.waitFor(() => expect(f.registry.get(second.source).canEdit).toBe(true));
+  await vi.waitFor(() =>
+    expect(f.registry.get(second.state).source.canEdit).toBe(true),
+  );
   streamA.send(
     "document",
     { document: { ...document, order: ["missing"], version: 2 } },
     "2",
   );
   await vi.waitFor(() => expect(f.registry.get(first.state).status).toBe("error"));
-  expect(f.registry.get(first.source).canEdit).toBe(false);
+  expect(f.registry.get(first.state).source.canEdit).toBe(false);
   expect(f.registry.get(first.state).error?.message).toContain("do not match");
   expect(streamA.closed).toBe(true);
-  expect(f.registry.get(second.source).canEdit).toBe(true);
+  expect(f.registry.get(second.state).source.canEdit).toBe(true);
   const wrongRegistry = AtomRegistry.make();
   try {
     expect(() => wrongRegistry.get(second.state)).toThrow("AtomRegistry");

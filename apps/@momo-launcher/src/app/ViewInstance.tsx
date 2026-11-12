@@ -5,23 +5,16 @@ import type { Target } from "@momo/model/Notebook";
 import type { RegisteredView } from "./Host.ts";
 import type { Runtime } from "./runtime.ts";
 
-export interface OpenView {
-  readonly id: string;
-  readonly viewKey: string;
-  readonly target: Target;
-  readonly notebookName: string;
-}
-
 export function ViewInstance({
-  instance,
+  target,
   view,
   runtime,
 }: {
-  instance: OpenView;
+  target: Target;
   view: RegisteredView;
   runtime: Runtime;
 }) {
-  const attachment = useAtomValue(runtime.notebook(instance.target));
+  const attachment = useAtomValue(runtime.notebook(target));
   if (!AsyncResult.isSuccess(attachment))
     return (
       <div className="empty-state">

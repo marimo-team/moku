@@ -57,7 +57,7 @@ test("remote edits map selection across separate changes without creating undo e
   expect(view.state.doc.toString()).toBe("aaaaa\nmiddle\nzzzzz");
   expect(view.state.selection.main.anchor).toBe(9);
   expect(undoDepth(view.state)).toBe(0);
-  expect(h.registry.get(h.model.dirty)).toBe(false);
+  expect(h.registry.get(h.model.state).dirty).toBe(false);
 });
 
 test("a binding can be reused by views that share a draft and have independent lifetimes", async () => {
@@ -151,7 +151,7 @@ test("missing or withheld source clears the view until source is available again
   await tick();
   expect(view.state.doc.toString()).toBe("available");
 
-  h.registry.set(h.model.edit, (tx) => tx.deleteCell(cell.id));
+  h.model.edit((tx) => tx.deleteCell(cell.id));
   await tick();
   expect(view.state.doc.toString()).toBe("");
   expect(view.state.readOnly).toBe(true);
@@ -180,7 +180,7 @@ test("pending source changes cannot be overwritten by edits against stale view t
   expect(h.code()).toBe("new remote source");
   await tick();
   expect(view.state.doc.toString()).toBe("new remote source");
-  expect(h.registry.get(h.model.dirty)).toBe(false);
+  expect(h.registry.get(h.model.state).dirty).toBe(false);
 });
 
 test("source pulls wait for composition, including an end without a text change", async () => {
@@ -210,7 +210,7 @@ test("destroying a view cancels queued pulls and leaves the document usable", as
   await tick();
   expect(dispatch).not.toHaveBeenCalled();
   expect(h.code()).toBe("retained");
-  expect(h.registry.get(h.model.canEdit)).toBe(true);
+  expect(h.registry.get(h.model.state).canEdit).toBe(true);
 });
 
 test("closing the document makes remaining views read-only and prevents further drafts", async () => {
@@ -219,7 +219,7 @@ test("closing the document makes remaining views read-only and prevents further 
   await tick();
   await h.close();
   await tick();
-  expect(h.registry.get(h.model.canEdit)).toBe(false);
+  expect(h.registry.get(h.model.state).canEdit).toBe(false);
   expect(view.state.readOnly).toBe(true);
   replace(view, "too late");
   expect(h.code()).toBe(cell.code);

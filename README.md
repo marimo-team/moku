@@ -15,7 +15,7 @@ Open the authenticated link printed in the terminal. Start a notebook to inspect
 uv run marimo edit examples/revenue.py --sandbox --headless
 ```
 
-Use `bun dev:dag` to select Graph. Register views in
+Use `bun dev:dag` to list Graph first in “Open with”. Register views in
 [plugins.ts](apps/@momo-launcher/src/plugins.ts).
 
 ```sh

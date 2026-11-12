@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type * as Protocol from "@momo/model/Protocol";
+import * as Outputs from "@momo/model/Outputs";
+import { CellOutputs, ConsoleOutput } from "@momo/outputs";
 import { cellLabel, type NotebookState } from "./model.ts";
-
-import { CellOutput } from "./CellOutput.tsx";
 
 export function CellDetails({
   state,
@@ -21,12 +21,15 @@ export function CellDetails({
   const execution = Object.values(state.executions).find(
     (e) => e.cell_id === cellId && (!run || e.run_id === run.id),
   );
-  const logs = Object.values(state.consoles)
-    .filter((c) => c.execution_id === execution?.id)
-    .sort((a, b) => a.seq - b.seq);
-  const displays = Object.values(state.displays)
-    .filter((d) => d.execution_id === execution?.id)
-    .sort((a, b) => a.seq - b.seq);
+  const outputs: Outputs.Snapshot = execution
+    ? Outputs.forExecution(state, execution.id)
+    : { items: [], outcome: null };
+  const logs = outputs.items.filter((item) => item.kind === "console");
+  const displays = outputs.items.filter((item) => item.kind === "display");
+  const hasOutput =
+    displays.length > 0 ||
+    (outputs.outcome !== null &&
+      (outputs.outcome.kind !== "value" || outputs.outcome.display !== null));
   const variables = Object.values(state.variables).filter(
     (v) => v.execution_id === execution?.id,
   );
@@ -52,13 +55,13 @@ export function CellDetails({
           ×
         </button>
       </div>
-      {execution?.outcome?.kind === "error" && (
+      {tab !== "Output" && execution?.outcome?.kind === "error" && (
         <div className="error-panel">
           <strong>{execution.outcome.error.name ?? "Execution failed"}</strong>
           <p>{execution.outcome.error.message}</p>
         </div>
       )}
-      {execution?.outcome?.kind === "skipped" && (
+      {tab !== "Output" && execution?.outcome?.kind === "skipped" && (
         <div className="notice">{execution.outcome.message}</div>
       )}
       {pending.map((input) => (
@@ -103,38 +106,16 @@ export function CellDetails({
         )}
         {tab === "Logs" &&
           (logs.length ? (
-            <pre>
-              {logs.map((log) => (
-                <span className={log.name === "stderr" ? "stderr" : ""} key={log.id}>
-                  {log.text}
-                </span>
-              ))}
-            </pre>
+            <ConsoleOutput chunks={logs} />
           ) : (
             <p className="empty-detail">No console output for this execution.</p>
           ))}
-        {tab === "Output" && (
-          <>
-            {execution?.outcome?.kind === "value" && execution.outcome.display && (
-              <CellOutput {...execution.outcome.display} />
-            )}
-            {execution?.outcome?.kind === "error" &&
-              execution.outcome.error.traceback && (
-                <CellOutput {...execution.outcome.error.traceback} />
-              )}
-            {displays.map((display) => (
-              <CellOutput key={display.id} {...display.content} />
-            ))}
-            {!displays.length &&
-              !(execution?.outcome?.kind === "value" && execution.outcome.display) &&
-              !(
-                execution?.outcome?.kind === "error" &&
-                execution.outcome.error.traceback
-              ) && (
-                <p className="empty-detail">No rendered output for this execution.</p>
-              )}
-          </>
-        )}
+        {tab === "Output" &&
+          (hasOutput ? (
+            <CellOutputs items={displays} outcome={outputs.outcome} />
+          ) : (
+            <p className="empty-detail">No rendered output for this execution.</p>
+          ))}
         {tab === "Variables" &&
           (variables.length ? (
             <div className="variables">

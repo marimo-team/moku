@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test, vi } from "vite-plus/test";
 import { Effect, Exit, Scope } from "effect";
-import { AsyncResult, AtomRegistry } from "effect/reactivity";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { Plugin } from "@momo/plugin";
 import * as Host from "../src/app/Host.ts";
 import { makeRuntime } from "../src/app/runtime.ts";
@@ -16,6 +16,7 @@ async function host(plugins: readonly Plugin.Plugin[]) {
       Effect.provideService(Scope.Scope, scope),
     ),
   );
+  expect(Atom.isWritable(instance.state)).toBe(false);
   const unmount = registry.mount(instance.state);
   const close = () => Effect.runPromise(Scope.close(scope, Exit.void));
   onTestFinished(async () => {

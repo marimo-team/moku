@@ -1,4 +1,5 @@
 .dag {
+  --momo-output-error: #b46762;
   .run-view {
     border: 2px solid #e9e9e7;
     border-radius: 4px;
@@ -370,9 +371,6 @@
     max-height: 300px;
     overflow: auto;
   }
-  .stderr {
-    color: #b46762;
-  }
   .notice,
   .error-banner {
     padding: 12px 22px;
@@ -438,7 +436,10 @@
   .bindings p {
     font-family: ui-monospace, monospace;
   }
-  .details pre {
+  .details .source,
+  .details .variables pre,
+  .details .momo-console,
+  .details .momo-output-text {
     font:
       13px/1.7 ui-monospace,
       monospace;
@@ -448,14 +449,6 @@
   .details .source {
     background: #fafaf9;
     padding: 16px;
-  }
-  .details iframe {
-    width: 100%;
-    height: 260px;
-    border: 0;
-  }
-  .output-image {
-    max-width: 100%;
   }
   .details-footer {
     padding: 12px 30px;

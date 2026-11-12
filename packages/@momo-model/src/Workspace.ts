@@ -46,11 +46,21 @@ export interface Status {
 }
 
 /**
+ * Host connections and the progress of discovery or connection requests.
+ */
+export interface State {
+  readonly connections: readonly Connection[];
+  readonly status: Status;
+}
+
+/**
  * Host connections and catalogs read through the registry that created them.
  */
 export interface Workspace {
-  readonly connections: Atom.Atom<readonly Connection[]>;
-  readonly status: Atom.Atom<Status>;
+  /**
+   * Read-only connections and request status, updated through model operations.
+   */
+  readonly state: Atom.Atom<State>;
 
   /**
    * Returns a stable catalog atom for a connection.
@@ -134,24 +144,31 @@ export const make = (options: { launchKey?: string } = {}) =>
           : {}),
       },
     );
-    const connections = Atom.make<readonly Connection[]>([]);
-    const status = Atom.make<Status>({ pending: false, error: null });
+    const current = Atom.make<State>({
+      connections: [],
+      status: { pending: false, error: null },
+    });
     yield* Effect.acquireRelease(
-      Effect.sync(() => [registry.mount(connections), registry.mount(status)]),
-      (unmount) => Effect.sync(() => unmount.forEach((close) => close())),
+      Effect.sync(() => registry.mount(current)),
+      (unmount) => Effect.sync(unmount),
     );
+    const setStatus = (status: Status) =>
+      registry.update(current, (state) => ({ ...state, status }));
     const lock = yield* Semaphore.make(1);
     const update = <A>(operation: Effect.Effect<A, Transport.RequestError>) =>
       lock.withPermit(
         Effect.gen(function* () {
-          registry.set(status, { pending: true, error: null });
+          setStatus({ pending: true, error: null });
           return yield* operation.pipe(
             Effect.tapError((error) =>
-              Effect.sync(() => registry.set(status, { pending: false, error })),
+              Effect.sync(() => setStatus({ pending: false, error })),
             ),
             Effect.ensuring(
               Effect.sync(() =>
-                registry.update(status, (state) => ({ ...state, pending: false })),
+                registry.update(current, (state) => ({
+                  ...state,
+                  status: { ...state.status, pending: false },
+                })),
               ),
             ),
           );
@@ -161,14 +178,17 @@ export const make = (options: { launchKey?: string } = {}) =>
       transport
         .json("/api/hosts", Schema.Array(Connection), { signal: lifetime.signal })
         .pipe(
-          Effect.tap((found) => Effect.sync(() => registry.set(connections, found))),
+          Effect.tap((found) =>
+            Effect.sync(() =>
+              registry.update(current, (state) => ({ ...state, connections: found })),
+            ),
+          ),
           Effect.asVoid,
         ),
     );
     const catalogs = new Map<string, Atom.Atom<Observation<Catalog>>>();
     const workspace: Workspace = {
-      connections,
-      status,
+      state: Atom.readable((get) => get(current)),
       refresh,
       connect: (input) =>
         update(
@@ -182,10 +202,13 @@ export const make = (options: { launchKey?: string } = {}) =>
             .pipe(
               Effect.tap((connection) =>
                 Effect.sync(() =>
-                  registry.update(connections, (current) => [
-                    ...current.filter((item) => item.id !== connection.id),
-                    connection,
-                  ]),
+                  registry.update(current, (state) => ({
+                    ...state,
+                    connections: [
+                      ...state.connections.filter((item) => item.id !== connection.id),
+                      connection,
+                    ],
+                  })),
                 ),
               ),
             ),

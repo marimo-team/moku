@@ -1,9 +1,9 @@
 import { onTestFinished } from "vite-plus/test";
 import { Context, Effect, Exit, Layer, Scope } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import type { Observation } from "@momo/model";
 import * as Protocol from "@momo/model/Protocol";
 import * as Notebook from "@momo/model/Notebook";
+import { emptyNotebook } from "../../@momo-model/src/notebook/state.ts";
 import * as Document from "../src/Document.ts";
 
 export const cell = Protocol.Cell.parse({
@@ -49,10 +49,12 @@ export async function setup(edit?: Notebook.Interface["edit"]) {
   const unused = () => Effect.die("Unexpected notebook operation");
   const notebook: Notebook.Interface = {
     target: { connectionId: "host", notebookId: "n" },
-    source,
-    state: Atom.make((): Observation<Notebook.Snapshot> => {
-      throw new Error("Unexpected notebook state read");
-    }),
+    state: Atom.readable((get): Notebook.State => ({
+      value: emptyNotebook(),
+      status: "connected",
+      error: null,
+      source: get(source),
+    })),
     edit:
       edit ??
       (({ request, requestId: key }) =>
@@ -97,9 +99,8 @@ export async function setup(edit?: Notebook.Interface["edit"]) {
     await close();
     registry.dispose();
   });
-  const change = (code: string) =>
-    registry.set(model.edit, (tx) => tx.setCode(cell.id, code));
-  const code = () => registry.get(model.document)?.cells.get(cell.id)?.code;
+  const change = (code: string) => model.edit((tx) => tx.setCode(cell.id, code));
+  const code = () => registry.get(model.state).document?.cells.get(cell.id)?.code;
   const publish = (code: string, version: number) =>
     registry.set(source, { document: confirmed(code, version), canEdit: true });
   return {

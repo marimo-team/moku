@@ -16,9 +16,14 @@
       "dependencies": {
         "@effect/atom-react": "4.1.0",
         "@momo/model": "workspace:*",
+        "@momo/outputs": "workspace:*",
         "@momo/plugin": "workspace:*",
         "effect": "4.1.0",
         "react": "^19.3.0",
+      },
+      "devDependencies": {
+        "happy-dom": "^21.0.4",
+        "react-dom": "^19.3.0",
       },
     },
     "apps/@momo-launcher": {
@@ -35,6 +40,7 @@
       },
       "devDependencies": {
         "@vitejs/plugin-react": "^6.1.2",
+        "happy-dom": "^21.0.4",
       },
     },
     "packages/@momo-editor": {

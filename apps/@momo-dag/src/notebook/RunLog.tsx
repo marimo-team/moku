@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ConsoleOutput } from "@momo/outputs";
 import type * as Protocol from "@momo/model/Protocol";
 import { cellLabel, type NotebookState } from "./model.ts";
 
@@ -31,17 +32,12 @@ export function RunLog({
           <span>{cellLabel(state.cells[running.cell_id], 0)} · running</span>
         )}
       </button>
-      {logOpen && (
-        <pre className="run-log">
-          {logs.length
-            ? logs.map((log) => (
-                <span key={log.id} className={log.name}>
-                  {log.text}
-                </span>
-              ))
-            : "No console output for this run."}
-        </pre>
-      )}
+      {logOpen &&
+        (logs.length ? (
+          <ConsoleOutput className="run-log" chunks={logs} />
+        ) : (
+          <p className="run-log">No console output for this run.</p>
+        ))}
     </>
   );
 }

@@ -1,15 +1,18 @@
 import { useAtomValue } from "@effect/atom-react";
-import { AsyncResult } from "effect/reactivity";
+import { AsyncResult, type Atom } from "effect/reactivity";
 import type * as Workspace from "@momo/model/Workspace";
 import { Launcher } from "./Launcher.tsx";
+import { ViewInstance, ViewErrorBoundary } from "./ViewInstance.tsx";
 import type { Runtime } from "./runtime.ts";
+import type { Route } from "./routes.ts";
+import type * as Host from "./Host.ts";
 
-export function App({ runtime }: { runtime: Runtime }) {
+export function App({ runtime, route }: { runtime: Runtime; route: Route }) {
   const workspace = useAtomValue(runtime.workspace);
   if (!AsyncResult.isSuccess(workspace)) {
     const failed = AsyncResult.isFailure(workspace);
     return (
-      <div className="auth-screen">
+      <main className="auth-screen">
         <h1>momo</h1>
         <p>
           {failed
@@ -17,25 +20,70 @@ export function App({ runtime }: { runtime: Runtime }) {
             : "Connecting…"}
         </p>
         {failed && <code>bun dev</code>}
-      </div>
+      </main>
     );
   }
-  return <Loaded runtime={runtime} workspace={workspace.value} />;
+  return <Loaded runtime={runtime} workspace={workspace.value} route={route} />;
 }
 
 function Loaded({
   runtime,
   workspace,
+  route,
 }: {
   runtime: Runtime;
   workspace: Workspace.Workspace;
+  route: Route;
 }) {
   const host = useAtomValue(runtime.host);
   if (!AsyncResult.isSuccess(host))
     return (
-      <div className="empty-state">
+      <main className="empty-state">
         {AsyncResult.isFailure(host) ? "Could not load views." : "Loading views…"}
-      </div>
+      </main>
     );
-  return <Launcher runtime={runtime} workspace={workspace} host={host.value} />;
+  return route.kind === "catalog" ? (
+    <Launcher workspace={workspace} host={host.value} />
+  ) : (
+    <ViewPage runtime={runtime} state={host.value.state} route={route} />
+  );
+}
+
+function ViewPage({
+  runtime,
+  state,
+  route,
+}: {
+  runtime: Runtime;
+  state: Atom.Atom<Host.State>;
+  route: Exclude<Route, { kind: "catalog" }>;
+}) {
+  const { views, failures } = useAtomValue(state);
+  const view =
+    route.kind === "view"
+      ? views.find((view) => view.key === route.viewKey)
+      : undefined;
+  return (
+    <main className="view-page">
+      <a className="back-link" href="/">
+        ← Notebooks
+      </a>
+      {route.kind === "view" && view ? (
+        <ViewErrorBoundary>
+          <ViewInstance target={route.target} view={view} runtime={runtime} />
+        </ViewErrorBoundary>
+      ) : (
+        <div className="empty-state">
+          <h1>
+            {route.kind === "missing" ? "Page not found." : "This view is unavailable."}
+          </h1>
+          {failures.map((failure, index) => (
+            <p key={`${failure.pluginId}:${index}`} role="alert">
+              {failure.message}
+            </p>
+          ))}
+        </div>
+      )}
+    </main>
+  );
 }

@@ -19,7 +19,7 @@ export type { Confirmed };
 /**
  * Observed notebook records, including runtime activity and execution results.
  */
-export type Snapshot = Omit<NotebookState, "confirmed">;
+export type Snapshot = Readonly<Omit<NotebookState, "confirmed">>;
 
 /**
  * Identifies a notebook through a host connection.
@@ -42,6 +42,13 @@ export interface Source {
   readonly document: Confirmed | null;
   readonly canEdit: boolean;
 }
+/**
+ * Notebook records, confirmed source, and observation progress.
+ */
+export interface State extends Observation<Snapshot> {
+  readonly source: Source;
+}
+
 export interface RequestOptions {
   /**
    * An idempotency key for one logical request.
@@ -90,14 +97,9 @@ export interface Interface {
   readonly target: Target;
 
   /**
-   * Live notebook records with connection status and any observation error.
+   * Read-only records, source, connection status, and any observation error.
    */
-  readonly state: Atom.Atom<Observation<Snapshot>>;
-
-  /**
-   * A coherent document snapshot for editing, separate from runtime activity.
-   */
-  readonly source: Atom.Atom<Source>;
+  readonly state: Atom.Atom<State>;
 
   /**
    * Submits versioned document changes to the host.
@@ -190,7 +192,7 @@ export function make(
     const notebook = transport
       .client(target.connectionId, lifetime.signal)
       .notebook(target.notebookId);
-    const state = observe({
+    const observed = observe({
       registry,
       signal: lifetime.signal,
       initial: emptyNotebook(),
@@ -232,24 +234,28 @@ export function make(
         }),
     });
     yield* Effect.acquireRelease(
-      Effect.sync(() => registry.mount(state)),
+      Effect.sync(() => registry.mount(observed)),
       (unmount) => Effect.sync(unmount),
     );
-    const source = Atom.make((get): Source => {
-      const observation = get(state);
+    const state = Atom.readable((get): State => {
+      const observation = get(observed);
+      const { confirmed, ...value } = observation.value;
       return {
-        document: observation.value.confirmed.current,
-        canEdit:
-          observation.status === "connected" &&
-          observation.value.phase === "live" &&
-          observation.value.confirmed.current !== null &&
-          observation.value.notebook?.operations.includes("notebook.edit") === true,
+        ...observation,
+        value,
+        source: {
+          document: confirmed.current,
+          canEdit:
+            observation.status === "connected" &&
+            value.phase === "live" &&
+            confirmed.current !== null &&
+            value.notebook?.operations.includes("notebook.edit") === true,
+        },
       };
     });
     return Service.of({
       target,
       state,
-      source,
       edit: ({ request, requestId }) =>
         Transport.mutation((signal) =>
           notebook.edit(request.changes, { signal, idempotencyKey: requestId }),

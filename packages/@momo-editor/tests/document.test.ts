@@ -1,5 +1,6 @@
-import { expect, test, vi } from "vite-plus/test";
+import { expect, expectTypeOf, onTestFinished, test, vi } from "vite-plus/test";
 import { Effect } from "effect";
+import { Atom } from "effect/reactivity";
 import * as Protocol from "@momo/model/Protocol";
 import { RequestError } from "@momo/model";
 import * as Document from "../src/Document.ts";
@@ -33,7 +34,7 @@ for (const ordering of ["response-first", "stream-first"]) {
     h.calls[1].respond(3);
     h.publish("second", 3);
     expect((await flushed).cells.get(cell.id)?.etag).toBe("cell-v3");
-    expect(h.registry.get(h.model.dirty)).toBe(false);
+    expect(h.registry.get(h.model.state).dirty).toBe(false);
     h.publish("external", 4);
     expect(h.code()).toBe("external");
   });
@@ -56,18 +57,18 @@ test("transactions roll back, reject async callbacks, and cannot escape", async 
   const h = await setup();
   let escaped: Document.Editor | undefined;
   expect(() =>
-    h.registry.set(h.model.edit, (tx) => {
+    h.model.edit((tx) => {
       tx.setCode(cell.id, "discard");
       throw new Error("rollback");
     }),
   ).toThrow("rollback");
   expect(h.code()).toBe(cell.code);
   expect(() =>
-    h.registry.set(h.model.edit, async (tx) => {
+    h.model.edit(async (tx) => {
       tx.setCode(cell.id, "discard");
     }),
   ).toThrow("synchronous");
-  h.registry.set(h.model.edit, (tx) => {
+  h.model.edit((tx) => {
     escaped = tx;
   });
   expect(() => escaped!.setCode(cell.id, "late")).toThrow("ended");
@@ -77,21 +78,19 @@ test("transactions roll back, reject async callbacks, and cannot escape", async 
 test("insertion is immediate and deleting an unsent creation needs no host request", async () => {
   const h = await setup();
   const id = "new-cell";
-  h.registry.set(h.model.edit, (tx) =>
-    tx.createCell({ id, code: "" }, { before: cell.id }),
-  );
-  expect(h.registry.get(h.model.document)?.order).toEqual([id, cell.id]);
-  h.registry.set(h.model.edit, (tx) => tx.deleteCell(id));
+  h.model.edit((tx) => tx.createCell({ id, code: "" }, { before: cell.id }));
+  expect(h.registry.get(h.model.state).document?.order).toEqual([id, cell.id]);
+  h.model.edit((tx) => tx.deleteCell(id));
   await Effect.runPromise(h.model.flush);
   expect(h.calls).toHaveLength(0);
-  expect(h.registry.get(h.model.document)?.order).toEqual([cell.id]);
+  expect(h.registry.get(h.model.state).document?.order).toEqual([cell.id]);
 });
 
 test("retains a draft across reset and retries against a complete snapshot", async () => {
   const h = await setup();
   h.change("local");
   h.registry.set(h.source, { document: null, canEdit: false });
-  expect(h.registry.get(h.model.document)).toBeNull();
+  expect(h.registry.get(h.model.state).document).toBeNull();
   h.publish("remote", 2);
   expect(h.code()).toBe("local");
   const flushed = Effect.runPromise(h.model.flush);
@@ -197,7 +196,7 @@ test("withheld source and permission changes cannot publish edits", async () => 
     },
     canEdit: true,
   });
-  h.registry.set(h.model.edit, (tx) => tx.setName(cell.id, "renamed"));
+  h.model.edit((tx) => tx.setName(cell.id, "renamed"));
   await expect(Effect.runPromise(h.model.flush)).rejects.toThrow("unavailable");
   expect(h.calls).toHaveLength(0);
 });
@@ -214,8 +213,10 @@ test("configuration patches preserve omitted settings and remote changes to othe
     },
     canEdit: true,
   });
-  h.registry.set(h.model.edit, (tx) => tx.updateConfig(cell.id, { hide_code: true }));
-  expect(h.registry.get(h.model.document)?.cells.get(cell.id)?.config).toMatchObject({
+  h.model.edit((tx) => tx.updateConfig(cell.id, { hide_code: true }));
+  expect(
+    h.registry.get(h.model.state).document?.cells.get(cell.id)?.config,
+  ).toMatchObject({
     disabled: true,
     hide_code: true,
   });
@@ -253,13 +254,13 @@ test("configuration patches preserve omitted settings and remote changes to othe
 
 test("a single transaction creates, removes, and orders cells atomically", async () => {
   const h = await setup();
-  h.registry.set(h.model.edit, (tx) => {
+  h.model.edit((tx) => {
     tx.createCell({ id: "b", code: "b = 2" }, { after: cell.id });
     tx.createCell({ id: "c", code: "c = 3" });
     tx.deleteCell(cell.id);
     tx.setOrder(["c", "b"]);
   });
-  expect(h.registry.get(h.model.document)?.order).toEqual(["c", "b"]);
+  expect(h.registry.get(h.model.state).document?.order).toEqual(["c", "b"]);
   const flushing = Effect.runPromise(h.model.flush);
   await vi.waitFor(() => expect(h.calls).toHaveLength(1));
   const request = h.calls[0].request;
@@ -295,15 +296,15 @@ test("a single transaction creates, removes, and orders cells atomically", async
     },
   });
   await flushing;
-  expect(h.registry.get(h.model.dirty)).toBe(false);
+  expect(h.registry.get(h.model.state).dirty).toBe(false);
 });
 
 test("deleting an in-flight creation waits for its acknowledgment before sending the delete", async () => {
   const h = await setup();
-  h.registry.set(h.model.edit, (tx) => tx.createCell({ id: "b", code: "b = 2" }));
+  h.model.edit((tx) => tx.createCell({ id: "b", code: "b = 2" }));
   const flushing = Effect.runPromise(h.model.flush);
   await vi.waitFor(() => expect(h.calls).toHaveLength(1));
-  h.registry.set(h.model.edit, (tx) => tx.deleteCell("b"));
+  h.model.edit((tx) => tx.deleteCell("b"));
   h.registry.set(h.source, {
     canEdit: true,
     document: {
@@ -314,7 +315,7 @@ test("deleting an in-flight creation waits for its acknowledgment before sending
       ]),
     },
   });
-  expect(h.registry.get(h.model.document)?.order).toEqual(["a"]);
+  expect(h.registry.get(h.model.state).document?.order).toEqual(["a"]);
   h.calls[0].respond(2);
   await vi.waitFor(() => expect(h.calls).toHaveLength(2));
   expect(h.calls[1].request.changes).toEqual([
@@ -323,22 +324,22 @@ test("deleting an in-flight creation waits for its acknowledgment before sending
   h.calls[1].respond(3);
   h.publish(cell.code!, 3);
   await flushing;
-  expect(h.registry.get(h.model.dirty)).toBe(false);
+  expect(h.registry.get(h.model.state).dirty).toBe(false);
 });
 
 test("separate documents keep separate drafts over the same notebook", async () => {
   const h = await setup();
   const other = await h.make();
   h.change("first draft");
-  h.registry.set(other.edit, (tx) => tx.setName(cell.id, "second_draft"));
+  other.edit((tx) => tx.setName(cell.id, "second_draft"));
   expect(h.code()).toBe("first draft");
-  expect(h.registry.get(other.document)?.cells.get(cell.id)).toMatchObject({
+  expect(h.registry.get(other.state).document?.cells.get(cell.id)).toMatchObject({
     code: cell.code,
     name: "second_draft",
   });
   h.publish("remote", 2);
   expect(h.code()).toBe("first draft");
-  expect(h.registry.get(other.document)?.cells.get(cell.id)).toMatchObject({
+  expect(h.registry.get(other.state).document?.cells.get(cell.id)).toMatchObject({
     code: "remote",
     name: "second_draft",
   });
@@ -353,6 +354,40 @@ test("autosynchronization sends the latest draft after typing settles", async ()
   expect(h.calls[0].request.changes[0]).toMatchObject({ cell: { code: "latest" } });
   h.calls[0].respond(2);
   h.publish("latest", 2);
-  await vi.waitFor(() => expect(h.registry.get(h.model.dirty)).toBe(false));
-  expect(h.registry.get(h.model.status)).toEqual({ status: "idle" });
+  await vi.waitFor(() => expect(h.registry.get(h.model.state).dirty).toBe(false));
+  expect(h.registry.get(h.model.state).status).toEqual({ status: "idle" });
+});
+
+test("public state is read-only and selectors isolate permission changes from typing", async () => {
+  const h = await setup();
+  expectTypeOf(h.model.state).toEqualTypeOf<Atom.Atom<Document.State>>();
+  expectTypeOf(h.model.state).not.toExtend<Atom.Writable<Document.State>>();
+  expect(Atom.isWritable(h.model.state)).toBe(false);
+
+  const canEdit = Atom.readable((get) => get(h.model.state).canEdit);
+  expect(h.registry.get(canEdit)).toBe(true);
+  const permissions = vi.fn();
+  onTestFinished(h.registry.subscribe(canEdit, permissions));
+  const snapshots: Document.State[] = [];
+  onTestFinished(h.registry.subscribe(h.model.state, (state) => snapshots.push(state)));
+
+  h.model.edit((edit) => {
+    edit.setCode(cell.id, "updated");
+    edit.setName(cell.id, "renamed");
+  });
+  const state = h.registry.get(h.model.state);
+  expect(state.dirty).toBe(true);
+  expect(state.document?.cells.get(cell.id)).toMatchObject({
+    code: "updated",
+    name: "renamed",
+  });
+  await vi.waitFor(() => expect(snapshots.length).toBeGreaterThan(0));
+  expect(snapshots.every((snapshot) => snapshot.dirty)).toBe(true);
+  expect(permissions).not.toHaveBeenCalled();
+
+  h.registry.set(h.source, { document: confirmed(), canEdit: false });
+  await vi.waitFor(() => expect(permissions).toHaveBeenCalledExactlyOnceWith(false));
+  expect(h.registry.get(h.model.state).dirty).toBe(true);
+  h.change("forbidden");
+  expect(h.code()).toBe("updated");
 });

@@ -4,7 +4,7 @@ import { Cause, Effect } from "effect";
 import { AsyncResult, Atom } from "effect/reactivity";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
-import { ensureRuntime } from "../../app/execution.ts";
+import * as Runtime from "@moku/core/Runtime";
 import type { NotebookState } from "./execution.ts";
 
 type RunAction = "run" | "cancel";
@@ -45,7 +45,7 @@ export function useRunActions(
               .pipe(Effect.timeout("10 seconds"));
             return;
           }
-          if (!(yield* ensureRuntime(notebook))) return;
+          if (!(yield* Runtime.ensureRunning(notebook))) return;
           const latest = get(notebook.state);
           if (latest.status !== "connected" || !latest.value.ready)
             return yield* Effect.fail(

@@ -5,6 +5,7 @@ import * as Model from "../src/index.ts";
 import * as Notebook from "../src/Notebook.ts";
 import * as Workspace from "../src/Workspace.ts";
 import * as Protocol from "../src/Protocol.ts";
+import * as Runtime from "../src/Runtime.ts";
 
 const notebook = {
   id: "n",
@@ -60,7 +61,7 @@ interface TestStream {
   end: () => void;
 }
 
-async function fixture() {
+async function fixture(start?: () => Promise<Response>) {
   const requests: Request[] = [];
   const streams: TestStream[] = [];
   const connections = [
@@ -138,6 +139,7 @@ async function fixture() {
       );
     if (path.endsWith("/edits") || path.endsWith("/save"))
       return Response.json({ document, cells: {} });
+    if (path.endsWith("/runtime") && request.method === "PUT" && start) return start();
     return Response.json(path.includes("/runs") ? runRecord : runtime, { status: 202 });
   };
   const registry = AtomRegistry.make();
@@ -487,3 +489,149 @@ test("bound commands preserve preconditions, distinguish cancel from interrupt, 
   expect(await pending).toBe("aborted");
   expect(f.streams.every((stream) => stream.closed)).toBe(true);
 });
+
+test.each(["running", "failed", "removed"] as const)(
+  "runtime startup retains %s observed before the command response",
+  async (outcome) => {
+    const response = Promise.withResolvers<Response>();
+    const start = vi.fn(() => response.promise);
+    const f = await fixture(start);
+    const handle = await f.attach();
+    const stream = await f.stream();
+    snapshot(stream);
+    await vi.waitFor(() => expect(f.registry.get(handle.state).value.ready).toBe(true));
+    const result = f.run(Runtime.ensureRunning(handle)).then(
+      (value) => value,
+      (error: Error) => error.message,
+    );
+    await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+    stream.send("runtime", { runtime: { ...runtime, status: "starting" } }, "2");
+    await vi.waitFor(() =>
+      expect(f.registry.get(handle.state).value.runtime?.status).toBe("starting"),
+    );
+    if (outcome === "removed") {
+      stream.send("runtime.removed", { id: runtime.id }, "3");
+    } else {
+      stream.send(
+        "runtime",
+        { runtime: { ...runtime, status: outcome, message: "Startup failed" } },
+        "3",
+      );
+    }
+    await vi.waitFor(() =>
+      expect(f.registry.get(handle.state).value.runtime?.status ?? "removed").toBe(
+        outcome,
+      ),
+    );
+    // Even a successful HTTP response must not revive a removed runtime.
+    response.resolve(
+      Response.json(
+        { ...runtime, status: outcome === "removed" ? "running" : "starting" },
+        { status: 202 },
+      ),
+    );
+    expect(await result).toBe(
+      outcome === "failed" ? "Startup failed" : outcome === "running",
+    );
+  },
+);
+
+test("runtime startup waits for its identity after the command response", async () => {
+  const start = vi.fn(async () =>
+    Response.json({ ...runtime, status: "starting" }, { status: 202 }),
+  );
+  const f = await fixture(start);
+  const handle = await f.attach();
+  const stream = await f.stream();
+  snapshot(stream);
+  await vi.waitFor(() => expect(f.registry.get(handle.state).value.ready).toBe(true));
+  let complete = false;
+  const result = f.run(Runtime.ensureRunning(handle)).then((value) => {
+    complete = true;
+    return value;
+  });
+  await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+  stream.send("runtime", { runtime: { ...runtime, id: "unrelated" } }, "2");
+  await vi.waitFor(() =>
+    expect(f.registry.get(handle.state).value.runtime?.id).toBe("unrelated"),
+  );
+  await settled();
+  expect(complete).toBe(false);
+  stream.send("runtime", { runtime }, "3");
+  expect(await result).toBe(true);
+});
+
+test("runtime startup accepts a running response after an earlier starting event", async () => {
+  const response = Promise.withResolvers<Response>();
+  const start = vi.fn(() => response.promise);
+  const f = await fixture(start);
+  const handle = await f.attach();
+  const stream = await f.stream();
+  snapshot(stream);
+  const result = f.run(Runtime.ensureRunning(handle));
+  await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+  stream.send("runtime", { runtime: { ...runtime, status: "starting" } }, "2");
+  await vi.waitFor(() =>
+    expect(f.registry.get(handle.state).value.runtime?.status).toBe("starting"),
+  );
+  response.resolve(Response.json(runtime, { status: 202 }));
+  expect(await result).toBe(true);
+});
+
+test("runtime startup joins an existing start and reuses a running runtime", async () => {
+  const f = await fixture();
+  const handle = await f.attach();
+  const stream = await f.stream();
+  snapshot(stream);
+  stream.send("runtime", { runtime: { ...runtime, status: "starting" } }, "2");
+  await vi.waitFor(() =>
+    expect(f.registry.get(handle.state).value.runtime?.status).toBe("starting"),
+  );
+  const result = f.run(Runtime.ensureRunning(handle));
+  await settled();
+  stream.send("runtime", { runtime }, "3");
+  expect(await result).toBe(true);
+  expect(await f.run(Runtime.ensureRunning(handle))).toBe(true);
+  expect(f.requests.filter((request) => request.method === "PUT")).toHaveLength(0);
+});
+
+test.each(["interruption", "timeout"] as const)(
+  "runtime startup releases observation on %s",
+  async (end) => {
+    const start = vi.fn(async () =>
+      Response.json({ ...runtime, status: "starting" }, { status: 202 }),
+    );
+    const f = await fixture(start);
+    const handle = await f.attach();
+    const stream = await f.stream();
+    snapshot(stream);
+    await vi.waitFor(() => expect(f.registry.get(handle.state).value.ready).toBe(true));
+    const released = vi.fn();
+    const state = Atom.readable((get) => {
+      get.addFinalizer(released);
+      return get(handle.state);
+    });
+    const controller = new AbortController();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      const result = Effect.runPromise(
+        Runtime.ensureRunning({ ...handle, state }).pipe(
+          Effect.provideService(AtomRegistry.AtomRegistry, f.registry),
+        ),
+        { signal: controller.signal },
+      ).then(
+        () => "succeeded",
+        (error: { _tag?: string }) => error._tag ?? "interrupted",
+      );
+      await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+      expect(released).not.toHaveBeenCalled();
+      if (end === "timeout") await vi.advanceTimersByTimeAsync(60_000);
+      else controller.abort();
+      expect(await result).toBe(end === "timeout" ? "TimeoutError" : "interrupted");
+      await vi.waitFor(() => expect(released).toHaveBeenCalledOnce());
+    } finally {
+      controller.abort();
+      vi.useRealTimers();
+    }
+  },
+);

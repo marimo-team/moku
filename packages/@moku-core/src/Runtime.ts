@@ -6,8 +6,9 @@
  *
  * @module
  */
-import type { Effect, Stream } from "effect";
-import type { Atom } from "effect/reactivity";
+import { Data, Effect, Queue, type Stream } from "effect";
+import { AtomRegistry, type Atom } from "effect/reactivity";
+import type * as Notebook from "./Notebook.ts";
 import type * as Protocol from "./Protocol.ts";
 import type * as Interaction from "./Interaction.ts";
 import type { RequestError } from "./internal/transport.ts";
@@ -85,4 +86,80 @@ export interface Interface {
   readonly assetUrl: (path: string) => string;
   /** Reconnects output transport after credentials or host availability change. */
   readonly retry: Effect.Effect<void>;
+}
+
+type StartupObservation = Data.TaggedEnum<{
+  Unseen: {};
+  Present: { readonly runtime: Protocol.RuntimeOutput };
+  Removed: {};
+}>;
+const StartupObservation = Data.taggedEnum<StartupObservation>();
+
+/**
+ * Reuses a running runtime, joins startup, or starts one and waits up to 60 seconds.
+ * Returns false if the matching runtime is removed or terminates. Observation is
+ * scoped to the caller, including cancellation and timeout.
+ */
+export function ensureRunning(notebook: Notebook.Interface) {
+  return Effect.gen(function* () {
+    const registry = yield* AtomRegistry.AtomRegistry;
+    const observations = yield* Queue.unbounded<Notebook.State>();
+    // Subscribe before starting: stream updates may precede the HTTP response.
+    yield* Effect.acquireRelease(
+      Effect.sync(() =>
+        registry.subscribe(
+          notebook.state,
+          (state) => {
+            Queue.offerUnsafe(observations, state);
+          },
+          { immediate: true },
+        ),
+      ),
+      (unsubscribe) => Effect.sync(unsubscribe),
+    );
+    const initial = registry.get(notebook.state);
+    if (initial.error) return yield* Effect.fail(initial.error);
+    if (initial.status === "closed")
+      return yield* Effect.fail(new Error("The notebook connection closed."));
+    const current = initial.value.runtime;
+    if (current?.status === "running") return true;
+    const started =
+      current?.status === "starting"
+        ? current
+        : yield* notebook.runtime.start({ requestId: crypto.randomUUID() });
+    let observed: StartupObservation = StartupObservation.Unseen();
+    let pending = yield* Queue.takeAll(observations);
+    while (true) {
+      // Reconcile the whole buffered batch before accepting an older response.
+      for (const state of pending) {
+        if (state.error) return yield* Effect.fail(state.error);
+        if (state.status === "closed")
+          return yield* Effect.fail(new Error("The notebook connection closed."));
+        const runtime = state.value.runtime;
+        if (runtime?.id === started.id) {
+          observed = StartupObservation.Present({ runtime });
+        } else if (state.value.ready && observed._tag === "Present") {
+          observed = StartupObservation.Removed();
+        }
+      }
+      if (observed._tag === "Removed") return false;
+      // A starting event may precede a more advanced command response.
+      const runtime =
+        observed._tag === "Present" && observed.runtime.status !== "starting"
+          ? observed.runtime
+          : started;
+      switch (runtime.status) {
+        case "running":
+          return true;
+        case "terminating":
+          return false;
+        case "failed":
+          return yield* Effect.fail(
+            new Error(runtime.message ?? "The runtime could not start."),
+          );
+        case "starting":
+          pending = yield* Queue.takeAll(observations);
+      }
+    }
+  }).pipe(Effect.scoped, Effect.timeout("60 seconds"));
 }

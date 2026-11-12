@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Document from "@moku/editor/Document";
-import { ensureRuntime } from "../../app/execution.ts";
+import * as Runtime from "@moku/core/Runtime";
 
 export function make(notebook: Notebook.Interface, document: Document.Interface) {
   return Effect.gen(function* () {
@@ -11,7 +11,7 @@ export function make(notebook: Notebook.Interface, document: Document.Interface)
     const run = Atom.fn((input: { cellIds?: readonly string[] }) =>
       Effect.gen(function* () {
         yield* document.flush;
-        if (!(yield* ensureRuntime(notebook))) return;
+        if (!(yield* Runtime.ensureRunning(notebook))) return;
         const confirmed = yield* document.flush;
         const cells = yield* Effect.forEach(
           input.cellIds ?? confirmed.revision.order,

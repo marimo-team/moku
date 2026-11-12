@@ -46,11 +46,11 @@ export function DisplayView({
       {data.mimetype === "text/plain" ? (
         <pre className="moku-output-text">{data.data}</pre>
       ) : (
-        <DisplayBoundary data={data}>
+        <DisplayErrorBoundary data={data}>
           <Suspense fallback={null}>
             <RichDisplay data={data} runtimeId={runtimeId} />
           </Suspense>
-        </DisplayBoundary>
+        </DisplayErrorBoundary>
       )}
     </div>
   );
@@ -61,7 +61,7 @@ interface BoundaryState {
   readonly failed: boolean;
 }
 
-class DisplayBoundary extends Component<
+class DisplayErrorBoundary extends Component<
   { readonly data: DisplayData; readonly children: ReactNode },
   BoundaryState
 > {

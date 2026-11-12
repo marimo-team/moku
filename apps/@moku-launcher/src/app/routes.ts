@@ -22,7 +22,12 @@ export function parseRoute(url: URL): Route {
     return {
       kind: "view",
       target: { connectionId, notebookId: decodeURIComponent(match[1]) },
-      viewKey,
+      viewKey:
+        viewKey === "dag/graph"
+          ? "graph-explainer/graph"
+          : viewKey === "editor/notebook"
+            ? "notebook/notebook"
+            : viewKey,
     };
   } catch {
     return { kind: "missing" };

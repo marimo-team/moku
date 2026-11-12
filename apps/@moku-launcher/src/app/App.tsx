@@ -23,10 +23,10 @@ export function App({ runtime, route }: { runtime: Runtime; route: Route }) {
       </main>
     );
   }
-  return <Loaded runtime={runtime} workspace={workspace.value} route={route} />;
+  return <WorkspaceApp runtime={runtime} workspace={workspace.value} route={route} />;
 }
 
-function Loaded({
+function WorkspaceApp({
   runtime,
   workspace,
   route,

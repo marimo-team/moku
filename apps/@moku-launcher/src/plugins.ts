@@ -1,4 +1,4 @@
-import dag from "./plugins/dag/index.tsx";
-import editor from "./plugins/editor/index.tsx";
+import graphExplainer from "./plugins/graph-explainer/index.tsx";
+import notebook from "./plugins/notebook/index.tsx";
 
-export const plugins = [dag, editor];
+export const plugins = [graphExplainer, notebook];

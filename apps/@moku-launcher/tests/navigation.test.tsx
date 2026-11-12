@@ -160,3 +160,19 @@ test("view URLs preserve identifiers and malformed routes stay unavailable", () 
     expect(parseRoute(new URL(path, "http://moku.test"))).toEqual({ kind: "missing" });
   }
 });
+
+test("existing notebook links resolve to the renamed plugins", () => {
+  const target = { connectionId: "host", notebookId: "notebook" };
+  for (const [previous, current] of [
+    ["dag/graph", "graph-explainer/graph"],
+    ["editor/notebook", "notebook/notebook"],
+  ]) {
+    expect(parseRoute(new URL(viewHref(target, previous), "http://moku.test"))).toEqual(
+      {
+        kind: "view",
+        target,
+        viewKey: current,
+      },
+    );
+  }
+});

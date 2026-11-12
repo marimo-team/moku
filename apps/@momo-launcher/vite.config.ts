@@ -13,6 +13,7 @@ export default defineConfig({
           "--project",
           "../marimo",
           "marimo",
+          "--quiet",
           "edit",
           "examples",
           "--sandbox",

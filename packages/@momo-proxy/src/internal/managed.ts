@@ -101,7 +101,9 @@ export async function startServer(
       .replaceAll(token, "[redacted]")
       .replaceAll(encodeURIComponent(token), "[redacted]");
   for (const stream of [child.stdout, child.stderr])
-    createInterface({ input: stream }).on("line", (line) => context.log(redact(line)));
+    createInterface({ input: stream }).on("line", (line) => {
+      if (line.trim()) context.log(redact(line));
+    });
   let host: HostRecordOutput | undefined;
   let failure: Error | undefined;
   let stopped = false;

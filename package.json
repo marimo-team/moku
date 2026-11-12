@@ -7,10 +7,10 @@
   ],
   "type": "module",
   "scripts": {
-    "dev": "bun run --filter @momo/launcher dev",
-    "dev:dag": "VITE_MOMO_VIEW=dag/graph bun run --filter @momo/launcher dev",
-    "build": "bun run --filter @momo/launcher build",
-    "preview": "bun run --filter @momo/launcher preview",
+    "dev": "bun run --cwd apps/@momo-launcher --silent dev",
+    "dev:dag": "VITE_MOMO_VIEW=dag/graph bun run --cwd apps/@momo-launcher --silent dev",
+    "build": "bun run --cwd apps/@momo-launcher --silent build",
+    "preview": "bun run --cwd apps/@momo-launcher --silent preview",
     "check": "vp check",
     "format": "vp fmt",
     "test": "vp test run"

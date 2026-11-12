@@ -16,6 +16,18 @@
       "dependencies": {
         "@effect/atom-react": "4.1.0",
         "@momo/model": "workspace:*",
+        "@momo/plugin": "workspace:*",
+        "effect": "4.1.0",
+        "react": "^19.3.0",
+      },
+    },
+    "apps/launcher": {
+      "name": "@momo/launcher",
+      "dependencies": {
+        "@effect/atom-react": "4.1.0",
+        "@momo/dag": "workspace:*",
+        "@momo/model": "workspace:*",
+        "@momo/plugin": "workspace:*",
         "@momo/proxy": "workspace:*",
         "effect": "4.1.0",
         "react": "^19.3.0",
@@ -37,6 +49,16 @@
     },
     "packages/outputs": {
       "name": "@momo/outputs",
+    },
+    "packages/plugin": {
+      "name": "@momo/plugin",
+      "dependencies": {
+        "@momo/model": "workspace:*",
+      },
+      "peerDependencies": {
+        "effect": "4.1.0",
+        "react": "^19.3.0",
+      },
     },
     "packages/proxy": {
       "name": "@momo/proxy",
@@ -74,9 +96,13 @@
 
     "@momo/editor": ["@momo/editor@workspace:packages/editor"],
 
+    "@momo/launcher": ["@momo/launcher@workspace:apps/launcher"],
+
     "@momo/model": ["@momo/model@workspace:packages/model"],
 
     "@momo/outputs": ["@momo/outputs@workspace:packages/outputs"],
+
+    "@momo/plugin": ["@momo/plugin@workspace:packages/plugin"],
 
     "@momo/proxy": ["@momo/proxy@workspace:packages/proxy"],
 

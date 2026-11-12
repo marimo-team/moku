@@ -7,10 +7,10 @@
   ],
   "type": "module",
   "scripts": {
-    "dev": "bun run dev:dag",
-    "dev:dag": "bun run --filter @momo/dag dev",
-    "build": "bun run --filter @momo/dag build",
-    "preview": "bun run --filter @momo/dag preview",
+    "dev": "bun run --filter @momo/launcher dev",
+    "dev:dag": "VITE_MOMO_VIEW=dag/graph bun run --filter @momo/launcher dev",
+    "build": "bun run --filter @momo/launcher build",
+    "preview": "bun run --filter @momo/launcher preview",
     "check": "vp check",
     "format": "vp fmt",
     "test": "vp test run"

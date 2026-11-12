@@ -1,0 +1,136 @@
+:root {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #555;
+  background: #fff;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+  color: inherit;
+}
+button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid #9292b3;
+  outline-offset: 2px;
+}
+.launcher {
+  padding: 16px 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.launcher-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 38px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: #888;
+}
+.app-name {
+  font-weight: 650;
+  font-size: 15px;
+  color: #555;
+  margin-right: 8px;
+}
+.launcher-toolbar select {
+  border: 0;
+  background: transparent;
+  color: #777;
+  max-width: 28%;
+  padding: 5px 0;
+}
+.launcher-toolbar button {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  padding: 5px 9px;
+}
+.launcher-toolbar .icon-button {
+  border: 0;
+}
+.open-view-button {
+  margin-left: auto;
+}
+.view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.view-tab {
+  display: flex;
+  border: 1px solid #e8e8e8;
+  border-radius: 5px;
+  background: #fafafa;
+  font-size: 12px;
+}
+.view-tab[data-active="true"] {
+  background: #f0f0f6;
+  border-color: #c7c7d6;
+}
+.view-tab button {
+  border: 0;
+  background: transparent;
+  padding: 8px 10px;
+}
+.view-tab .close-view {
+  padding-left: 5px;
+  color: #999;
+}
+.view-instance[hidden] {
+  display: none;
+}
+.error-banner {
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: #fcf2ef;
+  color: #a2544e;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.empty-state,
+.auth-screen {
+  padding: 80px 24px;
+  text-align: center;
+  color: #999;
+  font-size: 13px;
+}
+.empty-state h1,
+.auth-screen h1 {
+  color: #555;
+  font-size: 22px;
+  font-weight: 500;
+}
+.empty-state code,
+.auth-screen code {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+@media (max-width: 800px) {
+  .launcher {
+    padding: 12px;
+  }
+  .launcher-toolbar select {
+    max-width: 100%;
+  }
+}

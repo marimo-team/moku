@@ -12,7 +12,7 @@
 
 ## About
 
-moku is a playground for experimenting with different marimo clients. Currently growing:
+moku is a development playground for building marimo clients entirely on the [host protocol](https://github.com/marimo-team/marimo/blob/main/protocols/host/README.md). The code is **experimental and not for production use**. Examples:
 
 - [**Notebook**](apps/@moku-launcher/src/plugins/notebook/) — a notebook editor with interactive outputs.
 - [**Graph explainer**](apps/@moku-launcher/src/plugins/graph-explainer/) — a view of cell dependencies and execution.

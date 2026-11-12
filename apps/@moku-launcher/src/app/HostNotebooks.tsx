@@ -1,4 +1,4 @@
-import type * as Workspace from "@moku/model/Workspace";
+import type * as Workspace from "@moku/core/Workspace";
 import type { RegisteredView } from "./Host.ts";
 import { useCatalog } from "./catalog.ts";
 import { NotebookRow } from "./NotebookRow.tsx";

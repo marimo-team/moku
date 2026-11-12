@@ -1,9 +1,9 @@
 import { onTestFinished } from "vite-plus/test";
 import { Context, Effect, Exit, Layer, Scope, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import * as Protocol from "@moku/model/Protocol";
-import * as Notebook from "@moku/model/Notebook";
-import { emptyNotebook } from "../../@moku-model/src/notebook/state.ts";
+import * as Protocol from "@moku/core/Protocol";
+import * as Notebook from "@moku/core/Notebook";
+import { emptyNotebook } from "../../@moku-core/src/notebook/state.ts";
 import * as Document from "../src/Document.ts";
 
 export const cell = Protocol.Cell.parse({

@@ -3,12 +3,12 @@
  *
  * @module
  */
-import * as Protocol from "@moku/model/Protocol";
+import * as Protocol from "@moku/core/Protocol";
 import { Clock, Data, Deferred, Effect, Exit, Option, Queue, type Scope } from "effect";
 import { Atom, type AtomRegistry } from "effect/reactivity";
-import type * as Notebook from "@moku/model/Notebook";
-import { RequestError } from "@moku/model";
-import type { Confirmed } from "@moku/model/Notebook";
+import type * as Notebook from "@moku/core/Notebook";
+import { RequestError } from "@moku/core";
+import type { Confirmed } from "@moku/core/Notebook";
 import * as Draft from "./draft.ts";
 import type * as State from "./state.ts";
 

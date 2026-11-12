@@ -1,5 +1,5 @@
 /**
- * CodeMirror extensions that bind a view to raw cell source in a document.
+ * CodeMirror extensions that bind a view to cell source in a document.
  *
  * @module
  */
@@ -14,15 +14,29 @@ import { diff } from "@codemirror/merge";
 import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type * as Document from "./Document.ts";
 
+/** Text shown by an editor and the conversion back to canonical cell source. */
+export interface Source {
+  readonly code: string;
+  readonly write: (code: string) => string;
+  readonly extension?: Extension;
+}
+
 export interface CellOptions {
   readonly document: Document.Interface;
   readonly cellId: string;
+  /** Projects canonical source into an editable representation, such as Markdown. */
+  readonly source?: (code: string) => Source;
 }
 
 const documentUpdate = Annotation.define<boolean>();
 
 function readCode({ document, cellId }: CellOptions): string | null | undefined {
   return document.registry.get(document.state).document?.cells.get(cellId)?.code;
+}
+
+function project(options: CellOptions): Source {
+  const code = readCode(options) ?? "";
+  return options.source?.(code) ?? { code, write: (text) => text };
 }
 
 function canEdit(options: CellOptions): boolean {
@@ -49,6 +63,8 @@ function permissions(editable: boolean): Extension {
  * source, permission loss, or document closure makes the view read-only.
  *
  * Add languages, themes, history, and keymaps alongside this extension.
+ * An optional `source` projection can display Markdown or SQL while `write`
+ * stores canonical Python. Keep projection extensions stable across calls.
  * Destroying the view releases its subscriptions and leaves the document alive.
  *
  * @example Mount a cell editor
@@ -67,19 +83,21 @@ function permissions(editable: boolean): Extension {
  */
 export function bindCell(options: CellOptions): Extension {
   const editable = new Compartment();
+  const source = new Compartment();
 
   return [
     editable.of(permissions(canEdit(options))),
+    source.of([]),
     EditorState.transactionFilter.of((transaction) => {
       if (!transaction.docChanged || transaction.annotation(documentUpdate)) {
         return transaction;
       }
 
       // A pending source update must reach the view before it can be edited.
-      const matchesSource = readCode(options) === transaction.startState.doc.toString();
+      const matchesSource = project(options).code === transaction.startState.doc.toString();
       return canEdit(options) && matchesSource ? transaction : [];
     }),
-    ViewPlugin.define((view) => new CellBinding(view, options, editable), {
+    ViewPlugin.define((view) => new CellBinding(view, options, editable, source), {
       eventObservers: {
         compositionend() {
           this.compositionEnded();
@@ -94,6 +112,7 @@ class CellBinding {
   private waitingForComposition = false;
   private destroyed = false;
   private editable: boolean | undefined;
+  private extension: Extension | undefined;
   private compositionTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly stopDocument: () => void;
 
@@ -101,6 +120,7 @@ class CellBinding {
     private readonly view: EditorView,
     private readonly options: CellOptions,
     private readonly permissionCompartment: Compartment,
+    private readonly sourceCompartment: Compartment,
   ) {
     const { document } = options;
     this.stopDocument = document.registry.subscribe(document.state, () => {
@@ -126,7 +146,8 @@ class CellBinding {
 
   private publishEdit(update: ViewUpdate): void {
     const { document, cellId } = this.options;
-    const matchesSource = readCode(this.options) === update.startState.doc.toString();
+    const source = project(this.options);
+    const matchesSource = source.code === update.startState.doc.toString();
 
     // Also enforce permissions for callers that dispatch with filtering disabled.
     if (!canEdit(this.options) || !matchesSource) {
@@ -134,7 +155,7 @@ class CellBinding {
     }
 
     document.edit((transaction) => {
-      transaction.setCode(cellId, update.state.doc.toString());
+      transaction.setCode(cellId, source.write(update.state.doc.toString()));
     });
   }
 
@@ -162,7 +183,12 @@ class CellBinding {
 
     this.waitingForComposition = this.view.composing;
     const previous = this.view.state.doc.toString();
-    const next = readCode(this.options) ?? "";
+    const source = project(this.options);
+    const next = source.code;
+    if (source.extension !== this.extension) {
+      effects.push(this.sourceCompartment.reconfigure(source.extension ?? []));
+      this.extension = source.extension;
+    }
     const changes = this.waitingForComposition
       ? []
       : diff(previous, next, { scanLimit: 500 }).map((change) => ({

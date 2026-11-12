@@ -13,7 +13,8 @@
     "preview": "bun run --cwd apps/@moku-launcher --silent preview",
     "check": "vp check",
     "format": "vp fmt",
-    "test": "vp test run"
+    "test": "vp test run",
+    "dev:editor": "VITE_MOKU_VIEW=editor/notebook bun run --cwd apps/@moku-launcher --silent dev"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",

@@ -1,6 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import { Effect } from "effect";
-import type * as Workspace from "@moku/model/Workspace";
+import type * as Workspace from "@moku/core/Workspace";
 import type * as Host from "./Host.ts";
 import { HostNotebooks } from "./HostNotebooks.tsx";
 

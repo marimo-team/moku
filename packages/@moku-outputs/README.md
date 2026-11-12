@@ -4,8 +4,8 @@ React views for a marimo execution's displays, console output, and result.
 
 ```tsx
 import { useAtomValue } from "@effect/atom-react";
-import type * as Notebook from "@moku/model/Notebook";
-import * as Outputs from "@moku/model/Outputs";
+import type * as Notebook from "@moku/core/Notebook";
+import * as Outputs from "@moku/core/Outputs";
 import { CellOutputs, Provider } from "@moku/outputs";
 
 function ExecutionOutputs({

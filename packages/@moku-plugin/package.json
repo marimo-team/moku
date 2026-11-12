@@ -6,7 +6,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@moku/model": "workspace:*"
+    "@moku/core": "workspace:*"
   },
   "peerDependencies": {
     "effect": "4.1.0",

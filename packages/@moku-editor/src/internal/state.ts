@@ -3,8 +3,8 @@
  *
  * @module
  */
-import type { Source } from "@moku/model/Notebook";
-import type * as Protocol from "@moku/model/Protocol";
+import type { Source } from "@moku/core/Notebook";
+import type * as Protocol from "@moku/core/Protocol";
 import { Atom, type AtomRegistry } from "effect/reactivity";
 import * as Draft from "./draft.ts";
 import { editDocument, type Edit } from "./edit.ts";

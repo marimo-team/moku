@@ -5,7 +5,7 @@ A shared notebook draft that synchronizes edits to marimo and binds cells to Cod
 ```ts
 import { Effect } from "effect";
 import { EditorView } from "@codemirror/view";
-import * as Notebook from "@moku/model/Notebook";
+import * as Notebook from "@moku/core/Notebook";
 import * as Document from "@moku/editor/Document";
 import * as CodeMirror from "@moku/editor/CodeMirror";
 

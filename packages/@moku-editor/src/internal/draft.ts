@@ -5,8 +5,8 @@
  *
  * @module
  */
-import type { Confirmed as Document } from "@moku/model/Notebook";
-import * as Protocol from "@moku/model/Protocol";
+import type { Confirmed as Document } from "@moku/core/Notebook";
+import * as Protocol from "@moku/core/Protocol";
 
 type Cell = Protocol.CellOutput;
 type CellId = Protocol.CellId;

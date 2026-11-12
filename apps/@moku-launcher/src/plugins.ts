@@ -1,3 +1,4 @@
-import dag from "@moku/dag/plugin";
+import dag from "./plugins/dag/index.tsx";
+import editor from "./plugins/editor/index.tsx";
 
-export const plugins = [dag];
+export const plugins = [dag, editor];

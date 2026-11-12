@@ -1,8 +1,8 @@
 import { Data } from "effect";
 import { Atom } from "effect/reactivity";
-import * as Model from "@moku/model";
-import * as Workspace from "@moku/model/Workspace";
-import * as Notebook from "@moku/model/Notebook";
+import * as Model from "@moku/core";
+import * as Workspace from "@moku/core/Workspace";
+import * as Notebook from "@moku/core/Notebook";
 import type { Plugin } from "@moku/plugin";
 import * as Host from "./Host.ts";
 

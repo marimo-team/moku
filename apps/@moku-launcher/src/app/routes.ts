@@ -1,4 +1,4 @@
-import type { Target } from "@moku/model/Notebook";
+import type { Target } from "@moku/core/Notebook";
 
 export type Route =
   | { readonly kind: "catalog" }

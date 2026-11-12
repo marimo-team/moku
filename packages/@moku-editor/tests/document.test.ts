@@ -1,8 +1,8 @@
 import { expect, expectTypeOf, onTestFinished, test, vi } from "vite-plus/test";
 import { Effect } from "effect";
 import { Atom } from "effect/reactivity";
-import * as Protocol from "@moku/model/Protocol";
-import { RequestError } from "@moku/model";
+import * as Protocol from "@moku/core/Protocol";
+import { RequestError } from "@moku/core";
 import * as Document from "../src/Document.ts";
 import { setup, confirmed } from "./fixture.ts";
 import { cell, document } from "./fixture.ts";

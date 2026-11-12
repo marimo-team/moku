@@ -3,8 +3,8 @@
  *
  * @module
  */
-import type * as Protocol from "@moku/model/Protocol";
-import type * as Outputs from "@moku/model/Outputs";
+import type * as Protocol from "@moku/core/Protocol";
+import type * as Outputs from "@moku/core/Outputs";
 
 /**
  * A MIME type and its encoded payload from the host.

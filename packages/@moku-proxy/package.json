@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "@marimo-team/client": "file:../../vendor/marimo-client-29327a665.tgz",
-    "@moku/model": "workspace:*",
+    "@moku/core": "workspace:*",
     "effect": "4.1.0"
   },
   "peerDependencies": {

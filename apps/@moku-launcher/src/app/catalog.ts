@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
-import type * as Workspace from "@moku/model/Workspace";
-import type { Observation } from "@moku/model";
+import type * as Workspace from "@moku/core/Workspace";
+import type { Observation } from "@moku/core";
 
 const empty = Atom.make<Observation<Workspace.Catalog>>({
   value: { ready: false, notebooks: {} },

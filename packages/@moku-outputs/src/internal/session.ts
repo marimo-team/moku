@@ -3,7 +3,7 @@
  *
  * @module
  */
-import type * as Interaction from "@moku/model/Interaction";
+import type * as Interaction from "@moku/core/Interaction";
 import type { DisplayViewProps } from "../types.ts";
 
 export interface SessionOptions {

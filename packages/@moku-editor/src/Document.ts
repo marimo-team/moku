@@ -8,7 +8,7 @@
  */
 import { Context, Effect, Layer, type Scope } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import * as Notebook from "@moku/model/Notebook";
+import * as Notebook from "@moku/core/Notebook";
 import { makeState } from "./internal/state.ts";
 import { synchronize, type SyncStatus, type SyncError } from "./internal/sync.ts";
 import * as Draft from "./internal/draft.ts";
@@ -115,7 +115,7 @@ export class Service extends Context.Service<Service, Interface>()("@moku/Docume
  * @example Acquire a document for the current notebook
  * ```ts
  * import { Effect } from "effect";
- * import * as Notebook from "@moku/model/Notebook";
+ * import * as Notebook from "@moku/core/Notebook";
  * import * as Document from "@moku/editor/Document";
  *
  * const editing = Effect.gen(function* () {

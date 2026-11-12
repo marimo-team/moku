@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 import { renderToStaticMarkup } from "react-dom/server";
-import * as Protocol from "@moku/model/Protocol";
-import * as Outputs from "@moku/model/Outputs";
+import * as Protocol from "@moku/core/Protocol";
+import * as Outputs from "@moku/core/Outputs";
 import { CellOutputs, ConsoleOutput, DisplayView } from "../src/index.ts";
 import type { CellOutputsProps, OutputItem } from "../src/types.ts";
 import { normalizeDisplay } from "../src/internal/normalize.ts";

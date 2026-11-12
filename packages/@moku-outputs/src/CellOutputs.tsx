@@ -108,8 +108,8 @@ function OutcomeView({
  * @example Render a selected execution
  * ```tsx
  * import { CellOutputs } from "@moku/outputs";
- * import * as Outputs from "@moku/model/Outputs";
- * import type * as Notebook from "@moku/model/Notebook";
+ * import * as Outputs from "@moku/core/Outputs";
+ * import type * as Notebook from "@moku/core/Notebook";
  *
  * function ExecutionOutputs(props: {
  *   snapshot: Notebook.Snapshot;

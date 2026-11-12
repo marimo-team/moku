@@ -4,7 +4,7 @@
  * @module
  */
 import { Effect, Stream } from "effect";
-import type * as NotebookRuntime from "@moku/model/Runtime";
+import type * as NotebookRuntime from "@moku/core/Runtime";
 import type { Session } from "./session.ts";
 import { loadRenderer } from "./renderer.ts";
 

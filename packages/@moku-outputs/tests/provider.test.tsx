@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";
 import { Effect, Queue, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import type * as Interaction from "@moku/model/Interaction";
+import type * as Interaction from "@moku/core/Interaction";
 import { Provider, OutputContext, type Notebook } from "../src/Provider.tsx";
 import type { SessionOptions } from "../src/internal/session.ts";
 

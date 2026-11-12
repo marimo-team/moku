@@ -1,7 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
-import type { Target } from "@moku/model/Notebook";
+import type { Target } from "@moku/core/Notebook";
 import type { RegisteredView } from "./Host.ts";
 import type { Runtime } from "./runtime.ts";
 

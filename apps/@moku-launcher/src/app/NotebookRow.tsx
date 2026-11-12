@@ -1,5 +1,5 @@
 import { useId, useRef } from "react";
-import type * as Protocol from "@moku/model/Protocol";
+import type * as Protocol from "@moku/core/Protocol";
 import type { RegisteredView } from "./Host.ts";
 import { viewHref } from "./routes.ts";
 

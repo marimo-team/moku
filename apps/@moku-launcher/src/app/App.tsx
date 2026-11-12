@@ -1,6 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult, type Atom } from "effect/reactivity";
-import type * as Workspace from "@moku/model/Workspace";
+import type * as Workspace from "@moku/core/Workspace";
 import { Launcher } from "./Launcher.tsx";
 import { ViewInstance, ViewErrorBoundary } from "./ViewInstance.tsx";
 import type { Runtime } from "./runtime.ts";

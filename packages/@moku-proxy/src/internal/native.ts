@@ -6,7 +6,7 @@
 import type * as Http from "node:http";
 import { Readable } from "node:stream";
 import { Schema } from "effect";
-import { ComponentValues, FunctionCall, ModelValue } from "@moku/model/Interaction";
+import { ComponentValues, FunctionCall, ModelValue } from "@moku/core/Interaction";
 import { json, readBody } from "./http.ts";
 
 const routes = {

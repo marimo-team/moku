@@ -8,7 +8,7 @@
  */
 import type { Effect, Scope } from "effect";
 import type { ReactNode } from "react";
-import type * as Notebook from "@moku/model/Notebook";
+import type * as Notebook from "@moku/core/Notebook";
 
 /**
  * The notebook selected by the host for this view instance.

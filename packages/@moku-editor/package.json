@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@codemirror/merge": "^6.12.3",
-    "@moku/model": "workspace:*"
+    "@moku/core": "workspace:*"
   },
   "devDependencies": {
     "@codemirror/commands": "^6.11.1",

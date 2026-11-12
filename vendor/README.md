@@ -16,3 +16,7 @@ To update, build `packages/client` at the desired marimo revision with
 and update both workspace dependencies and this revision/checksum. The generated
 protocol must include experimental analysis. Run the model and DAG tests after
 updating; runtime interruption and individual run cancellation are distinct.
+
+`marimo-smart-cells-29327a665.tgz` contains smart-cell parser source from the same revision,
+with its README and Apache 2.0 license. Development dependencies and scripts are
+omitted. SHA-256: `b1a7449679507ed7af0ce66e3548f4be9d0821fbafbf95b4b6dc22bd05916b59`.

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Effect } from "effect";
-import type { Handle } from "@momo/model/Notebook";
+import type * as Notebook from "@momo/model/Notebook";
 import type * as Protocol from "@momo/model/Protocol";
 import type { NotebookState } from "./model.ts";
 
@@ -35,7 +35,7 @@ function unavailableReason(state: NotebookState, kind: RunAction, busy: boolean)
 }
 
 export function useRunActions(
-  notebook: Handle,
+  notebook: Notebook.Interface,
   state: NotebookState,
   run: Protocol.RunOutput | undefined,
   connected: boolean,

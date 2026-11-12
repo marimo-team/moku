@@ -32,7 +32,8 @@ attachment. Plugin setup runs in an Effect scope, and failed setup rolls back
 its registrations before the remaining plugins load.
 
 `@momo/proxy` supplies the local server. `@momo/model` owns shared workspace and
-notebook state. `@momo/editor` and `@momo/outputs` remain package scaffolds.
+notebook state. `@momo/editor/Document` adds scoped local drafts and synchronization.
+`@momo/outputs` remains a package scaffold.
 
 Workspace exports point directly to TypeScript source. There are no package
 compilation steps, project references, or publishing configuration. Vite+ owns

@@ -39,6 +39,12 @@
     },
     "packages/editor": {
       "name": "@momo/editor",
+      "dependencies": {
+        "@momo/model": "workspace:*",
+      },
+      "peerDependencies": {
+        "effect": "4.1.0",
+      },
     },
     "packages/model": {
       "name": "@momo/model",

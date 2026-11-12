@@ -1,9 +1,9 @@
 import type { Effect, Scope } from "effect";
 import type { ReactNode } from "react";
-import type { Handle } from "@momo/model/Notebook";
+import type * as Notebook from "@momo/model/Notebook";
 
 export interface ViewProps {
-  readonly notebook: Handle;
+  readonly notebook: Notebook.Interface;
 }
 
 export interface View {

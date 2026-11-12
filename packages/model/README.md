@@ -17,7 +17,9 @@ workspace.catalog(connectionId); // notebook catalog atom for one connection
 workspace.connect({ url, token }); // Effect: add a host and update connections
 workspace.refresh; // Effect: refresh host connections
 
-Notebook.attach({ connectionId, notebookId }); // scoped notebook attachment
+Notebook.make({ connectionId, notebookId }); // scoped notebook instance
+Notebook.Service; // Context.Service for the current notebook
+Notebook.layer({ connectionId, notebookId }); // provides Notebook.Service
 
 notebook.target; // host connection and notebook identity
 notebook.source; // confirmed document and edit availability atom
@@ -35,7 +37,7 @@ notebook.stop(requestId); // Effect: stop the runtime
 // Workspace.Workspace
 // Workspace.Connection
 // Workspace.Catalog
-// Notebook.Handle
+// Notebook.Interface
 // Notebook.Target
 // Notebook.Source
 // Notebook.Confirmed

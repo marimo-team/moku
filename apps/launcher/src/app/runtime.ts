@@ -16,7 +16,7 @@ export function makeRuntime(options: {
 }) {
   const runtime = Atom.runtime(Model.layer(options.baseUrl, { fetch: options.fetch }));
   const notebooks = Atom.family((target: Target) =>
-    runtime.atom(Notebook.attach(target)).pipe(Atom.setIdleTTL(0)),
+    runtime.atom(Notebook.make(target)).pipe(Atom.setIdleTTL(0)),
   );
   return {
     workspace: runtime

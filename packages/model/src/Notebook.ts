@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Context, Effect, Layer, type Scope } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import type * as Protocol from "./Protocol.ts";
 import * as Transport from "./internal/transport.ts";
@@ -16,7 +16,7 @@ export interface Source {
   readonly document: Confirmed | null;
   readonly canEdit: boolean;
 }
-export interface Handle {
+export interface Interface {
   readonly target: Target;
   readonly state: Atom.Atom<Observation<Snapshot>>;
   readonly source: Atom.Atom<Source>;
@@ -49,8 +49,16 @@ export interface Handle {
   ) => Effect.Effect<Protocol.RuntimeOutput, Transport.RequestError>;
 }
 
-export const attach = (input: Target) =>
-  Effect.gen(function* () {
+export class Service extends Context.Service<Service, Interface>()("@momo/Notebook") {}
+
+export function make(
+  input: Target,
+): Effect.Effect<
+  Interface,
+  never,
+  Transport.Service | AtomRegistry.AtomRegistry | Scope.Scope
+> {
+  return Effect.gen(function* () {
     const transport = yield* Transport.Service;
     const registry = yield* AtomRegistry.AtomRegistry;
     const target = Object.freeze({ ...input });
@@ -117,7 +125,7 @@ export const attach = (input: Target) =>
           observation.value.notebook?.operations.includes("notebook.edit") === true,
       };
     });
-    const handle: Handle = {
+    return Service.of({
       target,
       state,
       source,
@@ -154,6 +162,8 @@ export const attach = (input: Target) =>
         Transport.mutation((signal) =>
           notebook.stop({ idempotencyKey: requestId, signal }),
         ),
-    };
-    return handle;
+    });
   });
+}
+
+export const layer = (target: Target) => Layer.effect(Service, make(target));

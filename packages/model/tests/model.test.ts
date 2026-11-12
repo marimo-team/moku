@@ -158,7 +158,7 @@ async function fixture() {
     registry.dispose();
   });
   const attach = (connectionId = "host-a") =>
-    run(Notebook.attach({ connectionId, notebookId: "n" }));
+    run(Notebook.make({ connectionId, notebookId: "n" }));
   const stream = async (index = 0) => {
     await vi.waitFor(() => expect(streams.length).toBeGreaterThan(index), {
       timeout: 3000,

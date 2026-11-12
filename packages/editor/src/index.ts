@@ -1,2 +1,1 @@
-// Public modules are added here as their implementations are extracted.
-export {};
+export * as Document from "./Document.ts";

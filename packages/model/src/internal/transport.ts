@@ -52,7 +52,7 @@ export class Service extends Context.Service<
       options?: RequestInit,
     ) => Effect.Effect<A, RequestError>;
   }
->()("@momo/model/Transport") {}
+>()("@momo/Transport") {}
 
 export const layer = (
   baseUrl: string | URL,

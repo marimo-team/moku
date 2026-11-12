@@ -1,34 +1,47 @@
 # @momo/editor
 
-A headless editable notebook document with drafts, synchronization, reactive state, and optional CodeMirror bindings.
+A scoped editable notebook document with local drafts, reactive state, and synchronization.
 
 ```ts
 import * as Document from "@momo/editor/Document";
-import * as CodeMirror from "@momo/editor/CodeMirror";
 
-// Proposed exports; not implemented yet.
-
-Document.make(notebook); // scoped editable document; registry comes from Effect context
+Document.make(notebook); // scoped Effect constructing an Interface
+Document.Service; // Context.Service for the current editing session
+Document.layer; // provides Service; requires Notebook.Service and its AtomRegistry
 
 // Public types:
-// Document.Document
+// Document.Interface
 // Document.Edit
+// Document.Editor
 // Document.EditableDocument
 // Document.EditableCell
 // Document.SyncStatus
 // Document.SyncError
 
-// The returned document exposes its state and actions:
-document.document; // editable snapshot atom
+// In an Effect: const document = yield* Document.Service;
+
+document.document; // editable snapshot atom: order + cells, or null while unavailable
 document.canEdit; // edit availability atom
 document.dirty; // pending local changes atom
-document.status; // synchronization status atom
-document.edit; // writable transaction atom
-document.flush; // Effect: await confirmed edits; does not save to disk
-document.retry; // Effect: retry synchronization
+document.status; // idle | pending | sending | confirming | unavailable | error
+document.edit; // writable synchronous transaction atom
+document.flush; // Effect: await confirmed edits, including newer typing; does not save
+document.retry; // Effect: retry synchronization while preserving the draft
 
-CodeMirror.bindCell({ document, cellId }); // CodeMirror Extension
+registry.set(document.edit, (tx) => {
+  tx.setCode(cellId, "x = 1");
+  tx.setName(cellId, "example");
+  tx.updateConfig(cellId, { hide_code: true }); // omitted settings are preserved
+  tx.createCell({ id: newCellId, code: "x + 1" }, { after: cellId });
+  tx.setOrder([newCellId, cellId]); // every cell exactly once
+  tx.deleteCell(newCellId);
+});
 
-// Add the binding alongside your own themes, completions, and keymaps.
-// Destroying a cell's EditorView releases its binding, not the document.
+// Transactions publish together; throwing rolls back the whole transaction.
+// Edits synchronize after 400 ms of inactivity; flush bypasses the delay.
+// HTTP acceptance and a matching or newer streamed revision confirm an edit.
+// Failed synchronization retains the draft for explicit retry.
+// Each make() owns a draft; share its returned document among cell editors.
+// Flush before closing its scope to retain edits. Closing cancels synchronization.
+// CodeMirror bindings are not implemented yet.
 ```

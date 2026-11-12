@@ -114,7 +114,7 @@ async function fixture() {
       <>
         <button
           disabled={!!actions.disabledReason}
-          onClick={() => void actions.action("run")}
+          onClick={() => actions.action("run")}
         >
           {actions.actionLabel}
         </button>
@@ -206,4 +206,23 @@ test("failed startup reports the error without submitting cells", async () => {
   expect(f.element.querySelector('[role="alert"]')!.textContent).toContain(
     "Kernel exited",
   );
+  await act(async () => f.setRuntime(null));
+  await f.click();
+  expect(f.element.querySelector('[role="alert"]')!.textContent).toBe("");
+  expect(f.element.querySelector("button")!.disabled).toBe(true);
+  await f.ready();
+  expect(f.run).toHaveBeenCalledOnce();
+  expect(f.element.querySelector("button")!.disabled).toBe(false);
+});
+
+test("repeated clicks before React renders only start one command", async () => {
+  const f = await fixture();
+  await act(async () => {
+    const button = f.element.querySelector("button")!;
+    button.click();
+    button.click();
+  });
+  expect(f.start).toHaveBeenCalledOnce();
+  await f.ready();
+  expect(f.run).toHaveBeenCalledOnce();
 });

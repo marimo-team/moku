@@ -51,7 +51,7 @@ function Graph({ notebook }: ViewProps) {
           actionKind={actionKind}
           actionLabel={actionLabel}
           disabledReason={disabledReason}
-          onAction={() => void action(actionKind)}
+          onAction={() => action(actionKind)}
           expanded={expanded}
           onToggleExpanded={() => setExpanded(!expanded)}
         />
@@ -64,7 +64,7 @@ function Graph({ notebook }: ViewProps) {
           <div className="empty-state">This notebook has no cells.</div>
         ) : (
           <DependencyGraph
-            onRunCell={(cellId) => void action("run", cellId)}
+            onRunCell={(cellId) => action("run", cellId)}
             runDisabled={cellRunDisabled}
             groupKey={`dag:groups:${encodeURIComponent(notebook.target.connectionId)}:${encodeURIComponent(notebook.target.notebookId)}`}
             state={state}

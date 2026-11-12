@@ -3,9 +3,9 @@
  *
  * @module
  */
-import { createContext, useEffect, useState, type ReactNode } from "react";
-import { useAtomValue } from "@effect/atom-react";
-import { Effect } from "effect";
+import { createContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useAtom, useAtomValue } from "@effect/atom-react";
+import { Atom } from "effect/reactivity";
 import * as OutputSession from "./internal/output-session.ts";
 import type { Session } from "./internal/session.ts";
 
@@ -41,6 +41,9 @@ export const OutputContext = createContext<{
 export function Provider({ notebook, children }: ProviderProps) {
   const runtime = notebook.runtime;
   const connection = useAtomValue(runtime.state);
+  const [reconnecting, reconnect] = useAtom(
+    useMemo(() => Atom.fn(() => runtime.retry).pipe(Atom.setIdleTTL(0)), [runtime]),
+  );
   const [state, setState] = useState<OutputSession.State>({
     session: null,
     error: null,
@@ -64,7 +67,11 @@ export function Provider({ notebook, children }: ProviderProps) {
         <div className="moku-output-notice" role="alert">
           {error.message}
           {!state.error && (
-            <button type="button" onClick={() => void Effect.runPromise(runtime.retry)}>
+            <button
+              type="button"
+              disabled={reconnecting.waiting}
+              onClick={() => reconnect()}
+            >
               Reconnect outputs
             </button>
           )}

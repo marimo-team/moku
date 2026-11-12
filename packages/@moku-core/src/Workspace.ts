@@ -165,10 +165,7 @@ export const make = (options: { launchKey?: string } = {}) =>
       connections: [],
       status: { pending: false, error: null },
     });
-    yield* Effect.acquireRelease(
-      Effect.sync(() => registry.mount(current)),
-      (unmount) => Effect.sync(unmount),
-    );
+    yield* Atom.mount(current);
     const setStatus = (status: Status) =>
       registry.update(current, (state) => ({ ...state, status }));
     const lock = yield* Semaphore.make(1);
@@ -203,7 +200,19 @@ export const make = (options: { launchKey?: string } = {}) =>
           Effect.asVoid,
         ),
     );
-    const catalogs = new Map<string, Atom.Atom<Observation<Catalog>>>();
+    const catalog = Atom.family((connectionId: string) =>
+      observe({
+        registry,
+        signal: lifetime.signal,
+        initial: empty,
+        reduce,
+        resume: (state) => ({ ...state, ready: false }),
+        open: (onStatus) =>
+          transport
+            .client(connectionId, lifetime.signal)
+            .events({ types: ["notebook"], onStatus, signal: lifetime.signal }),
+      }),
+    );
     const workspace: Workspace = {
       state: Atom.readable((get) => get(current)),
       refresh,
@@ -255,24 +264,7 @@ export const make = (options: { launchKey?: string } = {}) =>
               ),
             ),
         ),
-      catalog: (connectionId) => {
-        let catalog = catalogs.get(connectionId);
-        if (!catalog) {
-          catalog = observe({
-            registry,
-            signal: lifetime.signal,
-            initial: empty,
-            reduce,
-            resume: (state) => ({ ...state, ready: false }),
-            open: (onStatus) =>
-              transport
-                .client(connectionId, lifetime.signal)
-                .events({ types: ["notebook"], onStatus, signal: lifetime.signal }),
-          });
-          catalogs.set(connectionId, catalog);
-        }
-        return catalog;
-      },
+      catalog,
     };
     yield* Effect.forkScoped(refresh.pipe(Effect.catch(() => Effect.void)));
     return workspace;

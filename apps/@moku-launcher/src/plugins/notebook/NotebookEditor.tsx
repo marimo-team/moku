@@ -48,10 +48,10 @@ function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interfa
   const { document, canEdit, dirty, status: sync } = useAtomValue(documentModel.state);
   const { value: state, status, error } = useAtomValue(notebook.state);
   const selection = useAtomValue(model.outputs);
-  const [saving, save] = useAtom(model.save, { mode: "promise" });
+  const [saving, save] = useAtom(model.save);
   const [execution, run] = useAtom(model.run, { mode: "promise" });
-  const [interruption, interrupt] = useAtom(model.interrupt, { mode: "promise" });
-  const [cancellation, cancel] = useAtom(model.cancel, { mode: "promise" });
+  const [interruption, interrupt] = useAtom(model.interrupt);
+  const [cancellation, cancel] = useAtom(model.cancel);
   const navigation = useCellNavigation();
   useNotebookNotifications({
     target: notebook.target,
@@ -106,13 +106,7 @@ function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interfa
         active={starting}
         cancelling={cancelling}
         message={kernel?.message}
-        cancel={
-          canCancel
-            ? () => {
-                void cancel().catch(() => {});
-              }
-            : undefined
-        }
+        cancel={canCancel ? () => cancel() : undefined}
       />
       <NotebookToolbar
         name={state.notebook?.name ?? "Connecting…"}
@@ -123,9 +117,7 @@ function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interfa
             ? {
                 pending: saving.waiting,
                 disabled: saveDisabled,
-                onClick: () => {
-                  void save().catch(() => {});
-                },
+                onClick: () => save(),
               }
             : undefined
         }
@@ -141,7 +133,8 @@ function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interfa
                   !connected ||
                   order.length === 0,
                 onClick: () => {
-                  void (running ? interrupt() : run({})).catch(() => {});
+                  if (running) interrupt();
+                  else void run({}).catch(() => {});
                 },
               }
             : undefined

@@ -1,5 +1,7 @@
-import { useAtomValue } from "@effect/atom-react";
-import { Effect } from "effect";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import type { Effect } from "effect";
+import { Atom } from "effect/reactivity";
+import { useMemo } from "react";
 import type * as Workspace from "@moku/core/Workspace";
 import type * as Host from "./Host.ts";
 import { HostNotebooks } from "./HostNotebooks.tsx";
@@ -14,8 +16,12 @@ export function Launcher({
   const connections = useAtomValue(workspace.state, (state) => state.connections);
   const discovery = useAtomValue(workspace.state, (state) => state.status);
   const { views, failures } = useAtomValue(host.state);
-  const refresh = () =>
-    Effect.runPromise(workspace.refresh.pipe(Effect.catch(() => Effect.void)));
+  const refresh = useAtomSet(
+    useMemo(
+      () => Atom.fn(() => workspace.refresh).pipe(Atom.setIdleTTL(0)),
+      [workspace],
+    ),
+  );
   return (
     <main className="catalog-page">
       <header className="catalog-heading">
@@ -26,7 +32,7 @@ export function Launcher({
           aria-label="Refresh hosts"
           title="Refresh hosts"
           disabled={discovery.pending}
-          onClick={() => void refresh()}
+          onClick={() => refresh()}
         >
           <svg
             width="14"

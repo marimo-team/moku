@@ -1,11 +1,15 @@
-import { Effect } from "effect";
-import { useAtomValue } from "@effect/atom-react";
-import { useEffect } from "react";
+import { Atom } from "effect/reactivity";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useEffect, useMemo } from "react";
 import { useDocument } from "./DocumentContext.ts";
 
 /** Keep the document mounted while a link navigation flushes pending edits. */
 export function useDraftNavigationGuard(unsaved: boolean) {
   const model = useDocument();
+  const flush = useAtomSet(
+    useMemo(() => Atom.fn(() => model.flush).pipe(Atom.setIdleTTL(0)), [model]),
+    { mode: "promise" },
+  );
   const dirty = useAtomValue(model.state, (state) => state.dirty);
   useEffect(() => {
     if (!dirty && !unsaved) return;
@@ -46,12 +50,12 @@ export function useDraftNavigationGuard(unsaved: boolean) {
       )
         return;
       event.preventDefault();
-      void Effect.runPromise(model.flush).then(
+      void flush().then(
         () => location.assign(url.href),
         () => {},
       );
     };
     document.addEventListener("click", navigate);
     return () => document.removeEventListener("click", navigate);
-  }, [model]);
+  }, [model, flush]);
 }

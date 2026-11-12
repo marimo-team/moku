@@ -1,5 +1,5 @@
 import { Cause, Effect, Exit, Stream } from "effect";
-import { AsyncResult } from "effect/reactivity";
+import { AsyncResult, Atom } from "effect/reactivity";
 import { useAtomSet } from "@effect/atom-react";
 import { useEffect, useRef } from "react";
 import { runtime } from "./effects.ts";
@@ -20,29 +20,32 @@ export const dismissAtom = runtime.fn(
   { concurrent: true },
 );
 
-export const actionAtom = runtime.fn(
-  (message: Notifications.Notification) =>
-    Effect.gen(function* () {
-      if (!message.action) return;
-      const service = yield* Notifications.Service;
-      const exit = yield* Effect.exit(message.action.run);
-      if (Exit.isSuccess(exit)) {
-        yield* service.dismiss(message.id, message.revision);
-      } else if (
-        (yield* service.current).some(
-          (entry) => entry.id === message.id && entry.revision === message.revision,
-        )
-      ) {
-        const problem = Problems.describe(Cause.squash(exit.cause));
-        yield* service.show({
-          ...message,
-          kind: "error",
-          description: problem.description,
-          details: problem.details,
-        });
-      }
-    }),
-  { concurrent: true },
+// Feedback can disappear as an action updates the model; the registry owns the command.
+export const actionAtoms = Atom.family((_id: string) =>
+  runtime
+    .fn((message: Notifications.Notification) =>
+      Effect.gen(function* () {
+        if (!message.action) return;
+        const service = yield* Notifications.Service;
+        const exit = yield* Effect.exit(message.action.run);
+        if (Exit.isSuccess(exit)) {
+          yield* service.dismiss(message.id, message.revision);
+        } else if (
+          (yield* service.current).some(
+            (entry) => entry.id === message.id && entry.revision === message.revision,
+          )
+        ) {
+          const problem = Problems.describe(Cause.squash(exit.cause));
+          yield* service.show({
+            ...message,
+            kind: "error",
+            description: problem.description,
+            details: problem.details,
+          });
+        }
+      }),
+    )
+    .pipe(Atom.keepAlive),
 );
 
 /** A view owns the lifetime; the service owns identity and presentation state. */
@@ -89,7 +92,7 @@ export function useFailureNotification<A, E>(
   },
 ) {
   const problem =
-    AsyncResult.isFailure(result) && !options.suppressed
+    AsyncResult.isFailure(result) && !result.waiting && !options.suppressed
       ? Problems.describe(Cause.squash(result.cause))
       : null;
   useNotification(

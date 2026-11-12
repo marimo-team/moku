@@ -1,7 +1,7 @@
-import { useContext, useEffect, useRef, useState } from "react";
-import { RegistryContext } from "@effect/atom-react";
-import { Effect } from "effect";
-import { AtomRegistry } from "effect/reactivity";
+import { useContext, useMemo } from "react";
+import { RegistryContext, useAtom } from "@effect/atom-react";
+import { Cause, Effect } from "effect";
+import { AsyncResult, Atom } from "effect/reactivity";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
 import { ensureRuntime } from "../../app/execution.ts";
@@ -35,10 +35,46 @@ export function useRunActions(
   connected: boolean,
 ) {
   const registry = useContext(RegistryContext);
-  const pending = useRef<AbortController | null>(null);
-  const [actionError, setActionError] = useState("");
-  const [busy, setBusy] = useState(false);
-  useEffect(() => () => pending.current?.abort(), [notebook]);
+  const command = useMemo(
+    () =>
+      Atom.fn((input: { kind: RunAction; runId?: string; cellId?: string }, get) =>
+        Effect.gen(function* () {
+          if (input.kind === "cancel" && input.runId) {
+            yield* notebook.runtime
+              .cancel({ runId: input.runId, requestId: crypto.randomUUID() })
+              .pipe(Effect.timeout("10 seconds"));
+            return;
+          }
+          if (!(yield* ensureRuntime(notebook))) return;
+          const latest = get(notebook.state);
+          if (latest.status !== "connected" || !latest.value.ready)
+            return yield* Effect.fail(
+              new Error("Waiting for the notebook connection."),
+            );
+          const ids = input.cellId
+            ? [input.cellId]
+            : (latest.value.document?.order ?? []);
+          const cells = ids.flatMap((id) => {
+            const cell = latest.value.cells[id];
+            return cell && !cell.config.disabled ? [{ id, etag: cell.etag }] : [];
+          });
+          yield* notebook.runtime
+            .run({ request: { cells }, requestId: crypto.randomUUID() })
+            .pipe(Effect.timeout("10 seconds"));
+        }),
+      ).pipe(Atom.setIdleTTL(0)),
+    [notebook],
+  );
+  const [result, execute] = useAtom(command);
+  const busy = result.waiting;
+  const error =
+    !busy && AsyncResult.isFailure(result) ? Cause.squash(result.cause) : null;
+  const actionError =
+    !busy && AsyncResult.isFailure(result)
+      ? error instanceof Error && error.name === "TimeoutError"
+        ? "The host did not become ready or acknowledge the action in time. Check the runtime before retrying."
+        : Cause.pretty(result.cause)
+      : "";
   const actionKind: RunAction = run && run.status !== "completed" ? "cancel" : "run";
   const starting = state.runtime?.status === "starting" || (busy && !state.runtime);
   const actionLabel = starting
@@ -52,45 +88,9 @@ export function useRunActions(
   const cellRunDisabled =
     actionKind === "cancel" ? "Wait for the current run to finish" : disabledReason;
 
-  async function action(kind: RunAction, cellId?: string) {
-    if (pending.current) return;
-    const controller = new AbortController();
-    pending.current = controller;
-    setBusy(true);
-    setActionError("");
-    const request = Effect.gen(function* () {
-      if (kind === "cancel" && run) {
-        yield* notebook.runtime
-          .cancel({ runId: run.id, requestId: crypto.randomUUID() })
-          .pipe(Effect.timeout("10 seconds"));
-        return;
-      }
-      if (!(yield* ensureRuntime(notebook))) return;
-      const latest = registry.get(notebook.state);
-      if (latest.status !== "connected" || !latest.value.ready)
-        return yield* Effect.fail(new Error("Waiting for the notebook connection."));
-      const ids = cellId ? [cellId] : (latest.value.document?.order ?? []);
-      const cells = ids.flatMap((id) => {
-        const cell = latest.value.cells[id];
-        return cell && !cell.config.disabled ? [{ id, etag: cell.etag }] : [];
-      });
-      yield* notebook.runtime
-        .run({ request: { cells }, requestId: crypto.randomUUID() })
-        .pipe(Effect.timeout("10 seconds"));
-    }).pipe(Effect.provideService(AtomRegistry.AtomRegistry, registry));
-    try {
-      await Effect.runPromise(request, { signal: controller.signal });
-    } catch (error) {
-      if (!controller.signal.aborted)
-        setActionError(
-          error instanceof Error && error.name === "TimeoutError"
-            ? "The host did not become ready or acknowledge the action in time. Check the runtime before retrying."
-            : String(error),
-        );
-    } finally {
-      if (pending.current === controller) pending.current = null;
-      if (!controller.signal.aborted) setBusy(false);
-    }
+  function action(kind: RunAction, cellId?: string) {
+    if (registry.get(command).waiting) return;
+    execute({ kind, cellId, runId: run?.id });
   }
   return {
     actionKind,

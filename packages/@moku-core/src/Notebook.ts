@@ -190,10 +190,7 @@ export function make(
           signal: lifetime.signal,
         }),
     });
-    yield* Effect.acquireRelease(
-      Effect.sync(() => registry.mount(observed)),
-      (unmount) => Effect.sync(unmount),
-    );
+    yield* Atom.mount(observed);
     const state = Atom.readable((get): State => {
       const observation = get(observed);
       const { confirmed, ...value } = observation.value;

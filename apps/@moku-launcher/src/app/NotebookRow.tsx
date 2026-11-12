@@ -1,5 +1,7 @@
-import { useId, useRef, useState } from "react";
-import { Effect } from "effect";
+import { useId, useMemo, useRef } from "react";
+import { useAtom } from "@effect/atom-react";
+import { Cause, Effect } from "effect";
+import { AsyncResult, Atom } from "effect/reactivity";
 import type * as Workspace from "@moku/core/Workspace";
 import type * as Protocol from "@moku/core/Protocol";
 import type { RegisteredView } from "./Host.ts";
@@ -17,27 +19,28 @@ export function NotebookRow({
   workspace: Workspace.Workspace;
 }) {
   const id = useId();
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string>();
+  const open = useMemo(
+    () =>
+      Atom.fn(() =>
+        workspace
+          .open({
+            connectionId,
+            notebookId: notebook.id,
+            requestId: crypto.randomUUID(),
+          })
+          .pipe(
+            Effect.tap(() =>
+              Effect.sync(() => document.getElementById(id)?.hidePopover()),
+            ),
+          ),
+      ).pipe(Atom.setIdleTTL(0)),
+    [workspace, connectionId, notebook.id, id],
+  );
+  const [opening, openHost] = useAtom(open);
+  const pending = opening.waiting;
+  const error =
+    !pending && AsyncResult.isFailure(opening) ? Cause.squash(opening.cause) : null;
   const canOpen = notebook.operations.includes("notebook.open");
-  const openHost = async () => {
-    setPending(true);
-    setError(undefined);
-    try {
-      await Effect.runPromise(
-        workspace.open({
-          connectionId,
-          notebookId: notebook.id,
-          requestId: crypto.randomUUID(),
-        }),
-      );
-      document.getElementById(id)?.hidePopover();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not open the notebook.");
-    } finally {
-      setPending(false);
-    }
-  };
   const trigger = useRef<HTMLButtonElement>(null);
   return (
     <li>
@@ -92,13 +95,17 @@ export function NotebookRow({
         <h3 id={`${id}-heading`}>Open with</h3>
         {canOpen && (
           <>
-            <button type="button" disabled={pending} onClick={() => void openHost()}>
+            <button type="button" disabled={pending} onClick={() => openHost()}>
               {pending ? "Opening…" : "Host"}
             </button>
             {views.length > 0 && <hr />}
           </>
         )}
-        {error && <p role="alert">{error}</p>}
+        {!!error && (
+          <p role="alert">
+            {error instanceof Error ? error.message : "Could not open the notebook."}
+          </p>
+        )}
         {views.length
           ? views.map((view) => (
               <a

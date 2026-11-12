@@ -20,10 +20,7 @@ export const make = (plugins: readonly Plugin.Plugin[]) =>
     const registry = yield* AtomRegistry.AtomRegistry;
     const owner = yield* Effect.scope;
     const state = Atom.make<State>({ views: [], failures: [] });
-    yield* Effect.acquireRelease(
-      Effect.sync(() => registry.mount(state)),
-      (unmount) => Effect.sync(unmount),
-    );
+    yield* Atom.mount(state);
     const seen = new Set<string>();
     const fail = (pluginId: string, message: string) =>
       registry.update(state, (current) => ({

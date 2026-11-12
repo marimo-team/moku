@@ -15,7 +15,7 @@ import {
   lineNumbers,
   placeholder,
 } from "@codemirror/view";
-import { useLayoutEffect, useRef } from "react";
+import { useEffectEvent, useLayoutEffect, useRef } from "react";
 import { tags } from "@lezer/highlight";
 
 const extensions = [
@@ -91,10 +91,7 @@ export function CodeEditor({
   const binding = useCellCodeExtension(cellId);
   const container = useRef<HTMLDivElement>(null);
   const editor = useRef<EditorView | null>(null);
-  const run = useRef(onRun);
-  useLayoutEffect(() => {
-    run.current = onRun;
-  }, [onRun]);
+  const run = useEffectEvent((advance: boolean) => onRun?.(advance));
 
   useLayoutEffect(() => {
     if (!container.current) return;
@@ -103,7 +100,7 @@ export function CodeEditor({
       extensions: [
         ...extensions,
         binding,
-        cellRunKeymap((advance) => run.current?.(advance)),
+        cellRunKeymap((advance) => run(advance)),
         EditorView.contentAttributes.of({
           tabindex: "0",
           "aria-label": "Cell source",

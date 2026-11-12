@@ -3,7 +3,7 @@ import { useEffect } from "react";
 interface Options {
   canSave: boolean;
   saveDisabled: boolean;
-  save: () => Promise<unknown>;
+  save: () => void;
 }
 
 /** Binds notebook shortcuts to the same commands used by the toolbar. */
@@ -18,7 +18,7 @@ export function useNotebookShortcuts({ canSave, saveDisabled, save }: Options) {
         event.key.toLowerCase() === "s"
       ) {
         event.preventDefault();
-        if (!saveDisabled) void save().catch(() => {});
+        if (!saveDisabled) save();
       }
     };
     window.addEventListener("keydown", onKeyDown);

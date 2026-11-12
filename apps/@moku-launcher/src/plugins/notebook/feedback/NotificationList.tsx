@@ -1,9 +1,9 @@
-import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-react";
 import { Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { useEffect, useState } from "react";
 import type * as Notifications from "./Notifications.ts";
-import { dismissAtom, messagesAtom, actionAtom } from "./useNotifications.ts";
+import { dismissAtom, messagesAtom, actionAtoms } from "./useNotifications.ts";
 
 export function NotificationList() {
   const result = useAtomValue(messagesAtom);
@@ -21,8 +21,8 @@ export function NotificationList() {
 
 function NotificationItem({ message }: { message: Notifications.Notification }) {
   const dismiss = useAtomSet(dismissAtom);
-  const act = useAtomSet(actionAtom, { mode: "promise" });
-  const [busy, setBusy] = useState(false);
+  const [result, act] = useAtom(actionAtoms(message.id));
+  const busy = result.waiting;
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [hidden, setHidden] = useState(document.hidden);
@@ -68,14 +68,7 @@ function NotificationItem({ message }: { message: Notifications.Notification }) 
         <button
           className="notification-action"
           disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              await act(message);
-            } finally {
-              setBusy(false);
-            }
-          }}
+          onClick={() => act(message)}
         >
           {busy ? "Working…" : action.label}
         </button>

@@ -1,7 +1,7 @@
-import { useAtomValue } from "@effect/atom-react";
+import { useAtom, useAtomValue } from "@effect/atom-react";
 import { AsyncResult, Atom } from "effect/reactivity";
-import { useEffect, useState } from "react";
-import { Effect } from "effect";
+import { useEffect, useMemo, useState } from "react";
+import { Cause, Effect } from "effect";
 import * as Outputs from "@moku/core/Outputs";
 import { CellOutputs, Provider } from "@moku/outputs";
 import { Plugin, type ViewProps } from "@moku/plugin";
@@ -44,10 +44,23 @@ function CellPicker({
   const draft = useAtomValue(document.state);
   const { value: state, status, error: connectionError } = useAtomValue(notebook.state);
   const [selected, setSelected] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState<Action | null>(null);
+  const [actionKind, setActionKind] = useState<Action>("start");
+  const command = useMemo(
+    () =>
+      Atom.fn((action: Effect.Effect<unknown, unknown>) => action).pipe(
+        Atom.setIdleTTL(0),
+      ),
+    [notebook, document],
+  );
+  const [result, execute] = useAtom(command);
+  const pending = result.waiting ? actionKind : null;
+  const error =
+    !result.waiting && AsyncResult.isFailure(result)
+      ? Cause.pretty(result.cause)
+      : null;
 
   const order = draft.document?.order ?? [];
+
   // If another client removes the selection, fall back to the first remaining cell.
   const cellId = order.includes(selected) ? selected : order[0];
   const cell = cellId ? draft.document?.cells.get(cellId) : undefined;
@@ -89,16 +102,9 @@ function CellPicker({
   const canSave = available && operations.includes("notebook.save") && unsaved;
 
   // All commands share pending and error feedback.
-  async function perform(kind: Action, action: Effect.Effect<unknown, unknown>) {
-    setError(null);
-    setPending(kind);
-    try {
-      await Effect.runPromise(action);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setPending(null);
-    }
+  function perform(kind: Action, action: Effect.Effect<unknown, unknown>) {
+    setActionKind(kind);
+    execute(action);
   }
 
   const start = notebook.runtime.start({ requestId: crypto.randomUUID() });
@@ -210,7 +216,6 @@ export function runCell(
   });
 }
 
-// Small, local styles keep the example independent of the notebook editor.
 const styles = `
 .basic-cell { max-width: 720px; margin: 64px auto; font-size: 13px; }
 .basic-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }

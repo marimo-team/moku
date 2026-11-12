@@ -81,6 +81,13 @@ export interface Workspace {
    */
   readonly refresh: Effect.Effect<void, Transport.RequestError>;
 
+  /** Ask a host to open its own notebook interface. */
+  readonly open: (input: {
+    readonly connectionId: string;
+    readonly notebookId: string;
+    readonly requestId: string;
+  }) => Effect.Effect<void, Transport.RequestError>;
+
   /**
    * Stores native output credentials on the proxy, separately from host API credentials.
    *
@@ -200,6 +207,18 @@ export const make = (options: { launchKey?: string } = {}) =>
     const workspace: Workspace = {
       state: Atom.readable((get) => get(current)),
       refresh,
+      open: ({ connectionId, notebookId, requestId }) =>
+        transport
+          .json(
+            `/api/hosts/${encodeURIComponent(connectionId)}/notebooks/${encodeURIComponent(notebookId)}/open`,
+            Schema.Struct({ success: Schema.Literal(true) }),
+            {
+              method: "POST",
+              headers: { "Idempotency-Key": requestId },
+              signal: lifetime.signal,
+            },
+          )
+          .pipe(Effect.asVoid),
       authorizeInteractions: ({ connectionId, token }) =>
         transport
           .json(

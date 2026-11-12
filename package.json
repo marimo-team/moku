@@ -8,13 +8,12 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --cwd apps/@moku-launcher --silent dev",
-    "dev:dag": "VITE_MOKU_VIEW=dag/graph bun run --cwd apps/@moku-launcher --silent dev",
     "build": "bun run --cwd apps/@moku-launcher --silent build",
     "preview": "bun run --cwd apps/@moku-launcher --silent preview",
     "check": "vp check",
     "format": "vp fmt",
     "test": "vp test run",
-    "dev:editor": "VITE_MOKU_VIEW=editor/notebook bun run --cwd apps/@moku-launcher --silent dev"
+    "setup": "bun scripts/setup.ts"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",

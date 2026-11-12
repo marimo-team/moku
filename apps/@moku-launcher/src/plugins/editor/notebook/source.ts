@@ -31,10 +31,7 @@ export function read(code: string, language?: Language): Source {
     ) {
       return { ...markdown.transformIn(code), language: "markdown" };
     }
-    if (
-      (language === undefined || language === "sql") &&
-      sql.isSupported(code)
-    ) {
+    if ((language === undefined || language === "sql") && sql.isSupported(code)) {
       return { ...sql.transformIn(code), language: "sql" };
     }
   }

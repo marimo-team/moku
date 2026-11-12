@@ -1,20 +1,19 @@
 /**
  * Build the embedded renderer and its declarations into `dist/`.
  *
- * Uses a checkout path from the first argument, then `MARIMO_CHECKOUT`, then
- * `~/github/marimo-team/marimo`. Install the checkout's frontend dependencies
- * before building. `dist/source.json` records the bundled upstream revision.
+ * Uses the pinned GitHub checkout prepared by `bun setup`, or `MARIMO_CHECKOUT`.
+ * `dist/source.json` records the bundled upstream revision.
  *
  * @module
  */
 import * as Fs from "node:fs/promises";
 import * as Module from "node:module";
-import * as Os from "node:os";
 import * as Path from "node:path";
 import * as Url from "node:url";
 import { execFileSync } from "node:child_process";
 import { build } from "vite-plus";
 import ts from "typescript";
+import { checkout } from "../../../scripts/marimo.ts";
 
 const require = Module.createRequire(import.meta.resolve("vite-plus"));
 const { esmExternalRequirePlugin } = await import(
@@ -22,11 +21,6 @@ const { esmExternalRequirePlugin } = await import(
 );
 const external = /^react(?:-dom)?(?:\/.*)?$/;
 const project = Url.fileURLToPath(new URL("../", import.meta.url));
-const checkout = Path.resolve(
-  process.argv[2] ??
-    process.env.MARIMO_CHECKOUT ??
-    Path.join(Os.homedir(), "github/marimo-team/marimo"),
-);
 const frontend = Path.join(checkout, "frontend");
 const entry = Path.join(project, "bundle/renderer.tsx");
 const outDir = Path.join(project, "dist");

@@ -7,7 +7,7 @@
     "./vite": "./src/vite.ts"
   },
   "dependencies": {
-    "@marimo-team/client": "file:../../vendor/marimo-client-29327a665.tgz",
+    "@marimo-team/client": "file:../../vendor/client",
     "@moku/core": "workspace:*",
     "effect": "4.1.0"
   },

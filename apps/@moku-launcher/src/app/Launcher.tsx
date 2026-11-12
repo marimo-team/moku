@@ -14,10 +14,6 @@ export function Launcher({
   const connections = useAtomValue(workspace.state, (state) => state.connections);
   const discovery = useAtomValue(workspace.state, (state) => state.status);
   const { views, failures } = useAtomValue(host.state);
-  const preferred = import.meta.env.VITE_MOKU_VIEW;
-  const orderedViews = views.toSorted(
-    (a, b) => Number(b.key === preferred) - Number(a.key === preferred),
-  );
   const refresh = () =>
     Effect.runPromise(workspace.refresh.pipe(Effect.catch(() => Effect.void)));
   return (
@@ -64,7 +60,7 @@ export function Launcher({
               key={connection.id}
               connection={connection}
               workspace={workspace}
-              views={orderedViews}
+              views={views}
             />
           ))
         ) : (

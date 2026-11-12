@@ -18,9 +18,7 @@ export function RequestFailure({
       <strong>{problem.title}</strong>
       <p>{problem.description}</p>
       <div className="request-failure-actions">
-        {retry && problem.retryable && (
-          <button onClick={retry}>Try again</button>
-        )}
+        {retry && problem.retryable && <button onClick={retry}>Try again</button>}
         {children}
       </div>
       {problem.details && (

@@ -48,8 +48,7 @@ export const make = Effect.gen(function* () {
       SubscriptionRef.update(state, (current) =>
         current.filter(
           (entry) =>
-            entry.id !== id ||
-            (revision !== undefined && entry.revision !== revision),
+            entry.id !== id || (revision !== undefined && entry.revision !== revision),
         ),
       ),
   });

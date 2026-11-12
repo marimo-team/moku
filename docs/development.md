@@ -1,17 +1,29 @@
 # Development
 
 ```sh
-bun install
-bun run --filter @moku/outputs build
+bun setup
 bun dev
 ```
 
-The [outputs build](../packages/@moku-outputs/README.md) needs a local marimo checkout.
-Open the authenticated link printed in the terminal. The launcher starts marimo for
-`examples/` using `../marimo` and discovers other running hosts. Configure the
-command in [vite.config.ts](../apps/@moku-launcher/vite.config.ts).
+Requires Bun, Git, uv, and the pnpm version declared by the selected marimo checkout.
 
-Use `bun dev:dag` to list Graph first in “Open with”. Register views in
+Setup fetches the GitHub revision in [marimo.json](../marimo.json), prepares the
+client and smart-cell parser, installs workspace dependencies, and bundles outputs.
+`bun dev` starts a marimo host from that same revision. Open the authenticated link
+printed in the terminal.
+
+To use a local checkout for both:
+
+```sh
+MARIMO_CHECKOUT=../marimo bun setup
+MARIMO_CHECKOUT=../marimo bun dev
+```
+
+Rerun setup when switching sources. The override does not change the GitHub pin.
+The development server opens `examples/` and discovers other running hosts.
+Configure its command in [marimo.ts](../scripts/marimo.ts).
+
+Register views in
 [plugins.ts](../apps/@moku-launcher/src/plugins.ts).
 
 ```sh

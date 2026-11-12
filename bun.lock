@@ -24,7 +24,7 @@
         "@effect/atom-react": "4.1.0",
         "@fontsource-variable/inter": "^5.3.0",
         "@lezer/highlight": "^1.2.5",
-        "@marimo-team/smart-cells": "file:../../vendor/marimo-smart-cells-29327a665.tgz",
+        "@marimo-team/smart-cells": "file:../../vendor/smart-cells",
         "@moku/core": "workspace:*",
         "@moku/editor": "workspace:*",
         "@moku/outputs": "workspace:*",
@@ -42,7 +42,7 @@
     "packages/@moku-core": {
       "name": "@moku/core",
       "dependencies": {
-        "@marimo-team/client": "file:../../vendor/marimo-client-29327a665.tgz",
+        "@marimo-team/client": "file:../../vendor/client",
         "effect": "4.1.0",
       },
     },
@@ -91,7 +91,7 @@
     "packages/@moku-proxy": {
       "name": "@moku/proxy",
       "dependencies": {
-        "@marimo-team/client": "file:../../vendor/marimo-client-29327a665.tgz",
+        "@marimo-team/client": "file:../../vendor/client",
         "@moku/core": "workspace:*",
         "effect": "4.1.0",
       },
@@ -167,10 +167,6 @@
     "@lezer/python": ["@lezer/python@1.1.19", "", { "dependencies": { "@lezer/common": "^1.2.0", "@lezer/highlight": "^1.0.0", "@lezer/lr": "^1.0.0" } }, "sha512-MhQIURHRytsNzP/YXnqpYKW6la6voAH3kyplTOOiCdjyFY6cWWGFVmYVdHIPrElqSDf4iCDktQCockB9FxuhzQ=="],
 
     "@marijn/find-cluster-break": ["@marijn/find-cluster-break@1.0.4", "", {}, "sha512-Wy0V7+SGUjnF9/TkiM1hKVDPj7jKXduPNboMVtHTA8dySMURWqfg/JZ9E2Sq8JgSJmkl7k7Qe9FLeMSrSraWmQ=="],
-
-    "@marimo-team/client": ["@marimo-team/client@../../vendor/marimo-client-29327a665.tgz", { "dependencies": { "zod": "^4.6.7" } }, "sha512-klNLJkorb0H80u4/Att6yyxrQmmDqlsFw1Rnoy4jSe/Qt1ka18hmXYrJAqu7AgEv/9TndReDE6SAfAnPV1J/QA=="],
-
-    "@marimo-team/smart-cells": ["@marimo-team/smart-cells@../../vendor/marimo-smart-cells-29327a665.tgz", { "dependencies": { "@codemirror/lang-python": "^6.2.1", "@lezer/common": "^1.5.2", "@lezer/python": "^1.1.19", "string-dedent": "^3.0.2" } }, "sha512-TUuc49QBJLSX5y08umQBHpg1p8H/APtNAvFq4inEUXS4qlOIhMRJ1w+oLvaFhoofAO+bAMMNEJFg7NdOQ2/dsA=="],
 
     "@moku/core": ["@moku/core@workspace:packages/@moku-core"],
 
@@ -515,5 +511,11 @@
     "yuku-parser": ["yuku-parser@0.19.0", "", { "dependencies": { "@yuku-toolchain/types": "^0.19.0", "yuku-core": "0.19.0" } }, "sha512-XrBh9ZiQK5mJVRxZBAvD6LwRyAYrK3MFtH3+onyuxFL5hFD44EC3QOmIC1FjTj6H2MMwq46/NAI+NZxLZPZgxg=="],
 
     "zod": ["zod@4.6.7", "", {}, "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="],
+
+    "@moku/core/@marimo-team/client": ["@marimo-team/client@file:vendor/client", { "dependencies": { "zod": "^4.6.7" } }],
+
+    "@moku/launcher/@marimo-team/smart-cells": ["@marimo-team/smart-cells@file:vendor/smart-cells", { "dependencies": { "@codemirror/lang-python": "^6.2.1", "@lezer/common": "^1.5.2", "@lezer/python": "^1.1.19", "string-dedent": "^3.0.2" } }],
+
+    "@moku/proxy/@marimo-team/client": ["@marimo-team/client@file:vendor/client", { "dependencies": { "zod": "^4.6.7" } }],
   }
 }

@@ -29,10 +29,5 @@ function ExecutionOutputs({
 individual parts. `Provider` connects interactive outputs to the notebook runtime.
 Use the notebook's atom registry; one notebook can have interactive outputs per page.
 
-Build the embedded renderer from a marimo checkout with frontend dependencies installed:
-
-```sh
-bun run --filter @moku/outputs build
-```
-
-Defaults to `~/github/marimo-team/marimo`; override with `MARIMO_CHECKOUT`.
+`bun setup` builds the embedded renderer from the pinned GitHub revision.
+Use `MARIMO_CHECKOUT=../marimo bun setup` to build from a local checkout.

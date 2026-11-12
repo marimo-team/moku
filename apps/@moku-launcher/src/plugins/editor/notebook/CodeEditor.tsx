@@ -126,11 +126,7 @@ export function CodeEditor({
   }, [focusRequest]);
 
   return (
-    <div
-      ref={container}
-      className="code-editor"
-      data-runnable={onRun !== undefined}
-    />
+    <div ref={container} className="code-editor" data-runnable={onRun !== undefined} />
   );
 }
 

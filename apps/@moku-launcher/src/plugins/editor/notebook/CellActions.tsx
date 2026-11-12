@@ -24,10 +24,7 @@ export function CellActions({
   useEffect(() => {
     if (!open) return;
     function outside(event: PointerEvent) {
-      if (
-        event.target instanceof Node &&
-        !root.current?.contains(event.target)
-      ) {
+      if (event.target instanceof Node && !root.current?.contains(event.target)) {
         setOpen(false);
       }
     }
@@ -55,27 +52,20 @@ export function CellActions({
           event.stopPropagation();
           close(true);
         }
-        if (
-          open &&
-          ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)
-        ) {
+        if (open && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
           event.preventDefault();
           const items = [
             ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
               "[role^='menuitem']:not(:disabled)",
             ),
           ];
-          const current = items.indexOf(
-            document.activeElement as HTMLButtonElement,
-          );
+          const current = items.indexOf(document.activeElement as HTMLButtonElement);
           const next =
             event.key === "Home"
               ? 0
               : event.key === "End"
                 ? items.length - 1
-                : (current +
-                    (event.key === "ArrowDown" ? 1 : -1) +
-                    items.length) %
+                : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) %
                   items.length;
           items[next]?.focus();
         }

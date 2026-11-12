@@ -39,11 +39,7 @@ export function ConnectionStatus({
   const live = !problem && status === "connected" && ready;
   const label =
     problem?.title ??
-    (live
-      ? "Live"
-      : status === "reconnecting"
-        ? "Reconnecting…"
-        : "Connecting…");
+    (live ? "Live" : status === "reconnecting" ? "Reconnecting…" : "Connecting…");
   const indicator = (
     <span
       className={`connection-status ${live ? "live" : ""}`}

@@ -9,9 +9,7 @@ export function ThemeControl() {
       aria-label="Appearance"
       title="Catppuccin appearance"
       value={preference}
-      onChange={(event) =>
-        setPreference(event.target.value as Theme.Preference)
-      }
+      onChange={(event) => setPreference(event.target.value as Theme.Preference)}
     >
       <option value="system">System</option>
       <option value="light">Latte</option>

@@ -86,10 +86,7 @@ export function freshnessOf(inputs: CellFreshnessInputs): CellFreshnessLookup {
   const recordOf = (id: string) => inputs.executions.get(id);
 
   /** Whether a value the record read has changed, or one upstream has. */
-  function inputsChanged(
-    record: Execution,
-    visiting: ReadonlySet<string>,
-  ): boolean {
+  function inputsChanged(record: Execution, visiting: ReadonlySet<string>): boolean {
     const path = new Set(visiting).add(record.id);
     for (const [name, revision] of Object.entries(record.depends_on)) {
       const variables = bound.get(name) ?? [];
@@ -120,10 +117,7 @@ export function freshnessOf(inputs: CellFreshnessInputs): CellFreshnessLookup {
       const variable = variables.find(
         (candidate) => candidate.revision.execution === revision.execution,
       );
-      if (
-        variable === undefined ||
-        variable.revision.update !== revision.update
-      ) {
+      if (variable === undefined || variable.revision.update !== revision.update) {
         return true;
       }
       const binder = recordOf(variable.execution_id);
@@ -141,22 +135,16 @@ export function freshnessOf(inputs: CellFreshnessInputs): CellFreshnessLookup {
   function sourceChanged(cell: Cell, result: Execution): boolean {
     const pending = pendingByCell.get(cell.id);
     const source =
-      pending !== undefined && pending.status !== "completed"
-        ? pending
-        : result;
+      pending !== undefined && pending.status !== "completed" ? pending : result;
     return cell.code_fingerprint !== source.code_fingerprint;
   }
 
-  function ofRecord(
-    record: Execution,
-    visiting: ReadonlySet<string>,
-  ): CellFreshness {
+  function ofRecord(record: Execution, visiting: ReadonlySet<string>): CellFreshness {
     const known = memo.get(record.id);
     if (known !== undefined) {
       return known;
     }
-    const cell =
-      record.cell_id === null ? undefined : inputs.cells.get(record.cell_id);
+    const cell = record.cell_id === null ? undefined : inputs.cells.get(record.cell_id);
     const freshness: CellFreshness = {
       sourceChanged: cell === undefined || sourceChanged(cell, record),
       inputsChanged: inputsChanged(record, visiting),

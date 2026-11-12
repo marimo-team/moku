@@ -169,7 +169,8 @@ a:focus-visible {
   color: var(--catalog-muted);
   margin: 6px 8px;
 }
-.open-with a {
+.open-with a,
+.open-with button {
   display: block;
   padding: 6px 8px;
   border-radius: 3px;
@@ -177,7 +178,9 @@ a:focus-visible {
   color: inherit;
 }
 .open-with a:hover,
-.open-with a:focus-visible {
+.open-with a:focus-visible,
+.open-with button:hover,
+.open-with button:focus-visible {
   background: var(--catalog-hover);
 }
 .open-with p {
@@ -255,4 +258,27 @@ a:focus-visible {
   .view-page {
     padding: 12px;
   }
+}
+
+.open-with button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.open-with button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.open-with-detail {
+  display: block;
+  font-size: 11px;
+  color: var(--catalog-muted);
+}
+.open-with hr {
+  border: 0;
+  border-top: 1px solid var(--catalog-border);
+  margin: 4px;
 }

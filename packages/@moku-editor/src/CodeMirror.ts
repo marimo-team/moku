@@ -94,7 +94,8 @@ export function bindCell(options: CellOptions): Extension {
       }
 
       // A pending source update must reach the view before it can be edited.
-      const matchesSource = project(options).code === transaction.startState.doc.toString();
+      const matchesSource =
+        project(options).code === transaction.startState.doc.toString();
       return canEdit(options) && matchesSource ? transaction : [];
     }),
     ViewPlugin.define((view) => new CellBinding(view, options, editable, source), {

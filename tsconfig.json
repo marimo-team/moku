@@ -11,6 +11,6 @@
     "skipLibCheck": true,
     "types": ["node", "vite-plus/client"]
   },
-  "include": ["apps", "packages", "vite.config.ts"],
+  "include": ["apps", "packages", "scripts", "vite.config.ts"],
   "exclude": ["packages/@moku-outputs/bundle"]
 }

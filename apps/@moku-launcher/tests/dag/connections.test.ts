@@ -1,6 +1,9 @@
 import * as NodeAssert from "node:assert/strict";
 import { test } from "vite-plus/test";
-import { connectionPriority, connectionTone } from "../../src/plugins/dag/graph/connections.ts";
+import {
+  connectionPriority,
+  connectionTone,
+} from "../../src/plugins/dag/graph/connections.ts";
 
 test("queued work does not light an edge and a failed destination retains the path it ran", () => {
   NodeAssert.equal(connectionTone("succeeded", "queued"), "idle");

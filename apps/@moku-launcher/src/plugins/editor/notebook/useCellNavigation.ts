@@ -8,18 +8,21 @@ export function useCellNavigation() {
   const focus = useCallback((id: string) => {
     setRequest((previous) => ({ id, sequence: (previous?.sequence ?? 0) + 1 }));
   }, []);
-  const advance = useCallback((id: string) => {
-    const { document, canEdit } = model.registry.get(model.state);
-    if (!document) return;
-    const index = document.order.indexOf(id);
-    if (index < 0) return;
-    const next = document.order[index + 1];
-    if (next !== undefined) focus(next);
-    else if (canEdit) {
-      const created = crypto.randomUUID();
-      model.edit((edit) => edit.createCell({ id: created, code: "" }, { after: id }));
-      focus(created);
-    }
-  }, [model, focus]);
+  const advance = useCallback(
+    (id: string) => {
+      const { document, canEdit } = model.registry.get(model.state);
+      if (!document) return;
+      const index = document.order.indexOf(id);
+      if (index < 0) return;
+      const next = document.order[index + 1];
+      if (next !== undefined) focus(next);
+      else if (canEdit) {
+        const created = crypto.randomUUID();
+        model.edit((edit) => edit.createCell({ id: created, code: "" }, { after: id }));
+        focus(created);
+      }
+    },
+    [model, focus],
+  );
   return { request, focus, advance };
 }

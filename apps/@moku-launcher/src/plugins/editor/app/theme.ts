@@ -39,4 +39,3 @@ export const appearance = Atom.make((get) => {
   const selected = get(preference);
   return selected === "system" ? get(system) : selected;
 });
-

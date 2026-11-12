@@ -213,6 +213,7 @@ export function createApi({
     const read =
       req.method === "GET" &&
       (path === "/events" || /^\/notebooks\/[^/]+\/events$/.test(path));
+    const open = req.method === "POST" && /^\/notebooks\/[^/]+\/open$/.test(path);
     const save = req.method === "POST" && /^\/notebooks\/[^/]+\/save$/.test(path);
     const schema =
       req.method === "POST" && /^\/notebooks\/[^/]+\/edits$/.test(path)
@@ -226,6 +227,7 @@ export function createApi({
               : undefined;
     // Cancelling one run and interrupting the runtime are distinct operations.
     const mutation =
+      open ||
       schema !== undefined ||
       (req.method === "DELETE" &&
         /^\/notebooks\/[^/]+\/runtime(?:\/runs\/[^/]+)?$/.test(path)) ||
@@ -303,6 +305,11 @@ export function createApi({
         signal: controller.signal,
         redirect: "error",
       });
+      if (open && response.ok) {
+        // The host opens its browser; its returned URL may contain credentials.
+        await response.body?.cancel();
+        return json(res, 200, { success: true });
+      }
       res.writeHead(response.status, {
         "Content-Type": response.headers.get("content-type") ?? "application/json",
         "Cache-Control": "no-store",

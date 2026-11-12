@@ -3,11 +3,7 @@ import { Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { useEffect, useState } from "react";
 import type * as Notifications from "../app/Notifications.ts";
-import {
-  dismissAtom,
-  messagesAtom,
-  actionAtom,
-} from "../app/useNotifications.ts";
+import { dismissAtom, messagesAtom, actionAtom } from "../app/useNotifications.ts";
 
 export function NotificationViewport() {
   const result = useAtomValue(messagesAtom);
@@ -49,8 +45,7 @@ function Notification({ message }: { message: Notifications.Notification }) {
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setFocused(true)}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget))
-          setFocused(false);
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
       }}
       onKeyDown={(event) => {
         if (event.key === "Escape") {

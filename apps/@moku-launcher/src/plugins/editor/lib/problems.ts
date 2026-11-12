@@ -1,11 +1,7 @@
 import { HttpClientError } from "effect/http";
 
 export interface Problem {
-  readonly category:
-    | "authentication"
-    | "unavailable"
-    | "disconnected"
-    | "error";
+  readonly category: "authentication" | "unavailable" | "disconnected" | "error";
   readonly title: string;
   readonly description: string;
   readonly details?: string;
@@ -66,10 +62,7 @@ export function describe(error: unknown, resource = "request"): Problem {
       "unavailable",
     );
   if (field(error, "_tag") === "NoRuntimeProblem")
-    return problem(
-      "Runtime not running",
-      "Run the notebook to start its runtime.",
-    );
+    return problem("Runtime not running", "Run the notebook to start its runtime.");
   if (field(error, "_tag") === "DecisionRequiredProblem")
     return problem(
       "Startup needs a choice",

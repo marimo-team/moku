@@ -39,6 +39,7 @@ export function HostNotebooks({
               key={notebook.id}
               notebook={notebook}
               connectionId={connection.id}
+              workspace={workspace}
               views={views}
             />
           ))}

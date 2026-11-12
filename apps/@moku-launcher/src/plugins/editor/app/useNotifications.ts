@@ -7,9 +7,7 @@ import * as Notifications from "./Notifications.ts";
 import * as Problems from "../lib/problems.ts";
 
 export const messagesAtom = runtime.atom(
-  Stream.unwrap(
-    Effect.map(Notifications.Service, (service) => service.changes),
-  ),
+  Stream.unwrap(Effect.map(Notifications.Service, (service) => service.changes)),
 );
 export const showAtom = runtime.fn(
   (message: Notifications.Message) =>
@@ -18,9 +16,7 @@ export const showAtom = runtime.fn(
 );
 export const dismissAtom = runtime.fn(
   ({ id, revision }: { id: string; revision?: number }) =>
-    Effect.flatMap(Notifications.Service, (service) =>
-      service.dismiss(id, revision),
-    ),
+    Effect.flatMap(Notifications.Service, (service) => service.dismiss(id, revision)),
   { concurrent: true },
 );
 
@@ -34,8 +30,7 @@ export const actionAtom = runtime.fn(
         yield* service.dismiss(message.id, message.revision);
       } else if (
         (yield* service.current).some(
-          (entry) =>
-            entry.id === message.id && entry.revision === message.revision,
+          (entry) => entry.id === message.id && entry.revision === message.revision,
         )
       ) {
         const problem = Problems.describe(Cause.squash(exit.cause));
@@ -75,23 +70,11 @@ export function useNotification(
       action: action
         ? {
             label: action.label,
-            run: Effect.suspend(
-              () => latest.current?.action?.run ?? Effect.void,
-            ),
+            run: Effect.suspend(() => latest.current?.action?.run ?? Effect.void),
           }
         : undefined,
     });
-  }, [
-    id,
-    title,
-    description,
-    details,
-    kind,
-    action?.label,
-    trigger,
-    show,
-    dismiss,
-  ]);
+  }, [id, title, description, details, kind, action?.label, trigger, show, dismiss]);
   useEffect(() => () => dismiss({ id }), [id, dismiss]);
 }
 

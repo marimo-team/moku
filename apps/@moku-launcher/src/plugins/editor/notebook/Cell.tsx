@@ -222,9 +222,7 @@ export function Cell({
             )}
           </div>
         )}
-        {!(visible && source.language === "markdown") && (
-          <CellOutputs {...outputs} />
-        )}
+        {!(visible && source.language === "markdown") && <CellOutputs {...outputs} />}
       </div>
     </article>
   );

@@ -2,7 +2,10 @@ import { dependencyGraph } from "../../src/plugins/dag/graph/dependencies.ts";
 import * as NodeAssert from "node:assert/strict";
 import { test } from "vite-plus/test";
 import * as Protocol from "@moku/core/Protocol";
-import { cellStatus, type NotebookState } from "../../src/plugins/dag/notebook/model.ts";
+import {
+  cellStatus,
+  type NotebookState,
+} from "../../src/plugins/dag/notebook/model.ts";
 
 function example(): NotebookState {
   const cells = Object.fromEntries(

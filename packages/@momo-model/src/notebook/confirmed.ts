@@ -1,3 +1,8 @@
+/**
+ * Assemble complete document revisions from cell and document events.
+ *
+ * @module
+ */
 import type * as Protocol from "../Protocol.ts";
 
 /** The cell records and revision belong to the same complete host update. */

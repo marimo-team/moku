@@ -1,5 +1,10 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
+/**
+ * Synchronous document transactions with atomic publication and rollback.
+ *
+ * @module
+ */
 import * as Protocol from "@momo/model/Protocol";
 import type { Confirmed as Document } from "@momo/model/Notebook";
 import {
@@ -15,17 +20,39 @@ import {
   viewDocument,
 } from "./draft.ts";
 
-/** Valid only within a synchronous edit callback. */
+/**
+ * Operations available during a synchronous document edit.
+ *
+ * The editor is valid only inside its callback. Using it after the callback
+ * returns throws.
+ */
 export interface Editor {
   setCode(id: Protocol.CellId, code: string): void;
   setName(id: Protocol.CellId, name: string): void;
+
+  /**
+   * Updates the supplied configuration fields, preserving all others.
+   */
   updateConfig(id: Protocol.CellId, patch: Partial<Protocol.CellConfigOutput>): void;
+
+  /**
+   * Creates a cell before or after an existing cell, or at the end by default.
+   */
   createCell(cell: Protocol.CellInput, placement?: Placement): void;
   deleteCell(id: Protocol.CellId): void;
+
+  /**
+   * Reorders cells. The order must contain every current cell exactly once.
+   */
   setOrder(order: readonly Protocol.CellId[]): void;
 }
 
-/** A thrown error rolls back the entire transaction. */
+/**
+ * A synchronous edit callback whose changes publish as one transaction.
+ *
+ * Throwing rolls back all changes. Async callbacks and nested transactions
+ * are rejected.
+ */
 export type Edit = (editor: Editor) => void;
 
 export function editDocument(

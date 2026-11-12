@@ -1,9 +1,17 @@
+/**
+ * Reconcile confirmed source, local drafts, and the submission awaiting confirmation.
+ *
+ * @module
+ */
 import type { Source } from "@momo/model/Notebook";
 import type * as Protocol from "@momo/model/Protocol";
 import { Atom, type AtomRegistry } from "effect/reactivity";
 import * as Draft from "./draft.ts";
 import { editDocument, type Edit } from "./edit.ts";
 
+/**
+ * The captured draft and immutable request for one synchronization attempt.
+ */
 export interface Submission {
   readonly request: Protocol.EditRequest;
   readonly draft: Draft.Draft;
@@ -48,6 +56,12 @@ function reconcile(state: State): State {
   };
 }
 
+/**
+ * Creates document atoms and subscribes them to confirmed source.
+ *
+ * Call `dispose` when the editing session ends to release the subscription and
+ * make the document read-only.
+ */
 export function makeState(
   registry: AtomRegistry.AtomRegistry,
   source: Atom.Atom<Source>,

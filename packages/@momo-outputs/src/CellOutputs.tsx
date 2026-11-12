@@ -1,3 +1,8 @@
+/**
+ * Render an execution's displays, console text, and final outcome together.
+ *
+ * @module
+ */
 import type { ReactElement, ReactNode } from "react";
 import type { CellOutputsProps, ConsoleChunk, Outcome, OutputItem } from "./types.ts";
 import { DisplayView } from "./DisplayView.tsx";
@@ -83,6 +88,28 @@ function OutcomeView({ outcome }: { readonly outcome: Outcome | null }): ReactNo
   }
 }
 
+/**
+ * Renders ordered displays and console chunks, followed by the execution outcome.
+ *
+ * Adjacent console chunks are grouped. A display matching the outcome's
+ * traceback is omitted to avoid showing the same traceback twice. Renders
+ * nothing when neither the items nor the outcome have visible content.
+ *
+ * @example Render a selected execution
+ * ```tsx
+ * import { CellOutputs } from "@momo/outputs";
+ * import * as Outputs from "@momo/model/Outputs";
+ * import type * as Notebook from "@momo/model/Notebook";
+ *
+ * function ExecutionOutputs(props: {
+ *   snapshot: Notebook.Snapshot;
+ *   executionId: string;
+ * }) {
+ *   const outputs = Outputs.forExecution(props.snapshot, props.executionId);
+ *   return <CellOutputs {...outputs} />;
+ * }
+ * ```
+ */
 export function CellOutputs(props: CellOutputsProps): ReactElement | null {
   const { outcome, items, className } = props;
   if (

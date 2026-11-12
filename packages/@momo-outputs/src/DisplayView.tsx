@@ -1,3 +1,8 @@
+/**
+ * Render individual display values with a lazy rich-output renderer.
+ *
+ * @module
+ */
 import { Component, Suspense, use, type ReactElement, type ReactNode } from "react";
 import type { DisplayData, DisplayViewProps } from "./types.ts";
 import { loadRenderer } from "./internal/renderer.ts";
@@ -8,6 +13,13 @@ function RichDisplay(props: DisplayViewProps): ReactElement {
   return <DisplayRenderer {...props} />;
 }
 
+/**
+ * Renders one display value according to its MIME type.
+ *
+ * Plain text renders immediately. Rich displays load the marimo renderer and
+ * stylesheet on demand, render nothing while loading, and show an error message
+ * if rendering fails.
+ */
 export function DisplayView({ data, className }: DisplayViewProps): ReactElement {
   return (
     <div className={["momo-display", className].filter(Boolean).join(" ")}>

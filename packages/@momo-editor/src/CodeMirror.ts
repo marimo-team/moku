@@ -1,3 +1,8 @@
+/**
+ * CodeMirror extensions that bind a view to raw cell source in a document.
+ *
+ * @module
+ */
 import {
   Annotation,
   Compartment,
@@ -35,7 +40,30 @@ function permissions(editable: boolean): Extension {
   ];
 }
 
-/** Binds raw cell source to a view; its document owns the editing session. */
+/**
+ * Binds an editor view to one cell's source and edit permissions.
+ *
+ * The binding loads source on the next microtask and maps selections through
+ * host changes. Source updates wait for IME composition to finish. Missing
+ * source, permission loss, or document closure makes the view read-only.
+ *
+ * Add languages, themes, history, and keymaps alongside this extension.
+ * Destroying the view releases its subscriptions and leaves the document alive.
+ *
+ * @example Mount a cell editor
+ * ```ts
+ * import { EditorView } from "@codemirror/view";
+ * import * as CodeMirror from "@momo/editor/CodeMirror";
+ * import type * as Document from "@momo/editor/Document";
+ *
+ * function mountCell(document: Document.Interface, cellId: string, parent: HTMLElement) {
+ *   return new EditorView({
+ *     parent,
+ *     extensions: [CodeMirror.bindCell({ document, cellId })],
+ *   });
+ * }
+ * ```
+ */
 export function bindCell(options: CellOptions): Extension {
   const editable = new Compartment();
 

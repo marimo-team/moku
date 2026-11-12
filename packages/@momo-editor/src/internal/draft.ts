@@ -1,5 +1,10 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
+/**
+ * Pure operations for applying, acknowledging, and serializing local drafts.
+ *
+ * @module
+ */
 import type { Confirmed as Document } from "@momo/model/Notebook";
 import * as Protocol from "@momo/model/Protocol";
 
@@ -56,6 +61,7 @@ type CellDraft =
  */
 export interface Draft {
   readonly cells: ReadonlyMap<CellId, CellDraft>;
+
   /** The full order to apply, or null to follow the host's. */
   readonly order: readonly CellId[] | null;
 }

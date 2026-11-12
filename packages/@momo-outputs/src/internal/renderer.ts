@@ -1,9 +1,27 @@
+/**
+ * Load one shared marimo renderer and stylesheet, preserving the selected theme.
+ *
+ * @module
+ */
 import type { Theme } from "../types.ts";
 
 type Renderer = typeof import("../../dist/renderer.js");
 let bundle: Promise<Renderer> | undefined;
 let theme: Theme | undefined;
 
+/**
+ * Sets the theme for all rich outputs on the page.
+ *
+ * The choice is remembered without loading the renderer. Until a theme is set,
+ * the renderer reads `document.documentElement.dataset.theme` on first load.
+ *
+ * @example Match the application's appearance
+ * ```ts
+ * import { setTheme } from "@momo/outputs";
+ *
+ * setTheme("dark");
+ * ```
+ */
 export function setTheme(next: Theme): void {
   theme = next;
   // Appearance changes should not load the rich renderer before it is needed.

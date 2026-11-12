@@ -1,7 +1,16 @@
+/**
+ * Observe an event stream for the lifetime of an atom in its owning registry.
+ *
+ * @module
+ */
 import { Atom, type AtomRegistry } from "effect/reactivity";
 import { RequestError, failure } from "./transport.ts";
 
 export type Status = "connecting" | "connected" | "reconnecting" | "closed" | "error";
+
+/**
+ * The current value of a stream together with its connection status and error.
+ */
 export interface Observation<A> {
   readonly value: A;
   readonly status: Status;

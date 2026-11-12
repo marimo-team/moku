@@ -1,3 +1,8 @@
+/**
+ * Synchronize drafts with bounded retries and confirmation from the notebook stream.
+ *
+ * @module
+ */
 import * as Protocol from "@momo/model/Protocol";
 import { Clock, Data, Deferred, Effect, Exit, Option, Queue, type Scope } from "effect";
 import { Atom, type AtomRegistry } from "effect/reactivity";
@@ -7,12 +12,22 @@ import type { Confirmed } from "@momo/model/Notebook";
 import * as Draft from "./draft.ts";
 import type * as State from "./state.ts";
 
+/**
+ * A synchronization failure, with whether retrying may succeed.
+ */
 export class SyncError extends Data.TaggedError("DocumentSyncError")<{
   readonly message: string;
   readonly retryable: boolean;
   readonly cause?: unknown;
 }> {}
 
+/**
+ * The document's progress from local edits to host confirmation.
+ *
+ * `pending` waits for the debounce interval; `sending` waits for the request;
+ * `confirming` waits for the stream to reach the accepted revision.
+ * `unavailable` means source or edit permission is missing.
+ */
 export type SyncStatus =
   | {
       readonly status: "idle" | "pending" | "sending" | "confirming" | "unavailable";

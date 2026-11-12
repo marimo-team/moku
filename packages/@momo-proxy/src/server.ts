@@ -1,3 +1,8 @@
+/**
+ * Authenticated local routes for marimo host discovery, notebook commands, and events.
+ *
+ * @module
+ */
 import * as NodeCrypto from "node:crypto";
 import * as NodeBuffer from "node:buffer";
 import type * as NodeHttp from "node:http";
@@ -5,6 +10,9 @@ import * as NodeStream from "node:stream";
 import { discoverHosts } from "@marimo-team/client/node";
 import * as Protocol from "@marimo-team/client/protocol";
 
+/**
+ * Public connection details for a host; authentication tokens stay on the server.
+ */
 export interface HostSummary {
   id: string;
   name: string;
@@ -74,6 +82,14 @@ function normalizeHostUrl(input: string) {
 const hostId = (value: string) =>
   NodeCrypto.createHash("sha256").update(value).digest("hex").slice(0, 24);
 
+/**
+ * Creates an authenticated proxy with a Node HTTP request handler.
+ *
+ * `origin` must return the server's current origin for request validation.
+ * Use `launchKey` to establish a browser session through `/api/session`.
+ * Call `close()` on shutdown to abort upstream requests and discard manual
+ * connections. Host credentials remain on the server.
+ */
 export function createApi({
   origin,
   discover = discoverHosts,

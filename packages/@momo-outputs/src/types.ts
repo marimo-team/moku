@@ -1,6 +1,17 @@
+/**
+ * Component props derived from the marimo output protocol.
+ *
+ * @module
+ */
 import type * as Protocol from "@momo/model/Protocol";
 import type * as Outputs from "@momo/model/Outputs";
 
+/**
+ * A MIME type and its encoded payload from the host.
+ *
+ * JSON is encoded as text. Embedded binary media is base64; data URLs and
+ * inline SVG are also accepted by the renderer.
+ */
 export type DisplayData = Protocol.DisplayDataOutput;
 export type ConsoleChunk = Protocol.ConsoleOutput;
 export type Outcome = Protocol.OutcomeOutput;

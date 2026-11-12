@@ -1,3 +1,12 @@
+/**
+ * Build the embedded renderer and its declarations into `dist/`.
+ *
+ * Uses a checkout path from the first argument, then `MARIMO_CHECKOUT`, then
+ * `~/github/marimo-team/marimo`. Install the checkout's frontend dependencies
+ * before building. `dist/source.json` records the bundled upstream revision.
+ *
+ * @module
+ */
 import * as Fs from "node:fs/promises";
 import * as Module from "node:module";
 import * as Os from "node:os";

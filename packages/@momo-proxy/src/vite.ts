@@ -1,6 +1,28 @@
+/**
+ * Vite integration for local marimo discovery and authenticated notebook requests.
+ *
+ * @module
+ */
 import type { Plugin, PreviewServer, ViteDevServer } from "vite-plus";
 import { createApi } from "./server.ts";
 
+/**
+ * Adds the local marimo proxy to Vite development and preview servers.
+ *
+ * Prints an authenticated launch link when the server starts and closes proxy
+ * connections when it stops. `clientName` changes the terminal and attachment
+ * label; it does not select a view.
+ *
+ * @example Add the proxy to a Vite configuration
+ * ```ts
+ * import { defineConfig, lazyPlugins } from "vite-plus";
+ * import { marimo } from "@momo/proxy/vite";
+ *
+ * export default defineConfig({
+ *   plugins: lazyPlugins(() => [marimo()]),
+ * });
+ * ```
+ */
 export function marimo({ clientName = "momo" }: { clientName?: string } = {}): Plugin {
   const proxies = new Set<ReturnType<typeof createApi>>();
   function configure(server: ViteDevServer | PreviewServer) {

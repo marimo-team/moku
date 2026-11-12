@@ -1,3 +1,11 @@
+/**
+ * The embedded marimo renderer, bundled against an upstream frontend checkout.
+ *
+ * React is supplied by the consuming application. Host interactions require
+ * a session connection and currently reject requests.
+ *
+ * @module
+ */
 import { Provider } from "jotai";
 import type { ComponentProps, ReactElement } from "react";
 import { OutputRenderer } from "@/components/editor/Output";

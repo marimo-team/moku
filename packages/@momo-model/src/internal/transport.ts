@@ -1,6 +1,17 @@
+/**
+ * HTTP transport and request failures for the local marimo proxy.
+ *
+ * @module
+ */
 import { Client } from "@marimo-team/client";
 import { Context, Data, Effect, Layer, Schema } from "effect";
 
+/**
+ * A transport, decoding, or host request failure.
+ *
+ * `status` is present for HTTP failures. `problem` carries the host's structured
+ * problem response when available.
+ */
 export class RequestError extends Data.TaggedError("RequestError")<{
   readonly message: string;
   readonly status?: number;
@@ -54,6 +65,12 @@ export class Service extends Context.Service<
   }
 >()("@momo/Transport") {}
 
+/**
+ * Provides transport to the proxy at an absolute base URL.
+ *
+ * Requests include same-origin session cookies and reject redirects. Supply
+ * `options.fetch` to use a custom fetch implementation.
+ */
 export const layer = (
   baseUrl: string | URL,
   options: { fetch?: typeof globalThis.fetch } = {},

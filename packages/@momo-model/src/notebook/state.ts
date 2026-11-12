@@ -1,3 +1,8 @@
+/**
+ * Reduce notebook events into the state exposed to views.
+ *
+ * @module
+ */
 import type * as Protocol from "../Protocol.ts";
 import * as Confirmed from "./confirmed.ts";
 

@@ -1,3 +1,11 @@
+/**
+ * Live notebook state and commands, owned by an Effect scope.
+ *
+ * Use {@link make} to acquire an instance or {@link layer} to provide it as
+ * {@link Service}. Views can share the same instance.
+ *
+ * @module
+ */
 import { Context, Effect, Layer, type Scope } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import type * as Protocol from "./Protocol.ts";
@@ -7,16 +15,40 @@ import { emptyNotebook, reduceNotebook, type NotebookState } from "./notebook/st
 import type { Confirmed } from "./notebook/confirmed.ts";
 
 export type { Confirmed };
+
+/**
+ * Observed notebook records, including runtime activity and execution results.
+ */
 export type Snapshot = Omit<NotebookState, "confirmed">;
+
+/**
+ * Identifies a notebook through a host connection.
+ *
+ * `connectionId` identifies the proxy's connection to a host. `notebookId`
+ * identifies the notebook on that host.
+ */
 export interface Target {
   readonly connectionId: string;
   readonly notebookId: string;
 }
+
+/**
+ * The latest complete document revision and its current edit availability.
+ */
 export interface Source {
+  /**
+   * Null until a complete document revision has arrived.
+   */
   readonly document: Confirmed | null;
   readonly canEdit: boolean;
 }
 export interface RequestOptions {
+  /**
+   * An idempotency key for one logical request.
+   *
+   * Use a fresh ID for a new operation. Reuse it only when retrying that same
+   * request with the same payload.
+   */
   readonly requestId: string;
 }
 
@@ -25,11 +57,21 @@ export interface EditOptions extends RequestOptions {
 }
 
 export interface SaveOptions extends RequestOptions {
+  /**
+   * The confirmed document revision to save; sent as an If-Match precondition.
+   */
   readonly etag: string;
+
+  /**
+   * Choices supplied in response to a host decision request.
+   */
   readonly decisions?: Record<string, string>;
 }
 
 export interface StartOptions extends RequestOptions {
+  /**
+   * Choices supplied in response to a host decision request.
+   */
   readonly decisions?: Record<string, string>;
 }
 
@@ -41,35 +83,95 @@ export interface CancelOptions extends RequestOptions {
   readonly runId: string;
 }
 
+/**
+ * A notebook observation and commands bound to one host connection.
+ */
 export interface Interface {
   readonly target: Target;
+
+  /**
+   * Live notebook records with connection status and any observation error.
+   */
   readonly state: Atom.Atom<Observation<Snapshot>>;
+
+  /**
+   * A coherent document snapshot for editing, separate from runtime activity.
+   */
   readonly source: Atom.Atom<Source>;
+
+  /**
+   * Submits versioned document changes to the host.
+   */
   readonly edit: (
     options: EditOptions,
   ) => Effect.Effect<Protocol.EditResponseOutput, Transport.RequestError>;
+
+  /**
+   * Saves the specified confirmed revision to disk.
+   */
   readonly save: (
     options: SaveOptions,
   ) => Effect.Effect<Protocol.EditResponseOutput, Transport.RequestError>;
+
+  /**
+   * Starts the notebook runtime.
+   */
   readonly start: (
     options: StartOptions,
   ) => Effect.Effect<Protocol.RuntimeOutput, Transport.RequestError>;
+
+  /**
+   * Runs the confirmed cells and etags in the request.
+   */
   readonly run: (
     options: RunOptions,
   ) => Effect.Effect<Protocol.RunOutput, Transport.RequestError>;
+
+  /**
+   * Interrupts work in the notebook runtime.
+   */
   readonly interrupt: (
     options: RequestOptions,
   ) => Effect.Effect<Protocol.RuntimeOutput, Transport.RequestError>;
+
+  /**
+   * Cancels the run identified by `runId`.
+   */
   readonly cancel: (
     options: CancelOptions,
   ) => Effect.Effect<Protocol.RunOutput, Transport.RequestError>;
+
+  /**
+   * Stops the notebook runtime.
+   */
   readonly stop: (
     options: RequestOptions,
   ) => Effect.Effect<Protocol.RuntimeOutput, Transport.RequestError>;
 }
 
+/**
+ * The current notebook supplied to an Effect program.
+ */
 export class Service extends Context.Service<Service, Interface>()("@momo/Notebook") {}
 
+/**
+ * Acquires a notebook observation and its commands.
+ *
+ * Read its atoms with the AtomRegistry supplied to this Effect. Closing the
+ * scope stops observation and aborts in-flight requests. Connection failures
+ * are reported through `state`.
+ *
+ * @example Acquire a notebook through a runtime atom
+ * ```ts
+ * import { Atom } from "effect/reactivity";
+ * import * as Model from "@momo/model";
+ * import * as Notebook from "@momo/model/Notebook";
+ *
+ * const runtime = Atom.runtime(Model.layer(window.location.origin));
+ * const openNotebook = (target: Notebook.Target) =>
+ *   runtime.atom(Notebook.make(target));
+ * ```
+ */
 export function make(
   input: Target,
 ): Effect.Effect<
@@ -185,4 +287,7 @@ export function make(
   });
 }
 
+/**
+ * Acquires a notebook and provides it as {@link Service} for the layer scope.
+ */
 export const layer = (target: Target) => Layer.effect(Service, make(target));

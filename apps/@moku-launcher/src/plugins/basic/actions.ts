@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import type { ViewProps } from "@moku/plugin";
 import type * as Document from "@moku/editor/Document";
+import * as Run from "../../app/Run.ts";
 
 /** Flush edits first so execution uses the source currently shown in the editor. */
 export function runCell(
@@ -15,9 +16,6 @@ export function runCell(
       return yield* Effect.fail(
         new Error("The selected cell was removed or disabled."),
       );
-    return yield* notebook.runtime.run({
-      requestId: crypto.randomUUID(),
-      request: { cells: [{ id: cell.id, etag: cell.etag }] },
-    });
+    return yield* Run.cells(notebook, [cellId], (id) => confirmed.cells.get(id));
   });
 }

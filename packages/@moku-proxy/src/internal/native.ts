@@ -4,7 +4,7 @@
  * @module
  */
 import type * as NodeHttp from "node:http";
-import * as NodeStream from "node:stream";
+import * as Forward from "./forward.ts";
 import { Schema } from "effect";
 import { ComponentValues, FunctionCall, ModelValue } from "@moku/core/Interaction";
 import { json, readBody } from "./http.ts";
@@ -54,18 +54,7 @@ export function createNative(
         return json(res, 403, {
           error: "An action must originate from the local app.",
         });
-      const controller = new AbortController();
-      requests.set(controller, res);
-      let idle = setTimeout(() => controller.abort(), stream ? 45_000 : 30_000);
-      const heartbeat = () => {
-        clearTimeout(idle);
-        idle = setTimeout(() => controller.abort(), 45_000);
-      };
-      res.once("close", () => {
-        clearTimeout(idle);
-        controller.abort();
-        requests.delete(controller);
-      });
+      const forward = Forward.create(res, requests, stream ? 45_000 : 30_000);
       try {
         if (auth) {
           let input: { readonly token?: string };
@@ -82,7 +71,7 @@ export function createNative(
           const response = await fetch(nativeBase + "/", {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
             redirect: "manual",
-            signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]),
+            signal: AbortSignal.any([forward.signal, AbortSignal.timeout(10_000)]),
           });
           if (!response.ok) {
             await response.body?.cancel();
@@ -98,7 +87,7 @@ export function createNative(
             return json(res, 502, {
               error: "The marimo server did not provide its interaction token.",
             });
-          if (controller.signal.aborted) return;
+          if (forward.signal.aborted) return;
           credentials.set(connectionId, { token, serverToken });
           return json(res, 200, { success: true });
         }
@@ -153,12 +142,12 @@ export function createNative(
           headers.set("Marimo-Session-Id", sessionId);
           headers.set("Marimo-Server-Token", credential.serverToken);
         }
-        if (controller.signal.aborted) return;
+        if (forward.signal.aborted) return;
         const response = await fetch(upstream, {
           method: req.method,
           headers,
           body,
-          signal: controller.signal,
+          signal: forward.signal,
           redirect: "error",
         });
         if (!response.ok) {
@@ -169,18 +158,7 @@ export function createNative(
             error: `Marimo refused the output request (${response.status}).`,
           });
         }
-        res.writeHead(response.status, {
-          "Content-Type":
-            response.headers.get("content-type") ?? "application/octet-stream",
-          "Cache-Control": "no-store",
-          "X-Accel-Buffering": "no",
-        });
-        res.flushHeaders();
-        if (!response.body) return res.end();
-        const output = NodeStream.Readable.from(response.body.values());
-        output.on("data", heartbeat);
-        output.on("error", () => res.destroy());
-        output.pipe(res);
+        forward.pipe(response, "application/octet-stream");
       } catch {
         if (res.destroyed) return;
         if (res.headersSent) res.destroy();

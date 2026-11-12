@@ -23,7 +23,7 @@ type Cell = Protocol.CellOutput;
 type Execution = Protocol.ExecutionOutput;
 type Variable = Protocol.VariableOutput;
 
-export interface CellFreshness {
+interface CellFreshness {
   /** This cell's source differs from its pending execution, or its last result. */
   readonly sourceChanged: boolean;
   /**
@@ -74,7 +74,7 @@ function boundVariables(
  * bound variables are indexed once and a binding execution's freshness is
  * computed once however many results depend on it.
  */
-export function freshnessOf(inputs: CellFreshnessInputs): CellFreshnessLookup {
+function freshnessOf(inputs: CellFreshnessInputs): CellFreshnessLookup {
   const bound = boundVariables(inputs.variables);
   const memo = new Map<string, CellFreshness>();
   const pendingByCell = new Map<string, Execution>();

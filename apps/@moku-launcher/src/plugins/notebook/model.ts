@@ -11,7 +11,7 @@ import * as Outputs from "./outputs.ts";
 import * as Actions from "./actions.ts";
 
 /** Acquires the document and commands for one open Notebook view. */
-export function make(notebook: Notebook.Interface) {
+function make(notebook: Notebook.Interface) {
   return Effect.gen(function* () {
     const document = yield* Document.make(notebook);
     const outputs = Atom.readable((get): Outputs.Selection =>

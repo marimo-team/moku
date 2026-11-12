@@ -4,6 +4,7 @@ import { Atom, AtomRegistry } from "effect/reactivity";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Document from "@moku/editor/Document";
 import * as Runtime from "@moku/core/Runtime";
+import * as Run from "../../app/Run.ts";
 
 export function make(notebook: Notebook.Interface, document: Document.Interface) {
   return Effect.gen(function* () {
@@ -13,23 +14,9 @@ export function make(notebook: Notebook.Interface, document: Document.Interface)
         yield* document.flush;
         if (!(yield* Runtime.ensureRunning(notebook))) return;
         const confirmed = yield* document.flush;
-        const cells = yield* Effect.forEach(
-          input.cellIds ?? confirmed.revision.order,
-          (id) => {
-            const cell = confirmed.cells.get(id);
-            return cell
-              ? Effect.succeed(cell)
-              : Effect.fail(new Error("The cell was removed before it could run."));
-          },
+        yield* Run.cells(notebook, input.cellIds ?? confirmed.revision.order, (id) =>
+          confirmed.cells.get(id),
         );
-        yield* notebook.runtime.run({
-          requestId: crypto.randomUUID(),
-          request: {
-            cells: cells
-              .filter((cell) => !cell.config.disabled)
-              .map(({ id, etag }) => ({ id, etag })),
-          },
-        });
       }),
     );
     const save = Atom.fn(() =>

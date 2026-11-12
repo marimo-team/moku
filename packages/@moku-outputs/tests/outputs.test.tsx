@@ -29,9 +29,9 @@ const error = Protocol.Error.parse({
   traceback: { mimetype: "text/plain", data: "traceback" },
 });
 
-Vitest.test(
-  "execution selection isolates records and orders replaced display and console items",
-  () => {
+Vitest.test.each([false, true])(
+  "execution selection isolates and orders output records (indexed: %s)",
+  (indexed) => {
     const first = display("d", 2, "old");
     const newer = { ...first, content: { mimetype: "text/plain", data: "new" } };
     const state = {
@@ -42,7 +42,8 @@ Vitest.test(
       },
       displays: { d: newer },
     };
-    Vitest.expect(Outputs.forExecution(state, "e")).toEqual({
+    const index = indexed ? Outputs.index(state) : undefined;
+    Vitest.expect(Outputs.forExecution(state, "e", index)).toEqual({
       runtimeId: null,
       outcome: null,
       items: [
@@ -53,7 +54,7 @@ Vitest.test(
     Vitest.expect(
       Outputs.forExecution({ ...state, displays: {} }, "e").items,
     ).toHaveLength(1);
-    Vitest.expect(Outputs.forExecution(state, "missing")).toEqual({
+    Vitest.expect(Outputs.forExecution(state, "missing", index)).toEqual({
       runtimeId: null,
       outcome: null,
       items: [],

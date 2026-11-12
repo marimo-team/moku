@@ -6,7 +6,7 @@ export interface RegisteredView extends View {
   readonly key: string;
   readonly pluginId: string;
 }
-export interface Failure {
+interface Failure {
   readonly pluginId: string;
   readonly message: string;
 }

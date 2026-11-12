@@ -5,6 +5,7 @@ import { AsyncResult, Atom } from "effect/reactivity";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
 import * as Runtime from "@moku/core/Runtime";
+import * as Run from "../../app/Run.ts";
 import type { NotebookState } from "./execution.ts";
 
 type RunAction = "run" | "cancel";
@@ -54,13 +55,9 @@ export function useRunActions(
           const ids = input.cellId
             ? [input.cellId]
             : (latest.value.document?.order ?? []);
-          const cells = ids.flatMap((id) => {
-            const cell = latest.value.cells[id];
-            return cell && !cell.config.disabled ? [{ id, etag: cell.etag }] : [];
-          });
-          yield* notebook.runtime
-            .run({ request: { cells }, requestId: crypto.randomUUID() })
-            .pipe(Effect.timeout("10 seconds"));
+          yield* Run.cells(notebook, ids, (id) => latest.value.cells[id]).pipe(
+            Effect.timeout("10 seconds"),
+          );
         }),
       ).pipe(Atom.setIdleTTL(0)),
     [notebook],

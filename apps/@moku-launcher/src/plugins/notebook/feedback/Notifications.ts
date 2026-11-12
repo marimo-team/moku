@@ -31,7 +31,7 @@ export class Service extends Context.Service<Service, Interface>()(
   "@moku/notebook/Notifications",
 ) {}
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const state = yield* SubscriptionRef.make<readonly Notification[]>([]);
   let revision = 0;
   return Service.of({

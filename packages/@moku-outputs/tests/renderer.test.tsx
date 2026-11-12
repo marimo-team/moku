@@ -23,6 +23,7 @@ test("the generated bundle renders HTML and JSON using the application's React",
   document.body.append(element);
   const root = createRoot(element);
   roots.push(root);
+  const shadow = () => element.querySelector(".moku-rich-output")?.shadowRoot;
   await act(async () => {
     root.render(
       <DisplayView
@@ -30,22 +31,24 @@ test("the generated bundle renders HTML and JSON using the application's React",
       />,
     );
   });
-  await vi.waitFor(() => expect(element.textContent).toContain("rich output"));
-  expect(element.querySelector(".marimo.dark")).not.toBeNull();
+  await vi.waitFor(() => expect(shadow()?.textContent).toContain("rich output"));
+  expect(shadow()?.querySelector(".marimo.dark")).not.toBeNull();
+  expect(element.querySelector("strong")).toBeNull();
+  expect(shadow()?.querySelector("strong")?.textContent).toBe("rich output");
   expect(
-    document.head.querySelectorAll('style[title="moku-output-renderer"]'),
+    document.head.querySelectorAll('style[title="marimo-moku-output-renderer"]'),
   ).toHaveLength(1);
   await act(async () => {
     root.render(
       <DisplayView data={{ mimetype: "application/json", data: '{"answer":42}' }} />,
     );
   });
-  await vi.waitFor(() => expect(element.textContent).toContain("answer"));
-  expect(element.textContent).toContain("42");
+  await vi.waitFor(() => expect(shadow()?.textContent).toContain("answer"));
+  expect(shadow()?.textContent).toContain("42");
   await act(async () => {
     setTheme("light");
   });
-  expect(element.querySelector(".marimo.light")).not.toBeNull();
+  expect(shadow()?.querySelector(".marimo.light")).not.toBeNull();
 }, 20000);
 
 test("renderer sessions release native listeners and isolate historical widgets", async () => {

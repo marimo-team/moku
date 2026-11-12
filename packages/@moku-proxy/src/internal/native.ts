@@ -29,7 +29,6 @@ export function createNative(
       options: {
         connectionId: string;
         baseUrl: string;
-        token?: string;
         path: string;
         url: URL;
         origin: string;
@@ -79,7 +78,7 @@ export function createNative(
           }
           if (input.token === undefined && credentials.has(connectionId))
             return json(res, 200, { success: true });
-          const token = input.token ?? options.token ?? "";
+          const token = input.token ?? "";
           const response = await fetch(nativeBase + "/", {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
             redirect: "manual",

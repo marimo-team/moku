@@ -362,7 +362,7 @@ test("invalid writes and unavailable hosts fail locally without reaching upstrea
   ]) {
     NodeAssert.equal((await post(path, body)).status, 400);
   }
-  NodeAssert.equal((await post("/open", "{}")).status, 404);
+  NodeAssert.equal((await post("/rename", "{}")).status, 404);
   NodeAssert.equal((await fetch(`${base}/notebooks/n/save`, { headers })).status, 404);
   const missing = await fetch(`${origin}/api/hosts/${"0".repeat(24)}/events`, {
     headers,
@@ -521,4 +521,22 @@ test("closing the proxy releases native output streams", async ({ onTestFinished
   api.close();
   await NodeAssert.rejects(reader.read());
   await disconnected.promise;
+});
+
+test("opening the host notebook does not expose its authenticated URL", async ({
+  onTestFinished,
+}) => {
+  let forwarded: NodeHttp.IncomingHttpHeaders = {};
+  const { base, headers } = await fixture(onTestFinished, (req, res) => {
+    forwarded = req.headers;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({ url: "http://localhost:2718/?access_token=native-secret" }),
+    );
+  });
+  const response = await fetch(`${base}/notebooks/n/open`, { method: "POST", headers });
+  NodeAssert.equal(response.status, 200);
+  NodeAssert.deepEqual(await response.json(), { success: true });
+  NodeAssert.equal(forwarded.authorization, "Bearer local-secret");
+  NodeAssert.equal(forwarded["idempotency-key"], "request-1");
 });

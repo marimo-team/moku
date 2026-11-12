@@ -1,6 +1,7 @@
 # /// script
 # dependencies = ["marimo>=0.25.2"]
 # ///
+
 import marimo
 
 __generated_with = "0.25.2"
@@ -25,7 +26,7 @@ def publish_control():
 
 @app.cell
 async def load_source():
-    await asyncio.sleep(0.4)
+    await asyncio.sleep(1)
     source = {"title": "Hello", "color": "seagreen"}
     print("Source loaded")
     return (source,)
@@ -33,7 +34,7 @@ async def load_source():
 
 @app.cell
 async def build_markup(source):
-    await asyncio.sleep(0.6)
+    await asyncio.sleep(3)
     markup = f"<h1>{source['title']}</h1>"
     print("Markup built")
     return (markup,)
@@ -41,7 +42,7 @@ async def build_markup(source):
 
 @app.cell
 async def build_styles(source):
-    await asyncio.sleep(0.3)
+    await asyncio.sleep(2)
     styles = f"h1 {{ color: {source['color']}; }}"
     print("Styles built")
     return (styles,)
@@ -49,7 +50,7 @@ async def build_styles(source):
 
 @app.cell
 async def health_check():
-    await asyncio.sleep(0.2)
+    await asyncio.sleep(1)
     healthy = True
     print("Health check passed")
     return (healthy,)
@@ -57,7 +58,7 @@ async def health_check():
 
 @app.cell
 async def assemble_bundle(markup, styles):
-    await asyncio.sleep(0.3)
+    await asyncio.sleep(2)
     bundle = {"html": markup, "css": styles}
     print("Bundle assembled")
     return (bundle,)
@@ -72,7 +73,7 @@ def approve_bundle(bundle, release):
 
 @app.cell
 async def publish(approved_bundle, healthy):
-    await asyncio.sleep(0.2)
+    await asyncio.sleep(1)
     assert healthy
     print("Published!")
     {"status": "published", "bytes": sum(map(len, approved_bundle.values()))}

@@ -273,8 +273,6 @@ a:focus-visible {
   cursor: progress;
 }
 .open-with-detail {
-  display: block;
-  font-size: 11px;
   color: var(--catalog-muted);
 }
 .open-with hr {

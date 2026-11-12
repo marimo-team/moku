@@ -2,35 +2,35 @@
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFs from "node:fs/promises";
 import * as NodePath from "node:path";
-import { checkout, local, repository, revision as pin, root } from "./marimo.ts";
+import * as Marimo from "./marimo.ts";
 
-if (!/^[a-f0-9]{40}$/.test(pin)) {
+if (!/^[a-f0-9]{40}$/.test(Marimo.revision)) {
   throw new Error("Set marimo.json revision to a full GitHub commit SHA.");
 }
 const env = { ...process.env };
 // This subprocess selects a different workspace's package-manager pin.
 delete env.VP_TOOL_RECURSION;
-function run(command: string, args: string[], cwd = checkout): void {
+function run(command: string, args: string[], cwd = Marimo.checkout): void {
   NodeChildProcess.execFileSync(command, args, { cwd, stdio: "inherit", env });
 }
 function git(...args: string[]): string {
   return NodeChildProcess.execFileSync("git", args, {
-    cwd: checkout,
+    cwd: Marimo.checkout,
     encoding: "utf8",
     env,
   }).trim();
 }
-if (!local) {
-  await NodeFs.mkdir(checkout, { recursive: true });
+if (!Marimo.local) {
+  await NodeFs.mkdir(Marimo.checkout, { recursive: true });
   try {
-    await NodeFs.access(NodePath.join(checkout, ".git"));
+    await NodeFs.access(NodePath.join(Marimo.checkout, ".git"));
   } catch {
     run("git", ["init", "--quiet"]);
-    run("git", ["remote", "add", "origin", repository]);
+    run("git", ["remote", "add", "origin", Marimo.repository]);
   }
-  if (git("remote", "get-url", "origin") !== repository) {
+  if (git("remote", "get-url", "origin") !== Marimo.repository) {
     throw new Error(
-      `Unexpected repository at ${checkout}. Remove that cache directory and retry.`,
+      `Unexpected repository at ${Marimo.checkout}. Remove that cache directory and retry.`,
     );
   }
   let current = "";
@@ -39,23 +39,25 @@ if (!local) {
   } catch {
     // A newly initialized checkout has no HEAD yet.
   }
-  if (current !== pin) {
-    run("git", ["fetch", "--depth=1", "origin", pin]);
+  if (current !== Marimo.revision) {
+    run("git", ["fetch", "--depth=1", "origin", Marimo.revision]);
     run("git", ["checkout", "--detach", "FETCH_HEAD"]);
   }
   if (
-    git("rev-parse", "HEAD") !== pin ||
+    git("rev-parse", "HEAD") !== Marimo.revision ||
     git("status", "--porcelain", "--untracked-files=no")
   ) {
-    throw new Error(`Expected an unmodified checkout of ${pin} at ${checkout}.`);
+    throw new Error(`Expected an unmodified checkout of ${Marimo.revision} at ${Marimo.checkout}.`);
   }
 }
 const revision = git("rev-parse", "HEAD");
-console.log(`Preparing marimo from ${local ? checkout : `${repository}@${revision}`}`);
+console.log(
+  `Preparing marimo from ${Marimo.local ? Marimo.checkout : `${Marimo.repository}@${revision}`}`,
+);
 
 // Use upstream's package manager and lockfile for its own workspace.
 const upstream = JSON.parse(
-  await NodeFs.readFile(NodePath.join(checkout, "package.json"), "utf8"),
+  await NodeFs.readFile(NodePath.join(Marimo.checkout, "package.json"), "utf8"),
 ) as {
   packageManager: string;
 };
@@ -63,7 +65,7 @@ if (!/^pnpm@\d+\.\d+\.\d+$/.test(upstream.packageManager)) {
   throw new Error(`Unsupported upstream package manager: ${upstream.packageManager}`);
 }
 const pnpmVersion = NodeChildProcess.execFileSync("pnpm", ["--version"], {
-  cwd: checkout,
+  cwd: Marimo.checkout,
   encoding: "utf8",
   env,
 }).trim();
@@ -73,17 +75,21 @@ if (`pnpm@${pnpmVersion}` !== upstream.packageManager) {
   );
 }
 run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"]);
-run("bun", ["run", "build"], NodePath.join(checkout, "packages/client"));
+run("bun", ["run", "build"], NodePath.join(Marimo.checkout, "packages/client"));
+run("bun", ["run", "codegen"], NodePath.join(Marimo.checkout, "packages/llm-info"));
+run(
+  "bun",
+  ["run", "build", "--outDir", "../marimo/_static"],
+  NodePath.join(Marimo.checkout, "frontend"),
+);
 
 for (const [name, content] of [
   ["client", "dist"],
   ["smart-cells", "src"],
 ] as const) {
-  const source = NodePath.join(checkout, "packages", name);
-  const destination = NodePath.join(root, "vendor", name);
-  const manifest = JSON.parse(
-    await NodeFs.readFile(NodePath.join(source, "package.json"), "utf8"),
-  );
+  const source = NodePath.join(Marimo.checkout, "packages", name);
+  const destination = NodePath.join(Marimo.root, "vendor", name);
+  const manifest = JSON.parse(await NodeFs.readFile(NodePath.join(source, "package.json"), "utf8"));
   delete manifest.scripts;
   delete manifest.devDependencies;
   manifest.version = `${manifest.version}-moku.${revision}`;
@@ -104,12 +110,12 @@ for (const [name, content] of [
     await NodeFs.copyFile(
       await NodeFs.access(path).then(
         () => path,
-        () => NodePath.join(checkout, file),
+        () => NodePath.join(Marimo.checkout, file),
       ),
       NodePath.join(destination, file),
     );
   }
 }
-run("bun", ["install", ...(local ? ["--force"] : [])], root);
-run("bun", ["run", "--filter", "@moku/outputs", "build"], root);
+run("bun", ["install", ...(Marimo.local ? ["--force"] : [])], Marimo.root);
+run("bun", ["run", "--filter", "@moku/outputs", "build"], Marimo.root);
 console.log(`Prepared marimo ${revision}`);

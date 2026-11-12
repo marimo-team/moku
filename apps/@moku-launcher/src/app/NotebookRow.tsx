@@ -93,8 +93,7 @@ export function NotebookRow({
         {canOpen && (
           <>
             <button type="button" disabled={pending} onClick={() => void openHost()}>
-              {pending ? "Opening…" : "Primary"}
-              <span className="open-with-detail">Host notebook</span>
+              {pending ? "Opening…" : "Host"}
             </button>
             {views.length > 0 && <hr />}
           </>
@@ -106,7 +105,7 @@ export function NotebookRow({
                 key={view.key}
                 href={viewHref({ connectionId, notebookId: notebook.id }, view.key)}
               >
-                {view.title}
+                {view.title} <span className="open-with-detail">(plugin)</span>
               </a>
             ))
           : !canOpen && <p>No views available.</p>}

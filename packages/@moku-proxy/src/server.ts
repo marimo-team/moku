@@ -24,11 +24,11 @@ export interface HostSummary {
   pid?: number;
 }
 
-type Connection = { summary: HostSummary; token: string; nativeToken?: string };
+type Connection = { summary: HostSummary; token: string };
 
 interface Options {
   clientName?: string;
-  server?: Pick<ManagedServer, "host" | "token">;
+  server?: Pick<ManagedServer, "host">;
   origin: () => string;
   discover?: () => AsyncIterable<Protocol.HostRecordOutput>;
 }
@@ -92,12 +92,6 @@ export function createApi({
           pid: host.process.pid,
         },
         token: host.token,
-        nativeToken:
-          server?.host?.url === host.url &&
-          server.host.process.pid === host.process.pid &&
-          server.host.process.started_at === host.process.started_at
-            ? server.token
-            : undefined,
       });
     };
     if (server?.host) add(server.host);
@@ -204,7 +198,6 @@ export function createApi({
       return native.handle(req, res, {
         connectionId: match[1],
         baseUrl: host.summary.url,
-        token: host.nativeToken,
         path: path.slice("/marimo".length),
         url,
         origin: expected,

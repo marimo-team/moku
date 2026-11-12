@@ -18,12 +18,14 @@ export function Dag({ notebook }: ViewProps) {
   const {
     actionKind,
     actionLabel,
+    starting,
     disabledReason,
     actionError,
     action,
     cellRunDisabled,
   } = actions;
   let statusLabel: string = run?.outcome ?? run?.status ?? "Ready";
+  if (starting) statusLabel = "Starting kernel";
   if (status !== "connected")
     statusLabel = status === "connecting" ? "Connecting" : "Disconnected";
   const message = error?.message || actionError || state.runtime?.message;
@@ -39,7 +41,7 @@ export function Dag({ notebook }: ViewProps) {
           </div>
           <div className="run-tools">
             <span className={`run-status ${statusLabel}`}>
-              {active && <i className="spinner" />}
+              {(active || starting) && <i className="spinner" />}
               {statusLabel}
             </span>
             <button
@@ -53,7 +55,27 @@ export function Dag({ notebook }: ViewProps) {
                   : `${actionLabel} notebook`
               }
             >
-              {actionKind === "cancel" ? "■" : "▷"} <span>{actionLabel}</span>
+              {starting ? (
+                <i className="spinner" />
+              ) : (
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  {actionKind === "cancel" ? (
+                    <rect x="4" y="4" width="8" height="8" />
+                  ) : (
+                    <path d="m5 3 7 5-7 5Z" />
+                  )}
+                </svg>
+              )}{" "}
+              <span>{actionLabel}</span>
             </button>
             <button
               className="icon-button"

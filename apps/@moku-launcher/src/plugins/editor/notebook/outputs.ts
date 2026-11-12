@@ -27,7 +27,14 @@ export function select(state: Notebook.Snapshot, previous?: Selection): Selectio
       (runtimeId !== null && execution.runtime_id !== runtimeId)
     )
       continue;
-    current.set(id, execution);
+    const selected = current.get(id);
+    // Queued executions have no timestamp yet, but supersede the old result.
+    if (
+      !selected ||
+      selected.status === "completed" ||
+      execution.status !== "completed"
+    )
+      current.set(id, execution);
     if (
       execution.status !== "completed" ||
       (execution.outcome?.kind === "skipped" &&

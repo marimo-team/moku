@@ -6,17 +6,6 @@
 .moku-display {
   min-width: 0;
 }
-.moku-display > .marimo {
-  width: 100%;
-  min-width: 0;
-  margin: 0;
-}
-.moku-display .output > .markdown > :first-child {
-  margin-block-start: 0;
-}
-.moku-display .output > .markdown > :last-child {
-  margin-block-end: 0;
-}
 .moku-output-text,
 .moku-console {
   margin: 0;

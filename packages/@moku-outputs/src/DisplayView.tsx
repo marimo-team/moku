@@ -12,19 +12,26 @@ import {
   type ReactNode,
 } from "react";
 import type { DisplayData, DisplayViewProps } from "./types.ts";
-import { loadRenderer } from "./internal/renderer.ts";
+import { loadRenderer, loadStyles } from "./internal/renderer.ts";
+import { ShadowOutput } from "./internal/ShadowOutput.tsx";
 import { OutputContext } from "./Provider.tsx";
 import "./style.css";
 
 function RichDisplay(props: DisplayViewProps): ReactElement {
   const { DisplayRenderer } = use(loadRenderer());
+  const css = use(loadStyles());
   const context = useContext(OutputContext);
-  return <DisplayRenderer {...props} {...context} />;
+  return (
+    <ShadowOutput css={css}>
+      <DisplayRenderer {...props} {...context} />
+    </ShadowOutput>
+  );
 }
 
 /**
  * Renders one display value according to its MIME type.
  *
+ * Rich outputs have their own shadow root to isolate their markup and styling.
  * Plain text renders immediately. Rich displays load the marimo renderer and
  * stylesheet on demand, render nothing while loading, and show an error message
  * if rendering fails.

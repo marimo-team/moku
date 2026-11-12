@@ -8,6 +8,7 @@ import type { Theme } from "../types.ts";
 type Renderer = typeof import("../../dist/renderer.js");
 let bundle: Promise<Renderer> | undefined;
 let theme: Theme | undefined;
+let styles: Promise<string> | undefined;
 
 /**
  * Sets the theme for all rich outputs on the page.
@@ -32,12 +33,19 @@ export function loadRenderer(): Promise<Renderer> {
   return (bundle ??= load());
 }
 
+export function loadStyles(): Promise<string> {
+  return (styles ??= import("../../dist/renderer.css?inline").then(
+    (module) => module.default,
+  ));
+}
+
 async function load(): Promise<Renderer> {
-  const { default: css } = await import("../../dist/renderer.css?inline");
-  if (!document.head.querySelector('style[title="moku-output-renderer"]')) {
+  const css = await loadStyles();
+  if (!document.head.querySelector('style[title="marimo-moku-output-renderer"]')) {
     const style = document.createElement("style");
-    // Marimo copies titled stylesheets into its output plugins' shadow roots.
-    style.title = "moku-output-renderer";
+    // Nested widgets copy this namespaced sheet; menus also use it outside the output.
+    // Its title must start with "marimo" for upstream stylesheet discovery.
+    style.title = "marimo-moku-output-renderer";
     style.textContent = css;
     document.head.append(style);
   }

@@ -11,7 +11,7 @@ import { startServer } from "../src/internal/managed.ts";
 const root = fileURLToPath(new URL(".", import.meta.url));
 const fixture = fileURLToPath(new URL("./fixtures/process.mjs", import.meta.url));
 
-test("a wrapper's child is discovered, gets a separate native token, and exits on release", async ({
+test("a wrapper's child starts without native authentication and exits on release", async ({
   onTestFinished,
 }) => {
   const state = await mkdtemp(join(tmpdir(), "moku-server-"));
@@ -32,14 +32,9 @@ test("a wrapper's child is discovered, gets a separate native token, and exits o
   onTestFinished(server.close);
   const host = server.host!;
   expect(host.token).toBe("host-protocol-token");
-  expect(server.token).not.toBe(host.token);
   const url = host.url.replace("/api/marimo/v1", "/");
-  expect(
-    (await fetch(url, { headers: { Authorization: `Bearer ${server.token}` } })).status,
-  ).toBe(200);
-  expect(
-    (await fetch(url, { headers: { Authorization: `Bearer ${host.token}` } })).status,
-  ).toBe(401);
+  expect((await fetch(url)).status).toBe(200);
+  expect((await fetch(host.url + "/events")).status).toBe(401);
   let origin = "";
   const api = createApi({
     origin: () => origin,
@@ -76,7 +71,7 @@ test("a wrapper's child is discovered, gets a separate native token, and exits o
   const raw = await (await fetch(origin + "/api/hosts", { headers })).text();
   const hosts: { id: string; url: string }[] = JSON.parse(raw);
   expect(hosts).toHaveLength(2);
-  for (const token of [server.token, host.token, "existing-host-token"])
+  for (const token of [host.token, "existing-host-token"])
     expect(raw).not.toContain(token);
   const base = `${origin}/api/hosts/${hosts.find((entry) => entry.url === host.url)!.id}`;
   const native = await fetch(base + "/marimo/auth", {
@@ -89,8 +84,10 @@ test("a wrapper's child is discovered, gets a separate native token, and exits o
   const events = await fetch(base + "/events", { headers });
   expect(events.status).toBe(200);
   expect(await events.text()).toContain("event: ready");
-  expect(logs.join("\n")).toContain("[redacted]");
-  expect(logs.join("\n")).not.toContain(server.token);
+  expect(logs[0]).toBe(`Starting marimo via ${process.execPath}…`);
+  expect(logs.some((line) => line.startsWith("Ready at http://127.0.0.1:"))).toBe(true);
+  expect(logs.join("\n")).toContain("Native authentication disabled");
+  expect(logs.join("\n")).not.toContain(host.token);
   await server.close();
   expect(server.host).toBeUndefined();
   await vi.waitFor(() => expect(() => process.kill(host.process.pid, 0)).toThrow());

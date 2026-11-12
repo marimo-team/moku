@@ -18,9 +18,9 @@ export interface Options {
  * Adds the local proxy to Vite development and preview servers.
  *
  * `server` launches a command without a shell. Its arguments must invoke
- * `marimo edit`; the plugin supplies a loopback port, headless mode, and a
- * generated native token through stdin. Host protocol credentials still come
- * from discovery. Both credentials stay on the Vite server.
+ * `marimo edit`; the plugin supplies a loopback port and headless mode, and
+ * disables native token authentication. Host protocol credentials still come
+ * from discovery and stay on the Vite server.
  *
  * Startup waits up to 60 seconds for the managed host. Closing Vite terminates
  * that process and its children. Existing discovered hosts are left running.

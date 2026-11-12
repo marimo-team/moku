@@ -1,15 +1,15 @@
 /** Select the upstream source shared by setup, outputs, and the dev server. @module */
-import * as Path from "node:path";
-import { fileURLToPath } from "node:url";
+import * as NodePath from "node:path";
+import * as NodeUrl from "node:url";
 import config from "../marimo.json";
 
-export const root = fileURLToPath(new URL("../", import.meta.url));
+export const root = NodeUrl.fileURLToPath(new URL("../", import.meta.url));
 export const repository = config.repository;
 export const revision = config.revision;
 export const local = process.env.MARIMO_CHECKOUT
-  ? Path.resolve(root, process.env.MARIMO_CHECKOUT)
+  ? NodePath.resolve(root, process.env.MARIMO_CHECKOUT)
   : undefined;
-export const checkout = local ?? Path.join(root, ".cache/marimo", revision);
+export const checkout = local ?? NodePath.join(root, ".cache/marimo", revision);
 
 /** Start the notebook host from the same source used to prepare dependencies. */
 export const server = {
@@ -17,11 +17,9 @@ export const server = {
   args: [
     "run",
     "--no-project",
-    ...(local
-      ? ["--with-editable", `${local}[lsp]`]
-      : ["--with", `marimo[lsp] @ git+${repository}@${revision}`]),
+    "--with-editable",
+    `${checkout}[lsp]`,
     "marimo",
-    "--quiet",
     "edit",
     "notebooks",
     "--sandbox",

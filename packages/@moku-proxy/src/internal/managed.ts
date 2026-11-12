@@ -4,7 +4,6 @@
  * @module
  */
 import { spawn, execFile } from "node:child_process";
-import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import { resolve, join } from "node:path";
 import { createInterface } from "node:readline";
@@ -26,7 +25,6 @@ export interface ServerOptions {
 export interface ManagedServer {
   /** Undefined after the managed process exits. */
   readonly host: HostRecordOutput | undefined;
-  readonly token: string;
   readonly close: () => Promise<void>;
 }
 
@@ -68,7 +66,6 @@ export async function startServer(
       throw new Error(
         `The marimo plugin manages ${arg.split("=")[0]} and native authentication.`,
       );
-  const token = randomBytes(32).toString("hex");
   const port = await availablePort();
   context.signal.throwIfAborted();
   const env: NodeJS.ProcessEnv = {
@@ -76,6 +73,8 @@ export async function startServer(
     ...options.env,
     MARIMO_ANCESTOR_PID: String(process.pid),
   };
+  context.log(`Starting marimo via ${options.command}…`);
+  const startedAt = Date.now();
   const child = spawn(
     options.command,
     [
@@ -85,31 +84,25 @@ export async function startServer(
       "127.0.0.1",
       "--port",
       String(port),
-      "--token",
-      "--token-password-file",
-      "-",
+      "--no-token",
     ],
     {
       cwd: resolve(context.root, options.cwd ?? "."),
       env,
       detached: true,
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
     },
   );
-  const redact = (message: string) =>
-    message
-      .replaceAll(token, "[redacted]")
-      .replaceAll(encodeURIComponent(token), "[redacted]");
   for (const stream of [child.stdout, child.stderr])
     createInterface({ input: stream }).on("line", (line) => {
-      if (line.trim()) context.log(redact(line));
+      if (line.trim()) context.log(line);
     });
   let host: HostRecordOutput | undefined;
   let failure: Error | undefined;
   let stopped = false;
   const ended = new Promise<void>((resolve) => {
     child.once("error", (error) => {
-      failure = new Error(redact(error.message));
+      failure = new Error(error.message);
     });
     child.once("exit", (code, signal) => {
       host = undefined;
@@ -122,8 +115,6 @@ export async function startServer(
       resolve();
     });
   });
-  child.stdin.on("error", () => {});
-  child.stdin.end(token + "\n");
 
   const groups = new Set(child.pid ? [child.pid] : []);
   async function descendants() {
@@ -198,6 +189,11 @@ export async function startServer(
   const stateDir = env.XDG_STATE_HOME?.trim()
     ? join(env.XDG_STATE_HOME, "marimo")
     : undefined;
+  const waiting = setInterval(() => {
+    context.log(
+      `Waiting for marimo to become ready (${Math.round((Date.now() - startedAt) / 1000)}s)…`,
+    );
+  }, 10_000);
   try {
     while (!signal.aborted) {
       if (failure) throw failure;
@@ -206,8 +202,8 @@ export async function startServer(
         if (url.port !== String(port)) continue;
         // uv and marimo's sandbox may introduce both children and new groups.
         if (!(await descendants()).has(record.process.pid)) continue;
-        const response = await fetch(record.url.replace(/\/api\/marimo\/v1$/, "/"), {
-          headers: { Authorization: `Bearer ${token}` },
+        const response = await fetch(`${record.url}/events?types=host`, {
+          headers: { Authorization: `Bearer ${record.token}` },
           redirect: "error",
           signal: AbortSignal.any([signal, AbortSignal.timeout(2_000)]),
         }).catch(() => undefined);
@@ -215,15 +211,17 @@ export async function startServer(
         await response.body?.cancel();
         if (!response.ok)
           throw new Error(
-            "Managed marimo refused its configured native authentication token.",
+            "Managed marimo rejected its discovered host protocol credentials.",
           );
         if (stopped || signal.aborted) break;
         host = record;
+        context.log(
+          `Ready at http://127.0.0.1:${port} (${((Date.now() - startedAt) / 1000).toFixed(1)}s).`,
+        );
         return {
           get host() {
             return host;
           },
-          token,
           close,
         };
       }
@@ -236,5 +234,7 @@ export async function startServer(
     if (signal.aborted && !context.signal.aborted)
       throw new Error("Managed marimo did not become ready within 60 seconds.");
     throw cause;
+  } finally {
+    clearInterval(waiting);
   }
 }

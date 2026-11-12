@@ -25,7 +25,10 @@ export function Launcher({
   return (
     <main className="catalog-page">
       <header className="catalog-heading">
-        <h1>Notebooks</h1>
+        <h1>
+          <img src="/moku-icon.svg" alt="" width="24" height="24" />
+          moku playground
+        </h1>
         <button
           type="button"
           className="refresh-hosts"

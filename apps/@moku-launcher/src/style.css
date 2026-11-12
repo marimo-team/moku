@@ -29,6 +29,7 @@ a:focus-visible {
   outline-offset: 2px;
 }
 .catalog-page {
+  color-scheme: light;
   --catalog-ink: #4c4f69;
   --catalog-muted: #6c6f85;
   --catalog-faint: #8c8fa1;
@@ -52,6 +53,9 @@ a:focus-visible {
   border-bottom: 1px solid var(--catalog-border);
 }
 .catalog-heading h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font-size: 15px;
   font-weight: 500;

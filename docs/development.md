@@ -7,11 +7,11 @@ bun dev
 
 Requires Bun, Git, uv, and the pnpm version declared by the selected marimo checkout.
 
-Setup fetches the GitHub revision in [marimo.json](../marimo.json), prepares the
-client and smart-cell parser, builds marimo’s native frontend, installs workspace dependencies, and bundles outputs.
-`bun dev` starts marimo from that checkout as an editable install, so notebook
-sandboxes preserve the selected revision. Open the authenticated link
-printed in the terminal.
+Setup fetches the GitHub revision in [marimo.json](./marimo.json), prepares the
+client and smart-cell parser, builds marimo’s native frontend, installs workspace
+dependencies, and bundles outputs. `bun dev` starts marimo from that checkout as
+an editable install, so notebook sandboxes preserve the selected revision. Open
+the authenticated link printed in the terminal.
 
 To use a local checkout for both:
 

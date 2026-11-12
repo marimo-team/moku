@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" role="img" aria-label="moku — A hidden m" width="200" height="200">
+  <title>moku — A hidden m</title>
+  <style>@media (prefers-color-scheme: dark) { [stroke="#1c7361"] { stroke: #99cbb0; } [fill="#1c7361"] { fill: #99cbb0; } [stroke="#ad563a"] { stroke: #e6a68c; } [fill="#ad563a"] { fill: #e6a68c; } }</style>
+  <path d="M 39 133 C 25 60 68 51 80 82 C 96 132 32 146 40 103 C 46 70 83 69 101 126 C 89 67 119 51 140 72 C 174 107 139 147 119 126 C 99 104 134 70 160 85" fill="none" stroke="#1c7361" stroke-width="3.00" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+  <path d="M 42 134 C 29 59 67 55 78 82 M 102 126 C 91 69 121 54 141 75 C 169 106 141 146 120 124" fill="none" stroke="#1c7361" stroke-width="0.70" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+</svg>

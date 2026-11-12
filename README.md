@@ -10,28 +10,15 @@
 
 <p align="center">a little forest of marimo clients</p>
 
-## The playground
+## About
 
-moku is a playground for experimenting with different marimo clients. Currently growing:
+moku is a playground for experimenting with different ways to interact with marimo notebooks.
 
-- **Notebook** — a notebook editor with interactive outputs.
-- **Graph explainer** — a view of cell dependencies and execution.
-
-The clients share connections, notebook state, editing, and output rendering through the [packages](packages/).
-
-## Run it
-
-Requires Bun, Git, uv, and the pnpm version used by the selected marimo checkout. See [development setup](docs/development.md) for details.
+## Development
 
 ```sh
 bun setup
 bun dev
 ```
 
-Open the authenticated link printed in the terminal.
-
-## Tinker
-
-Add a view with [@moku/plugin](packages/@moku-plugin/README.md) and register it in [plugins.ts](apps/@moku-launcher/src/plugins.ts).
-
-The [development guide](docs/development.md) covers local marimo checkouts, tests, and builds.
+See the [development guide](docs/development.md) for prerequisites, local marimo checkouts, and development commands.

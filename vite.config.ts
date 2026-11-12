@@ -1,6 +1,6 @@
-import { defineConfig } from "vite-plus";
+import * as Vite from "vite-plus";
 
-export default defineConfig({
+export default Vite.defineConfig({
   test: { include: ["apps/**/*.test.{ts,tsx}", "packages/**/*.test.{ts,tsx}"] },
   fmt: { printWidth: 88 },
   lint: {

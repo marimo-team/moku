@@ -7,7 +7,7 @@ import * as NodeCrypto from "node:crypto";
 import * as NodeBuffer from "node:buffer";
 import type * as NodeHttp from "node:http";
 import * as NodeStream from "node:stream";
-import { discoverHosts } from "@marimo-team/client/node";
+import * as MarimoNode from "@marimo-team/client/node";
 import { json, readBody } from "./internal/http.ts";
 import type { ManagedServer } from "./internal/managed.ts";
 import { createNative } from "./internal/native.ts";
@@ -67,7 +67,7 @@ const hostId = (value: string) =>
  */
 export function createApi({
   origin,
-  discover = discoverHosts,
+  discover = MarimoNode.discoverHosts,
   clientName = "moku",
   server,
 }: Options) {

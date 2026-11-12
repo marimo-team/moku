@@ -1,4 +1,4 @@
-import { expect, test } from "vite-plus/test";
+import * as Vitest from "vite-plus/test";
 import * as Protocol from "@moku/core/Protocol";
 import { emptyNotebook } from "../../../../packages/@moku-core/src/notebook/state.ts";
 import { select } from "../../src/plugins/notebook/outputs.ts";
@@ -47,11 +47,11 @@ function fixture() {
   return { state, old, pending };
 }
 
-test("a rerun is active while queued and retains the previous result", () => {
+Vitest.test("a rerun is active while queued and retains the previous result", () => {
   const { state, old, pending } = fixture();
   const queued = select(state);
-  expect(queued.current.get("c")).toBe(pending);
-  expect(queued.results.get("c")).toBe(old);
+  Vitest.expect(queued.current.get("c")).toBe(pending);
+  Vitest.expect(queued.results.get("c")).toBe(old);
 
   const running = {
     ...pending,
@@ -60,8 +60,8 @@ test("a rerun is active while queued and retains the previous result", () => {
   };
   state.executions.pending = running;
   const active = select(state, queued);
-  expect(active.current.get("c")).toBe(running);
-  expect(active.results.get("c")).toBe(old);
+  Vitest.expect(active.current.get("c")).toBe(running);
+  Vitest.expect(active.results.get("c")).toBe(old);
 
   const completed = {
     ...running,
@@ -71,12 +71,12 @@ test("a rerun is active while queued and retains the previous result", () => {
   };
   state.executions.pending = completed;
   const done = select(state, active);
-  expect(done.current.get("c")).toBe(completed);
-  expect(done.results.get("c")).toBe(completed);
+  Vitest.expect(done.current.get("c")).toBe(completed);
+  Vitest.expect(done.results.get("c")).toBe(completed);
 });
 
-test("snapshot record order does not hide a queued rerun", () => {
+Vitest.test("snapshot record order does not hide a queued rerun", () => {
   const { state, old, pending } = fixture();
   state.executions = { pending, old };
-  expect(select(state).current.get("c")).toBe(pending);
+  Vitest.expect(select(state).current.get("c")).toBe(pending);
 });

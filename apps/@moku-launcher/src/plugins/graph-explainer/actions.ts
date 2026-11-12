@@ -1,4 +1,4 @@
-import { useContext, useMemo } from "react";
+import * as React from "react";
 import { RegistryContext, useAtom } from "@effect/atom-react";
 import { Cause, Effect } from "effect";
 import { AsyncResult, Atom } from "effect/reactivity";
@@ -34,8 +34,8 @@ export function useRunActions(
   run: Protocol.RunOutput | undefined,
   connected: boolean,
 ) {
-  const registry = useContext(RegistryContext);
-  const command = useMemo(
+  const registry = React.useContext(RegistryContext);
+  const command = React.useMemo(
     () =>
       Atom.fn((input: { kind: RunAction; runId?: string; cellId?: string }, get) =>
         Effect.gen(function* () {

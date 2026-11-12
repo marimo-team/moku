@@ -3,7 +3,7 @@
  *
  * @module
  */
-import type { ReactElement, ReactNode } from "react";
+import type * as React from "react";
 import type { CellOutputsProps, ConsoleChunk, Outcome, OutputItem } from "./types.ts";
 import { DisplayView } from "./DisplayView.tsx";
 import { ConsoleOutput } from "./ConsoleOutput.tsx";
@@ -48,7 +48,7 @@ function ErrorView({
 }: {
   readonly runtimeId?: string | null;
   readonly error: Extract<Outcome, { kind: "error" }>["error"];
-}): ReactElement {
+}): React.ReactElement {
   const heading = (
     <span className="moku-error-heading">
       {error.name && <strong>{error.name}</strong>}
@@ -80,7 +80,7 @@ function OutcomeView({
 }: {
   readonly outcome: Outcome | null;
   readonly runtimeId?: string | null;
-}): ReactNode {
+}): React.ReactNode {
   if (outcome === null) {
     return null;
   }
@@ -120,7 +120,7 @@ function OutcomeView({
  * }
  * ```
  */
-export function CellOutputs(props: CellOutputsProps): ReactElement | null {
+export function CellOutputs(props: CellOutputsProps): React.ReactElement | null {
   const { outcome, items, className, runtimeId } = props;
   if (
     items.length === 0 &&

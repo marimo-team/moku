@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import * as React from "react";
 
 interface Options {
   canSave: boolean;
@@ -8,7 +8,7 @@ interface Options {
 
 /** Binds notebook shortcuts to the same commands used by the toolbar. */
 export function useNotebookShortcuts({ canSave, saveDisabled, save }: Options) {
-  useEffect(() => {
+  React.useEffect(() => {
     if (!canSave) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (

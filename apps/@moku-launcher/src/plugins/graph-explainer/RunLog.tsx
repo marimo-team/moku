@@ -1,4 +1,4 @@
-import { useState } from "react";
+import * as React from "react";
 import { ConsoleOutput } from "@moku/outputs";
 import type * as Protocol from "@moku/core/Protocol";
 import { cellLabel, type NotebookState } from "./execution.ts";
@@ -10,7 +10,7 @@ export function RunLog({
   state: NotebookState;
   run: Protocol.RunOutput | undefined;
 }) {
-  const [logOpen, setLogOpen] = useState(false);
+  const [logOpen, setLogOpen] = React.useState(false);
   const executions = Object.values(state.executions).filter(
     (e) => !run || e.run_id === run.id,
   );

@@ -1,7 +1,7 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import type { Effect } from "effect";
 import { Atom } from "effect/reactivity";
-import { useMemo, useState } from "react";
+import * as React from "react";
 import type * as Workspace from "@moku/core/Workspace";
 import type * as Host from "./Host.ts";
 import { HostNotebooks } from "./HostNotebooks.tsx";
@@ -23,12 +23,12 @@ export function Launcher({
   const connections = useAtomValue(workspace.state, (state) => state.connections);
   const discovery = useAtomValue(workspace.state, (state) => state.status);
   const { views, failures } = useAtomValue(host.state);
-  const [preference, setPreference] = useState(preferredView);
+  const [preference, setPreference] = React.useState(preferredView);
   const selectedView = views.some((view) => view.key === preference)
     ? preference
     : HOST_VIEW;
   const refresh = useAtomSet(
-    useMemo(
+    React.useMemo(
       () => Atom.fn(() => workspace.refresh).pipe(Atom.setIdleTTL(0)),
       [workspace],
     ),

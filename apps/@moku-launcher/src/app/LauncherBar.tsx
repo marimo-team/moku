@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import type * as React from "react";
+import * as ReactRouter from "react-router";
 import type { RegisteredView } from "./Host.ts";
 
 export const HOST_VIEW = "host";
@@ -24,15 +25,15 @@ export function LauncherBar({
   children,
   actions,
 }: {
-  children?: ReactNode;
-  actions?: ReactNode;
+  children?: React.ReactNode;
+  actions?: React.ReactNode;
 }) {
   return (
     <header className="view-header">
       <nav className="view-breadcrumbs" aria-label="Breadcrumb">
-        <a className="moku-link" href="/">
+        <ReactRouter.Link className="moku-link" to="/">
           moku
-        </a>
+        </ReactRouter.Link>
         {children}
       </nav>
       <div className="launcher-actions">{actions}</div>

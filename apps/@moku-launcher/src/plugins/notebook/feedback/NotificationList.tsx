@@ -1,7 +1,7 @@
 import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-react";
 import { Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
-import { useEffect, useState } from "react";
+import * as React from "react";
 import type * as Notifications from "./Notifications.ts";
 import { dismissAtom, messagesAtom, actionAtoms } from "./useNotifications.ts";
 
@@ -23,16 +23,16 @@ function NotificationItem({ message }: { message: Notifications.Notification }) 
   const dismiss = useAtomSet(dismissAtom);
   const [result, act] = useAtom(actionAtoms(message.id));
   const busy = result.waiting;
-  const [hovered, setHovered] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const [hidden, setHidden] = useState(document.hidden);
+  const [hovered, setHovered] = React.useState(false);
+  const [focused, setFocused] = React.useState(false);
+  const [hidden, setHidden] = React.useState(document.hidden);
   const { id, revision, kind, action } = message;
-  useEffect(() => {
+  React.useEffect(() => {
     const update = () => setHidden(document.hidden);
     document.addEventListener("visibilitychange", update);
     return () => document.removeEventListener("visibilitychange", update);
   }, []);
-  useEffect(() => {
+  React.useEffect(() => {
     if (kind === "error" || action || hovered || focused || hidden) return;
     const timer = setTimeout(() => dismiss({ id, revision }), 8_000);
     return () => clearTimeout(timer);

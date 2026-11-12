@@ -5,7 +5,7 @@
  */
 import { Effect, Schema, Semaphore } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import type { CatalogEvent } from "@marimo-team/client";
+import type * as MarimoClient from "@marimo-team/client";
 import type * as Protocol from "./Protocol.ts";
 import * as Transport from "./internal/transport.ts";
 import { observe, type Observation } from "./internal/observe.ts";
@@ -99,7 +99,7 @@ export interface Workspace {
   }) => Effect.Effect<void, Transport.RequestError>;
 }
 const empty: Catalog = { ready: false, notebooks: {} };
-function reduce(state: Catalog, event: CatalogEvent): Catalog {
+function reduce(state: Catalog, event: MarimoClient.CatalogEvent): Catalog {
   switch (event.event) {
     case "reset":
       return empty;

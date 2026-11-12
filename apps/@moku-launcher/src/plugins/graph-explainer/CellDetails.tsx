@@ -1,4 +1,4 @@
-import { useState } from "react";
+import * as React from "react";
 import type * as Protocol from "@moku/core/Protocol";
 import * as Outputs from "@moku/core/Outputs";
 import { CellOutputs, ConsoleOutput } from "@moku/outputs";
@@ -15,7 +15,7 @@ export function CellDetails({
   run?: Protocol.RunOutput;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState("Source");
+  const [tab, setTab] = React.useState("Source");
   const cell = state.cells[cellId];
   if (!cell) return null;
   const execution = Object.values(state.executions)

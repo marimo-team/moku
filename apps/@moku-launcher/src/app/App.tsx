@@ -1,15 +1,20 @@
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult, type Atom } from "effect/reactivity";
+import * as ReactRouter from "react-router";
 import type * as Workspace from "@moku/core/Workspace";
 import { Launcher } from "./Launcher.tsx";
 import { ViewInstance, ViewErrorBoundary } from "./ViewInstance.tsx";
 import type { Runtime } from "./runtime.ts";
-import type { Route } from "./routes.ts";
+import { parseRoute, type Route } from "./routes.ts";
 import type * as Host from "./Host.ts";
 import { ViewHeader } from "./ViewHeader.tsx";
 import { LauncherBar } from "./LauncherBar.tsx";
 
-export function App({ runtime, route }: { runtime: Runtime; route: Route }) {
+export function App({ runtime }: { runtime: Runtime }) {
+  const location = ReactRouter.useLocation();
+  const route = parseRoute(
+    new URL(location.pathname + location.search, window.location.origin),
+  );
   const workspace = useAtomValue(runtime.workspace);
   if (!AsyncResult.isSuccess(workspace)) {
     const failed = AsyncResult.isFailure(workspace);
@@ -87,7 +92,9 @@ function ViewPage({
       )}
       <main className="view-content">
         {route.kind === "view" && view ? (
-          <ViewErrorBoundary>
+          <ViewErrorBoundary
+            key={`${route.target.connectionId}:${route.target.notebookId}`}
+          >
             <ViewInstance target={route.target} view={view} runtime={runtime} />
           </ViewErrorBoundary>
         ) : (

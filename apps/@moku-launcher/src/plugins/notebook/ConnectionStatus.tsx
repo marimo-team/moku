@@ -1,7 +1,7 @@
 import type * as Notebook from "@moku/core/Notebook";
 type Status = Notebook.State["status"];
 import * as Problems from "./feedback/problems.ts";
-import { useEffect, useRef } from "react";
+import * as React from "react";
 
 export function ConnectionStatus({
   status,
@@ -16,8 +16,8 @@ export function ConnectionStatus({
   error?: unknown;
   retry?: () => void;
 }) {
-  const menu = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
+  const menu = React.useRef<HTMLDetailsElement>(null);
+  React.useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
       if (menu.current?.open && !menu.current.contains(event.target as Node))
         menu.current.open = false;

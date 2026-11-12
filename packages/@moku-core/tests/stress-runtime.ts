@@ -1,8 +1,8 @@
 /** Opt-in live stress test: bun packages/@moku-core/tests/stress-runtime.ts [rounds]. */
-import { createServer } from "node:http";
-import { mkdtemp, copyFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as NodeHttp from "node:http";
+import * as NodeFs from "node:fs/promises";
+import * as NodeOs from "node:os";
+import * as NodePath from "node:path";
 import { Effect, Exit, Layer, Scope, Stream } from "effect";
 import { AtomRegistry } from "effect/reactivity";
 import * as Model from "../src/index.ts";
@@ -16,7 +16,9 @@ import { server, root } from "../../../scripts/marimo.ts";
 const rounds = Number(process.argv[2] ?? 3);
 if (!Number.isInteger(rounds) || rounds < 1)
   throw new Error("Expected positive rounds");
-const directory = await mkdtemp(join(tmpdir(), "moku-runtime-stress-"));
+const directory = await NodeFs.mkdtemp(
+  NodePath.join(NodeOs.tmpdir(), "moku-runtime-stress-"),
+);
 const logs: string[] = [];
 const results: unknown[] = [];
 const controller = new AbortController();
@@ -25,9 +27,9 @@ process.once("SIGTERM", () => controller.abort());
 // Unique paths force new script environments without clearing the user's uv cache.
 for (const name of ["controls", "pipeline"])
   for (let i = 0; i < 4; i++)
-    await copyFile(
-      join(root, "notebooks", `${name}.py`),
-      join(directory, `${name}-${i}.py`),
+    await NodeFs.copyFile(
+      NodePath.join(root, "notebooks", `${name}.py`),
+      NodePath.join(directory, `${name}-${i}.py`),
     );
 console.log(`Artifacts: ${directory}`);
 const managed = await startServer(
@@ -49,7 +51,7 @@ const api = createApi({
   server: managed,
   discover: async function* () {},
 });
-const proxy = createServer(api.handle);
+const proxy = NodeHttp.createServer(api.handle);
 const registry = AtomRegistry.make();
 const scope = Effect.runSync(Scope.make());
 const subscriptions: Promise<unknown>[] = [];
@@ -167,8 +169,8 @@ try {
     );
     const failed = completed.filter((result) => result.status === "rejected");
     if (failed.length) {
-      await writeFile(
-        join(directory, "failure-state.json"),
+      await NodeFs.writeFile(
+        NodePath.join(directory, "failure-state.json"),
         JSON.stringify(
           notebooks.map(({ notebook, record }) => ({
             name: record.name,
@@ -189,8 +191,11 @@ try {
     `PASS: ${results.length} kernel starts, full runs, and native output connections`,
   );
 } finally {
-  await writeFile(join(directory, "server.log"), logs.join("\n"));
-  await writeFile(join(directory, "results.json"), JSON.stringify(results, null, 2));
+  await NodeFs.writeFile(NodePath.join(directory, "server.log"), logs.join("\n"));
+  await NodeFs.writeFile(
+    NodePath.join(directory, "results.json"),
+    JSON.stringify(results, null, 2),
+  );
   controller.abort();
   await Promise.allSettled(subscriptions);
   await Effect.runPromise(Scope.close(scope, Exit.void));

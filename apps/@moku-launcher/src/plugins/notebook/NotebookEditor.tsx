@@ -1,6 +1,6 @@
 import { useAtom, useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
-import { useEffect } from "react";
+import * as React from "react";
 import type { ViewProps } from "@moku/plugin";
 import * as Outputs from "@moku/outputs";
 import * as Model from "./model.ts";
@@ -20,16 +20,14 @@ import { useNotebookShortcuts } from "./useNotebookShortcuts.ts";
 export function NotebookEditor({ notebook }: ViewProps) {
   const result = useAtomValue(Model.forNotebook(notebook));
   const appearance = useAtomValue(Theme.appearance);
-  useEffect(() => {
+  React.useEffect(() => {
     Outputs.setTheme(appearance);
   }, [appearance]);
   return (
     <div className="moku-notebook" data-theme={appearance}>
       {AsyncResult.isSuccess(result) ? (
         <DocumentContext value={result.value.document}>
-          <Outputs.Provider notebook={notebook}>
-            <NotebookContent notebook={notebook} model={result.value} />
-          </Outputs.Provider>
+          <NotebookContent notebook={notebook} model={result.value} />
         </DocumentContext>
       ) : (
         <p className="notice">
@@ -85,7 +83,7 @@ function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interfa
     dirty || (!!state.document && state.document.etag !== state.document.saved_etag);
   const order = document?.order ?? [];
   const saveDisabled = saving.waiting || !connected;
-  useDraftNavigationGuard(unsaved);
+  useDraftNavigationGuard(documentModel, unsaved);
   useNotebookShortcuts({ canSave, saveDisabled, save });
   const currentness = Currentness.forNotebook({
     cells: new Map(Object.entries(state.cells)),

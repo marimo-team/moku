@@ -3,7 +3,7 @@
  *
  * @module
  */
-import type { Plugin, PreviewServer, ViteDevServer } from "vite-plus";
+import type * as Vite from "vite-plus";
 import { createApi } from "./server.ts";
 import { startServer, type ServerOptions } from "./internal/managed.ts";
 export type { ServerOptions } from "./internal/managed.ts";
@@ -35,9 +35,12 @@ export interface Options {
  * });
  * ```
  */
-export function marimo({ clientName = "moku", server: command }: Options = {}): Plugin {
+export function marimo({
+  clientName = "moku",
+  server: command,
+}: Options = {}): Vite.Plugin {
   const instances = new Set<() => Promise<void>>();
-  async function configure(server: ViteDevServer | PreviewServer) {
+  async function configure(server: Vite.ViteDevServer | Vite.PreviewServer) {
     const controller = new AbortController();
     let api: ReturnType<typeof createApi> | undefined;
     let managed: Awaited<ReturnType<typeof startServer>> | undefined;

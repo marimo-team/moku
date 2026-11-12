@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
-import { act } from "react";
-import { createRoot } from "react-dom/client";
+import * as React from "react";
+import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import { Effect, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import { expect, onTestFinished, test, vi } from "vite-plus/test";
+import * as Vitest from "vite-plus/test";
+import { vi } from "vite-plus/test";
 import type * as Notebook from "@moku/core/Notebook";
 import * as Protocol from "@moku/core/Protocol";
 import { emptyNotebook } from "../../../../packages/@moku-core/src/notebook/state.ts";
@@ -124,8 +125,8 @@ async function fixture() {
   }
   const element = document.createElement("div");
   document.body.append(element);
-  const root = createRoot(element);
-  await act(async () =>
+  const root = ReactDOMClient.createRoot(element);
+  await React.act(async () =>
     root.render(
       <RegistryContext.Provider value={registry}>
         <View />
@@ -136,15 +137,16 @@ async function fixture() {
   const close = async () => {
     if (closed) return;
     closed = true;
-    await act(async () => root.unmount());
+    await React.act(async () => root.unmount());
   };
-  onTestFinished(async () => {
+  Vitest.onTestFinished(async () => {
     await close();
     registry.dispose();
     element.remove();
   });
-  const click = () => act(async () => element.querySelector("button")!.click());
-  const ready = () => act(async () => setRuntime({ ...kernel, status: "running" }));
+  const click = () => React.act(async () => element.querySelector("button")!.click());
+  const ready = () =>
+    React.act(async () => setRuntime({ ...kernel, status: "running" }));
   return {
     element,
     registry,
@@ -159,70 +161,78 @@ async function fixture() {
   };
 }
 
-test("one click starts the kernel, waits, and runs the latest confirmed cells", async () => {
-  const f = await fixture();
-  await f.click();
-  expect(f.start).toHaveBeenCalledTimes(1);
-  expect(f.run).not.toHaveBeenCalled();
-  expect(f.element.querySelector("button")!.textContent).toBe("Starting kernel");
-  expect(f.element.querySelector("button")!.disabled).toBe(true);
-  await act(async () =>
-    f.registry.update(f.state, (s) => ({
-      ...s,
-      value: {
-        ...s.value,
-        cells: { c: { ...s.value.cells.c, etag: "after-start" } },
+Vitest.test(
+  "one click starts the kernel, waits, and runs the latest confirmed cells",
+  async () => {
+    const f = await fixture();
+    await f.click();
+    Vitest.expect(f.start).toHaveBeenCalledTimes(1);
+    Vitest.expect(f.run).not.toHaveBeenCalled();
+    Vitest.expect(f.element.querySelector("button")!.textContent).toBe(
+      "Starting kernel",
+    );
+    Vitest.expect(f.element.querySelector("button")!.disabled).toBe(true);
+    await React.act(async () =>
+      f.registry.update(f.state, (s) => ({
+        ...s,
+        value: {
+          ...s.value,
+          cells: { c: { ...s.value.cells.c, etag: "after-start" } },
+        },
+      })),
+    );
+    await f.ready();
+    await vi.waitFor(() => Vitest.expect(f.run).toHaveBeenCalledTimes(1));
+    Vitest.expect(f.run.mock.calls[0]).toEqual([
+      {
+        request: { cells: [{ id: "c", etag: "after-start" }] },
+        requestId: Vitest.expect.any(String),
       },
-    })),
-  );
-  await f.ready();
-  await vi.waitFor(() => expect(f.run).toHaveBeenCalledTimes(1));
-  expect(f.run.mock.calls[0]).toEqual([
-    {
-      request: { cells: [{ id: "c", etag: "after-start" }] },
-      requestId: expect.any(String),
-    },
-  ]);
-  await f.click();
-  expect(f.start).toHaveBeenCalledTimes(1);
-  expect(f.run).toHaveBeenCalledTimes(2);
-});
+    ]);
+    await f.click();
+    Vitest.expect(f.start).toHaveBeenCalledTimes(1);
+    Vitest.expect(f.run).toHaveBeenCalledTimes(2);
+  },
+);
 
-test("leaving during startup does not submit a run after the view closes", async () => {
+Vitest.test(
+  "leaving during startup does not submit a run after the view closes",
+  async () => {
+    const f = await fixture();
+    await f.click();
+    await f.close();
+    await f.ready();
+    Vitest.expect(f.run).not.toHaveBeenCalled();
+  },
+);
+
+Vitest.test("failed startup reports the error without submitting cells", async () => {
   const f = await fixture();
   await f.click();
-  await f.close();
-  await f.ready();
-  expect(f.run).not.toHaveBeenCalled();
-});
-
-test("failed startup reports the error without submitting cells", async () => {
-  const f = await fixture();
-  await f.click();
-  await act(async () =>
+  await React.act(async () =>
     f.setRuntime({ ...f.kernel, status: "failed", message: "Kernel exited" }),
   );
-  expect(f.run).not.toHaveBeenCalled();
-  expect(f.element.querySelector('[role="alert"]')!.textContent).toContain(
+  Vitest.expect(f.run).not.toHaveBeenCalled();
+  Vitest.expect(f.element.querySelector('[role="alert"]')!.textContent).toContain(
     "Kernel exited",
   );
-  await act(async () => f.setRuntime(null));
+  await React.act(async () => f.setRuntime(null));
   await f.click();
-  expect(f.element.querySelector('[role="alert"]')!.textContent).toBe("");
-  expect(f.element.querySelector("button")!.disabled).toBe(true);
+  Vitest.expect(f.element.querySelector('[role="alert"]')!.textContent).toBe("");
+  Vitest.expect(f.element.querySelector("button")!.disabled).toBe(true);
   await f.ready();
-  expect(f.run).toHaveBeenCalledOnce();
-  expect(f.element.querySelector("button")!.disabled).toBe(false);
+  Vitest.expect(f.run).toHaveBeenCalledOnce();
+  Vitest.expect(f.element.querySelector("button")!.disabled).toBe(false);
 });
 
-test("repeated clicks before React renders only start one command", async () => {
+Vitest.test("repeated clicks before React renders only start one command", async () => {
   const f = await fixture();
-  await act(async () => {
+  await React.act(async () => {
     const button = f.element.querySelector("button")!;
     button.click();
     button.click();
   });
-  expect(f.start).toHaveBeenCalledOnce();
+  Vitest.expect(f.start).toHaveBeenCalledOnce();
   await f.ready();
-  expect(f.run).toHaveBeenCalledOnce();
+  Vitest.expect(f.run).toHaveBeenCalledOnce();
 });

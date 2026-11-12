@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
-import { afterEach, expect, test, vi } from "vite-plus/test";
-import { act, StrictMode, useContext, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
+import * as Vitest from "vite-plus/test";
+import { vi } from "vite-plus/test";
+import * as React from "react";
+import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";
 import { Effect, Queue, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
@@ -13,8 +14,8 @@ const renderer = vi.hoisted(() => ({ createSession: vi.fn() }));
 vi.mock("../src/internal/renderer.ts", () => ({ loadRenderer: async () => renderer }));
 vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 const cleanup: (() => void)[] = [];
-afterEach(async () => {
-  await act(async () => {
+Vitest.afterEach(async () => {
+  await React.act(async () => {
     for (const close of cleanup.splice(0)) close();
   });
   renderer.createSession.mockReset();
@@ -77,25 +78,27 @@ function fixture() {
 }
 
 function Consumer() {
-  return <span>{useContext(OutputContext).session?.runtimeId ?? "disconnected"}</span>;
+  return (
+    <span>{React.useContext(OutputContext).session?.runtimeId ?? "disconnected"}</span>
+  );
 }
-async function mount(node: ReactNode) {
+async function mount(node: React.ReactNode) {
   const registry = AtomRegistry.make();
   const element = document.createElement("div");
   document.body.append(element);
-  const root = createRoot(element);
+  const root = ReactDOMClient.createRoot(element);
   cleanup.push(() => {
     root.unmount();
     registry.dispose();
   });
-  const render = async (children: ReactNode) => {
-    await act(async () => {
+  const render = async (children: React.ReactNode) => {
+    await React.act(async () => {
       root.render(
-        <StrictMode>
+        <React.StrictMode>
           <RegistryContext.Provider value={registry}>
             {children}
           </RegistryContext.Provider>
-        </StrictMode>,
+        </React.StrictMode>,
       );
     });
   };
@@ -103,86 +106,92 @@ async function mount(node: ReactNode) {
   return { element, render };
 }
 
-test("providers share an attachment in StrictMode and release it after the last unmount", async () => {
-  const f = fixture();
-  const node = (two: boolean) => (
-    <>
-      <Provider notebook={f}>
-        <Consumer />
-      </Provider>
-      {two && (
+Vitest.test(
+  "providers share an attachment in StrictMode and release it after the last unmount",
+  async () => {
+    const f = fixture();
+    const node = (two: boolean) => (
+      <>
         <Provider notebook={f}>
           <Consumer />
         </Provider>
-      )}
-    </>
-  );
-  const view = await mount(node(true));
-  await vi.waitFor(() => expect(f.readers()).toBe(1));
-  await act(async () => {
-    f.ready("rt");
-  });
-  expect(f.sessions).toHaveLength(1);
-  expect(view.element.textContent).toBe("rtrt");
-  await view.render(node(false));
-  expect(f.readers()).toBe(1);
-  expect(f.sessions[0].dispose).not.toHaveBeenCalled();
-  await view.render(null);
-  await vi.waitFor(() => expect(f.readers()).toBe(0));
-  expect(f.sessions[0].dispose).toHaveBeenCalledOnce();
-});
+        {two && (
+          <Provider notebook={f}>
+            <Consumer />
+          </Provider>
+        )}
+      </>
+    );
+    const view = await mount(node(true));
+    await vi.waitFor(() => Vitest.expect(f.readers()).toBe(1));
+    await React.act(async () => {
+      f.ready("rt");
+    });
+    Vitest.expect(f.sessions).toHaveLength(1);
+    Vitest.expect(view.element.textContent).toBe("rtrt");
+    await view.render(node(false));
+    Vitest.expect(f.readers()).toBe(1);
+    Vitest.expect(f.sessions[0].dispose).not.toHaveBeenCalled();
+    await view.render(null);
+    await vi.waitFor(() => Vitest.expect(f.readers()).toBe(0));
+    Vitest.expect(f.sessions[0].dispose).toHaveBeenCalledOnce();
+  },
+);
 
-test("runtime replacement disposes old renderer state and callbacks retain their producing runtime", async () => {
-  const f = fixture();
-  const view = await mount(
-    <Provider notebook={f}>
-      <Consumer />
-    </Provider>,
-  );
-  await vi.waitFor(() => expect(f.readers()).toBe(1));
-  await act(async () => {
-    f.ready("old");
-  });
-  const old = f.sessions[0];
-  await act(async () => {
-    f.emit({ kind: "reset", runtimeId: null });
-    f.ready("new");
-  });
-  expect(old.dispose).toHaveBeenCalledOnce();
-  expect(view.element.textContent).toBe("new");
-  await old.options.sendComponentValues({ objectIds: ["a"], values: [7] });
-  expect(f.runtime.setUIValues).toHaveBeenCalledWith({
-    runtimeId: "old",
-    values: { a: 7 },
-  });
-  const current = f.sessions[1].options;
-  expect(await current.invoke({ namespace: "table", name: "fetch", args: {} })).toEqual(
-    { answer: 42 },
-  );
-  expect(f.runtime.invoke).toHaveBeenCalledWith({
-    runtimeId: "new",
-    namespace: "table",
-    name: "fetch",
-    args: {},
-  });
-  await current.sendModelValue({
-    modelId: "m",
-    message: { method: "custom", content: {} },
-    buffers: ["AQ=="],
-  });
-  expect(f.runtime.sendWidgetMessage).toHaveBeenCalledWith({
-    runtimeId: "new",
-    modelId: "m",
-    message: { method: "custom", content: {} },
-    buffers: ["AQ=="],
-  });
-  await view.render(null);
-  await expect(
-    current.invoke({ namespace: "table", name: "fetch", args: {} }),
-  ).rejects.toBeDefined();
-});
+Vitest.test(
+  "runtime replacement disposes old renderer state and callbacks retain their producing runtime",
+  async () => {
+    const f = fixture();
+    const view = await mount(
+      <Provider notebook={f}>
+        <Consumer />
+      </Provider>,
+    );
+    await vi.waitFor(() => Vitest.expect(f.readers()).toBe(1));
+    await React.act(async () => {
+      f.ready("old");
+    });
+    const old = f.sessions[0];
+    await React.act(async () => {
+      f.emit({ kind: "reset", runtimeId: null });
+      f.ready("new");
+    });
+    Vitest.expect(old.dispose).toHaveBeenCalledOnce();
+    Vitest.expect(view.element.textContent).toBe("new");
+    await old.options.sendComponentValues({ objectIds: ["a"], values: [7] });
+    Vitest.expect(f.runtime.setUIValues).toHaveBeenCalledWith({
+      runtimeId: "old",
+      values: { a: 7 },
+    });
+    const current = f.sessions[1].options;
+    Vitest.expect(
+      await current.invoke({ namespace: "table", name: "fetch", args: {} }),
+    ).toEqual({ answer: 42 });
+    Vitest.expect(f.runtime.invoke).toHaveBeenCalledWith({
+      runtimeId: "new",
+      namespace: "table",
+      name: "fetch",
+      args: {},
+    });
+    await current.sendModelValue({
+      modelId: "m",
+      message: { method: "custom", content: {} },
+      buffers: ["AQ=="],
+    });
+    Vitest.expect(f.runtime.sendWidgetMessage).toHaveBeenCalledWith({
+      runtimeId: "new",
+      modelId: "m",
+      message: { method: "custom", content: {} },
+      buffers: ["AQ=="],
+    });
+    await view.render(null);
+    await Vitest.expect(
+      current.invoke({ namespace: "table", name: "fetch", args: {} }),
+    ).rejects.toBeDefined();
+  },
+);
 
-test("a second notebook cannot take over the active renderer", async () => {
+Vitest.test("a second notebook cannot take over the active renderer", async () => {
   const first = fixture();
   const other = fixture();
   const view = await mount(
@@ -190,8 +199,8 @@ test("a second notebook cannot take over the active renderer", async () => {
       <Consumer />
     </Provider>,
   );
-  await vi.waitFor(() => expect(first.readers()).toBe(1));
-  await act(async () => {
+  await vi.waitFor(() => Vitest.expect(first.readers()).toBe(1));
+  await React.act(async () => {
     first.ready("first");
   });
   await view.render(
@@ -204,10 +213,10 @@ test("a second notebook cannot take over the active renderer", async () => {
       </Provider>
     </>,
   );
-  expect(view.element.querySelector('[role="alert"]')?.textContent).toContain(
+  Vitest.expect(view.element.querySelector('[role="alert"]')?.textContent).toContain(
     "one notebook per page",
   );
-  expect(view.element.textContent).toContain("first");
-  expect(first.readers()).toBe(1);
-  expect(other.readers()).toBe(0);
+  Vitest.expect(view.element.textContent).toContain("first");
+  Vitest.expect(first.readers()).toBe(1);
+  Vitest.expect(other.readers()).toBe(0);
 });

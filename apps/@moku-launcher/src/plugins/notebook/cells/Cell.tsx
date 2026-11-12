@@ -1,5 +1,5 @@
 import type * as Document from "@moku/editor/Document";
-import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import * as React from "react";
 import { CodeEditor } from "./CodeEditor.tsx";
 import { CellOutputs } from "@moku/outputs";
 import * as Outputs from "../outputs.ts";
@@ -39,10 +39,10 @@ export function Cell({
     readonly at: (position: "before" | "after") => void;
   };
 }) {
-  const sourceId = useId();
-  const margin = useRef<HTMLButtonElement>(null);
-  const source = useMemo(() => Source.read(cell.code ?? ""), [cell.code]);
-  const [preference, setPreference] = useState<boolean | undefined>(() => {
+  const sourceId = React.useId();
+  const margin = React.useRef<HTMLButtonElement>(null);
+  const source = React.useMemo(() => Source.read(cell.code ?? ""), [cell.code]);
+  const [preference, setPreference] = React.useState<boolean | undefined>(() => {
     try {
       const saved = localStorage.getItem(preferenceKey);
       return saved === null ? undefined : saved === "pinned";
@@ -50,8 +50,8 @@ export function Cell({
       return undefined;
     }
   });
-  const [focused, setFocused] = useState(focusRequest !== undefined);
-  useLayoutEffect(() => {
+  const [focused, setFocused] = React.useState(focusRequest !== undefined);
+  React.useLayoutEffect(() => {
     if (focusRequest !== undefined) setFocused(true);
   }, [focusRequest]);
   const pinned =

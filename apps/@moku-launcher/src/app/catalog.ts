@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import * as React from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import type * as Workspace from "@moku/core/Workspace";
@@ -10,7 +10,7 @@ const empty = Atom.make<Observation<Workspace.Catalog>>({
   error: null,
 });
 export function useCatalog(workspace: Workspace.Workspace, connectionId: string) {
-  const atom = useMemo(
+  const atom = React.useMemo(
     () => (connectionId ? workspace.catalog(connectionId) : empty),
     [workspace, connectionId],
   );

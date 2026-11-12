@@ -7,7 +7,7 @@
  * @module
  */
 import type { Effect, Scope } from "effect";
-import type { ReactNode } from "react";
+import type * as React from "react";
 import type * as Notebook from "@moku/core/Notebook";
 
 /**
@@ -27,7 +27,7 @@ export interface View {
   /**
    * Renders the view for the supplied notebook; it may occupy a whole page.
    */
-  readonly render: (props: ViewProps) => ReactNode;
+  readonly render: (props: ViewProps) => React.ReactNode;
 }
 
 export interface Context {

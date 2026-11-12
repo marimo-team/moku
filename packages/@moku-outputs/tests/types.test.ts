@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
-import type { ComponentProps } from "react";
-import { expect, expectTypeOf, test } from "vite-plus/test";
+import * as NodeFs from "node:fs/promises";
+import type * as React from "react";
+import * as Vitest from "vite-plus/test";
 import type * as Protocol from "@moku/core/Protocol";
 import type * as Outputs from "@moku/core/Outputs";
 import type {
@@ -12,31 +12,37 @@ import type {
 import type { DisplayRendererProps } from "../src/internal/session.ts";
 import type { DisplayRenderer } from "../dist/renderer.js";
 
-test("component and generated renderer props preserve the protocol types", () => {
-  expectTypeOf<
-    ComponentProps<typeof DisplayView>["data"]
-  >().toEqualTypeOf<Protocol.DisplayDataOutput>();
-  expectTypeOf<
-    ComponentProps<typeof ConsoleOutput>["chunks"][number]
-  >().toEqualTypeOf<Protocol.ConsoleOutput>();
-  expectTypeOf<
-    ComponentProps<typeof CellOutputs>["outcome"]
-  >().toEqualTypeOf<Protocol.OutcomeOutput | null>();
-  expectTypeOf<
-    ComponentProps<typeof DisplayRenderer>
-  >().toEqualTypeOf<DisplayRendererProps>();
-  expectTypeOf<OutputItem>().toEqualTypeOf<Outputs.Item>();
-  expectTypeOf<
-    Extract<OutputItem, { kind: "display" }>["content"]
-  >().toEqualTypeOf<Protocol.DisplayDataOutput>();
-});
+Vitest.test(
+  "component and generated renderer props preserve the protocol types",
+  () => {
+    Vitest.expectTypeOf<
+      React.ComponentProps<typeof DisplayView>["data"]
+    >().toEqualTypeOf<Protocol.DisplayDataOutput>();
+    Vitest.expectTypeOf<
+      React.ComponentProps<typeof ConsoleOutput>["chunks"][number]
+    >().toEqualTypeOf<Protocol.ConsoleOutput>();
+    Vitest.expectTypeOf<
+      React.ComponentProps<typeof CellOutputs>["outcome"]
+    >().toEqualTypeOf<Protocol.OutcomeOutput | null>();
+    Vitest.expectTypeOf<
+      React.ComponentProps<typeof DisplayRenderer>
+    >().toEqualTypeOf<DisplayRendererProps>();
+    Vitest.expectTypeOf<OutputItem>().toEqualTypeOf<Outputs.Item>();
+    Vitest.expectTypeOf<
+      Extract<OutputItem, { kind: "display" }>["content"]
+    >().toEqualTypeOf<Protocol.DisplayDataOutput>();
+  },
+);
 
-test("generated declarations do not require the upstream source tree", async () => {
-  const declaration = await readFile(
-    new URL("../dist/renderer.d.ts", import.meta.url),
-    "utf8",
-  );
-  expect(declaration).not.toContain("@/");
-  expect(declaration).not.toContain("frontend");
-  expect(declaration).not.toContain(".css");
-});
+Vitest.test(
+  "generated declarations do not require the upstream source tree",
+  async () => {
+    const declaration = await NodeFs.readFile(
+      new URL("../dist/renderer.d.ts", import.meta.url),
+      "utf8",
+    );
+    Vitest.expect(declaration).not.toContain("@/");
+    Vitest.expect(declaration).not.toContain("frontend");
+    Vitest.expect(declaration).not.toContain(".css");
+  },
+);

@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { sse } from "@marimo-team/client";
+import * as MarimoClient from "@marimo-team/client";
 import { Effect, Queue, Schema, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import type * as Notebook from "../Notebook.ts";
@@ -267,7 +267,7 @@ export const make = (target: Notebook.Target, observed: Atom.Atom<Notebook.State
           fail(current, cause);
         }
       };
-      await sse(url, {
+      await MarimoClient.sse(url, {
         fetch: async (_input, init) => {
           try {
             return await request("/sse" + url.search, init ?? {});

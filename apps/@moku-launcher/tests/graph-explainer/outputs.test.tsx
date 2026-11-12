@@ -1,28 +1,29 @@
 // @vitest-environment happy-dom
-import { afterEach, expect, test, vi } from "vite-plus/test";
-import { act, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
+import * as Vitest from "vite-plus/test";
+import { vi } from "vite-plus/test";
+import * as React from "react";
+import * as ReactDOMClient from "react-dom/client";
 import * as Protocol from "@moku/core/Protocol";
 import type { NotebookState } from "../../src/plugins/graph-explainer/execution.ts";
 import { CellDetails } from "../../src/plugins/graph-explainer/CellDetails.tsx";
 import { RunLog } from "../../src/plugins/graph-explainer/RunLog.tsx";
 
 vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-const roots: ReturnType<typeof createRoot>[] = [];
-afterEach(async () => {
-  await act(async () => {
+const roots: ReturnType<typeof ReactDOMClient.createRoot>[] = [];
+Vitest.afterEach(async () => {
+  await React.act(async () => {
     for (const root of roots.splice(0)) root.unmount();
   });
   document.body.replaceChildren();
 });
 
-async function mount(node: ReactNode) {
+async function mount(node: React.ReactNode) {
   const element = document.createElement("div");
   document.body.append(element);
-  const root = createRoot(element);
+  const root = ReactDOMClient.createRoot(element);
   roots.push(root);
-  const render = async (next: ReactNode) => {
-    await act(async () => root.render(next));
+  const render = async (next: React.ReactNode) => {
+    await React.act(async () => root.render(next));
   };
   await render(node);
   return {
@@ -32,8 +33,8 @@ async function mount(node: ReactNode) {
       const button = [...element.querySelectorAll("button")].find((button) =>
         button.textContent?.includes(label),
       );
-      expect(button).toBeDefined();
-      await act(async () => button!.click());
+      Vitest.expect(button).toBeDefined();
+      await React.act(async () => button!.click());
     },
     panel: () => element.querySelector('[role="tabpanel"]')!,
   };
@@ -122,118 +123,135 @@ function fixture() {
   return { state, run };
 }
 
-test("DAG tabs and the run log render only the selected run's outputs", async () => {
-  const { state, run } = fixture();
-  const view = await mount(
-    <CellDetails state={state} run={run} cellId="c" onClose={() => {}} />,
-  );
-  await view.click("Logs");
-  expect(view.panel().textContent).toBe("firsttail");
-  expect(view.panel().querySelector('[data-channel="stderr"]')?.textContent).toBe(
-    "tail",
-  );
-  await view.click("Output");
-  expect(view.panel().textContent).toBe("earlierlaterselected result");
-  expect(view.panel().querySelector('[aria-label="Console output"]')).toBeNull();
+Vitest.test(
+  "DAG tabs and the run log render only the selected run's outputs",
+  async () => {
+    const { state, run } = fixture();
+    const view = await mount(
+      <CellDetails state={state} run={run} cellId="c" onClose={() => {}} />,
+    );
+    await view.click("Logs");
+    Vitest.expect(view.panel().textContent).toBe("firsttail");
+    Vitest.expect(
+      view.panel().querySelector('[data-channel="stderr"]')?.textContent,
+    ).toBe("tail");
+    await view.click("Output");
+    Vitest.expect(view.panel().textContent).toBe("earlierlaterselected result");
+    Vitest.expect(
+      view.panel().querySelector('[aria-label="Console output"]'),
+    ).toBeNull();
 
-  await view.render(<RunLog state={state} run={run} />);
-  await view.click("Run log");
-  expect(view.element.querySelector('[aria-label="Console output"]')?.textContent).toBe(
-    "firsttail",
-  );
-});
+    await view.render(<RunLog state={state} run={run} />);
+    await view.click("Run log");
+    Vitest.expect(
+      view.element.querySelector('[aria-label="Console output"]')?.textContent,
+    ).toBe("firsttail");
+  },
+);
 
-test("the output tab renders errors once and updates to an empty execution", async () => {
-  const initial = fixture();
-  const run = initial.run;
-  const traceback = { mimetype: "text/plain", data: "traceback detail" };
-  let state: NotebookState = {
-    ...initial.state,
-    executions: {
-      ...initial.state.executions,
-      selected: {
-        ...initial.state.executions.selected,
-        outcome: {
-          kind: "error",
-          error: Protocol.Error.parse({
-            kind: "exception",
-            name: "ValueError",
-            message: "bad value",
-            source: "marimo",
-            severity: "error",
-            range: null,
-            related: [],
-            traceback,
-          }),
+Vitest.test(
+  "the output tab renders errors once and updates to an empty execution",
+  async () => {
+    const initial = fixture();
+    const run = initial.run;
+    const traceback = { mimetype: "text/plain", data: "traceback detail" };
+    let state: NotebookState = {
+      ...initial.state,
+      executions: {
+        ...initial.state.executions,
+        selected: {
+          ...initial.state.executions.selected,
+          outcome: {
+            kind: "error",
+            error: Protocol.Error.parse({
+              kind: "exception",
+              name: "ValueError",
+              message: "bad value",
+              source: "marimo",
+              severity: "error",
+              range: null,
+              related: [],
+              traceback,
+            }),
+          },
         },
       },
-    },
-    displays: {
-      duplicate: {
-        id: "duplicate",
-        execution_id: "selected",
-        seq: 0,
-        content: traceback,
+      displays: {
+        duplicate: {
+          id: "duplicate",
+          execution_id: "selected",
+          seq: 0,
+          content: traceback,
+        },
       },
-    },
-  };
-  const render = () => (
-    <CellDetails state={state} run={run} cellId="c" onClose={() => {}} />
-  );
-  const view = await mount(render());
-  await view.click("Output");
-  expect(view.element.textContent?.match(/ValueError/g)).toHaveLength(1);
-  expect(view.panel().textContent?.match(/traceback detail/g)).toHaveLength(1);
-  expect(view.panel().textContent).not.toContain("No rendered output");
+    };
+    const render = () => (
+      <CellDetails state={state} run={run} cellId="c" onClose={() => {}} />
+    );
+    const view = await mount(render());
+    await view.click("Output");
+    Vitest.expect(view.element.textContent?.match(/ValueError/g)).toHaveLength(1);
+    Vitest.expect(view.panel().textContent?.match(/traceback detail/g)).toHaveLength(1);
+    Vitest.expect(view.panel().textContent).not.toContain("No rendered output");
 
-  state = {
-    ...state,
-    executions: {
-      ...state.executions,
-      selected: { ...state.executions.selected, outcome: { kind: "interrupted" } },
-    },
-    displays: {},
-  };
-  await view.render(render());
-  expect(view.panel().textContent).toBe("Interrupted");
+    state = {
+      ...state,
+      executions: {
+        ...state.executions,
+        selected: { ...state.executions.selected, outcome: { kind: "interrupted" } },
+      },
+      displays: {},
+    };
+    await view.render(render());
+    Vitest.expect(view.panel().textContent).toBe("Interrupted");
 
-  state = { ...state, executions: {} };
-  await view.render(render());
-  expect(view.panel().textContent).toBe("No rendered output for this execution.");
-  await view.click("Logs");
-  expect(view.panel().textContent).toBe("No console output for this execution.");
-});
+    state = { ...state, executions: {} };
+    await view.render(render());
+    Vitest.expect(view.panel().textContent).toBe(
+      "No rendered output for this execution.",
+    );
+    await view.click("Logs");
+    Vitest.expect(view.panel().textContent).toBe(
+      "No console output for this execution.",
+    );
+  },
+);
 
-test("live cell details retain outputs across downstream runs and discard prior runtimes", async () => {
-  const { state: initial, run } = fixture();
-  const runtime = Protocol.Runtime.parse({
-    id: "rt",
-    notebook_id: "n",
-    status: "running",
-    message: null,
-    marimo_version: null,
-    started_at: "2026-11-05T11:00:00Z",
-  });
-  let state: NotebookState = { ...initial, runtime };
-  state.executions.old = {
-    ...state.executions.old,
-    started_at: "2026-11-05T11:00:00Z",
-  };
-  state.executions.selected = {
-    ...state.executions.selected,
-    started_at: "2026-11-05T12:00:00Z",
-  };
-  state.runs.downstream = {
-    ...run,
-    id: "downstream",
-    cells: ["other"],
-    completed_at: "2026-11-05T13:00:00Z",
-  };
-  const render = () => <CellDetails state={state} cellId="c" onClose={() => {}} />;
-  const view = await mount(render());
-  await view.click("Output");
-  expect(view.panel().textContent).toBe("earlierlaterselected result");
-  state = { ...state, runtime: { ...runtime, id: "replacement" } };
-  await view.render(render());
-  expect(view.panel().textContent).toBe("No rendered output for this execution.");
-});
+Vitest.test(
+  "live cell details retain outputs across downstream runs and discard prior runtimes",
+  async () => {
+    const { state: initial, run } = fixture();
+    const runtime = Protocol.Runtime.parse({
+      id: "rt",
+      notebook_id: "n",
+      status: "running",
+      message: null,
+      marimo_version: null,
+      started_at: "2026-11-05T11:00:00Z",
+    });
+    let state: NotebookState = { ...initial, runtime };
+    state.executions.old = {
+      ...state.executions.old,
+      started_at: "2026-11-05T11:00:00Z",
+    };
+    state.executions.selected = {
+      ...state.executions.selected,
+      started_at: "2026-11-05T12:00:00Z",
+    };
+    state.runs.downstream = {
+      ...run,
+      id: "downstream",
+      cells: ["other"],
+      completed_at: "2026-11-05T13:00:00Z",
+    };
+    const render = () => <CellDetails state={state} cellId="c" onClose={() => {}} />;
+    const view = await mount(render());
+    await view.click("Output");
+    Vitest.expect(view.panel().textContent).toBe("earlierlaterselected result");
+    state = { ...state, runtime: { ...runtime, id: "replacement" } };
+    await view.render(render());
+    Vitest.expect(view.panel().textContent).toBe(
+      "No rendered output for this execution.",
+    );
+  },
+);

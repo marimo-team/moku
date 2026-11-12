@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { Client } from "@marimo-team/client";
+import * as MarimoClient from "@marimo-team/client";
 import { Context, Data, Effect, Layer, Schema } from "effect";
 
 /**
@@ -58,7 +58,7 @@ export class Service extends Context.Service<
   {
     readonly fetch: typeof globalThis.fetch;
     readonly url: (path: string) => string;
-    readonly client: (connectionId: string, signal: AbortSignal) => Client;
+    readonly client: (connectionId: string, signal: AbortSignal) => MarimoClient.Client;
     readonly json: <A>(
       path: string,
       schema: Schema.Codec<A, unknown>,
@@ -87,15 +87,18 @@ export const layer = (
       fetch,
       url: (path) => new URL(path, base).href,
       client: (connectionId, lifetime) =>
-        new Client(new URL(`/api/hosts/${encodeURIComponent(connectionId)}`, base), {
-          fetch: (input, init) =>
-            fetch(input, {
-              ...init,
-              signal: init?.signal
-                ? AbortSignal.any([lifetime, init.signal])
-                : lifetime,
-            }),
-        }),
+        new MarimoClient.Client(
+          new URL(`/api/hosts/${encodeURIComponent(connectionId)}`, base),
+          {
+            fetch: (input, init) =>
+              fetch(input, {
+                ...init,
+                signal: init?.signal
+                  ? AbortSignal.any([lifetime, init.signal])
+                  : lifetime,
+              }),
+          },
+        ),
       json: (path, schema, options) =>
         Effect.tryPromise({
           try: async (signal) => {

@@ -1,51 +1,54 @@
-import { Prec } from "@codemirror/state";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import {
-  history,
-  historyKeymap,
-  defaultKeymap,
-  indentWithTab,
-} from "@codemirror/commands";
+import * as CodeMirrorState from "@codemirror/state";
+import * as CodeMirrorLanguage from "@codemirror/language";
+import * as CodeMirrorCommands from "@codemirror/commands";
 import type * as Protocol from "@moku/core/Protocol";
 import { useCellCodeExtension } from "./useCellCodeExtension.ts";
-import {
-  EditorView,
-  keymap,
-  highlightSpecialChars,
-  lineNumbers,
-  placeholder,
-} from "@codemirror/view";
-import { useEffectEvent, useLayoutEffect, useRef } from "react";
-import { tags } from "@lezer/highlight";
+import * as CodeMirrorView from "@codemirror/view";
+import * as React from "react";
+import * as LezerHighlight from "@lezer/highlight";
 
 const extensions = [
-  syntaxHighlighting(
-    HighlightStyle.define([
-      { tag: tags.keyword, color: "var(--syntax-keyword)" },
-      { tag: tags.string, color: "var(--syntax-string)" },
+  CodeMirrorLanguage.syntaxHighlighting(
+    CodeMirrorLanguage.HighlightStyle.define([
+      { tag: LezerHighlight.tags.keyword, color: "var(--syntax-keyword)" },
+      { tag: LezerHighlight.tags.string, color: "var(--syntax-string)" },
       {
-        tag: [tags.number, tags.bool, tags.null],
+        tag: [
+          LezerHighlight.tags.number,
+          LezerHighlight.tags.bool,
+          LezerHighlight.tags.null,
+        ],
         color: "var(--syntax-literal)",
       },
-      { tag: tags.comment, color: "var(--color-faint)" },
+      { tag: LezerHighlight.tags.comment, color: "var(--color-faint)" },
       {
-        tag: tags.function(tags.variableName),
+        tag: LezerHighlight.tags.function(LezerHighlight.tags.variableName),
         color: "var(--syntax-function)",
       },
-      { tag: [tags.typeName, tags.className], color: "var(--syntax-type)" },
       {
-        tag: [tags.operator, tags.special(tags.variableName)],
+        tag: [LezerHighlight.tags.typeName, LezerHighlight.tags.className],
+        color: "var(--syntax-type)",
+      },
+      {
+        tag: [
+          LezerHighlight.tags.operator,
+          LezerHighlight.tags.special(LezerHighlight.tags.variableName),
+        ],
         color: "var(--syntax-operator)",
       },
-      { tag: tags.invalid, color: "var(--color-error)" },
+      { tag: LezerHighlight.tags.invalid, color: "var(--color-error)" },
     ]),
   ),
-  highlightSpecialChars(),
-  lineNumbers(),
-  placeholder("Empty cell"),
-  history(),
-  keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
-  EditorView.theme({
+  CodeMirrorView.highlightSpecialChars(),
+  CodeMirrorView.lineNumbers(),
+  CodeMirrorView.placeholder("Empty cell"),
+  CodeMirrorCommands.history(),
+  CodeMirrorView.keymap.of([
+    ...CodeMirrorCommands.defaultKeymap,
+    ...CodeMirrorCommands.historyKeymap,
+    CodeMirrorCommands.indentWithTab,
+  ]),
+  CodeMirrorView.EditorView.theme({
     "&": {
       fontSize: "var(--text-control)",
       color: "var(--color-ink)",
@@ -89,19 +92,19 @@ export function CodeEditor({
   focusRequest?: number;
 }) {
   const binding = useCellCodeExtension(cellId);
-  const container = useRef<HTMLDivElement>(null);
-  const editor = useRef<EditorView | null>(null);
-  const run = useEffectEvent((advance: boolean) => onRun?.(advance));
+  const container = React.useRef<HTMLDivElement>(null);
+  const editor = React.useRef<CodeMirrorView.EditorView | null>(null);
+  const run = React.useEffectEvent((advance: boolean) => onRun?.(advance));
 
-  useLayoutEffect(() => {
+  React.useLayoutEffect(() => {
     if (!container.current) return;
-    const view = new EditorView({
+    const view = new CodeMirrorView.EditorView({
       parent: container.current,
       extensions: [
         ...extensions,
         binding,
         cellRunKeymap((advance) => run(advance)),
-        EditorView.contentAttributes.of({
+        CodeMirrorView.EditorView.contentAttributes.of({
           tabindex: "0",
           "aria-label": "Cell source",
         }),
@@ -114,11 +117,11 @@ export function CodeEditor({
     };
   }, [binding]);
 
-  useLayoutEffect(() => {
+  React.useLayoutEffect(() => {
     if (autoFocus) editor.current?.focus();
   }, [autoFocus, binding]);
 
-  useLayoutEffect(() => {
+  React.useLayoutEffect(() => {
     if (focusRequest !== undefined) editor.current?.focus();
   }, [focusRequest]);
 
@@ -129,8 +132,8 @@ export function CodeEditor({
 
 /** Cmd/Ctrl+Enter stays in place; Shift+Enter advances after submission. */
 export function cellRunKeymap(run: (advance: boolean) => void) {
-  return Prec.highest(
-    keymap.of(
+  return CodeMirrorState.Prec.highest(
+    CodeMirrorView.keymap.of(
       ["Mod-Enter", "Ctrl-Enter", "Shift-Enter"].map((key) => ({
         key,
         preventDefault: true,

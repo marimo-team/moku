@@ -1,5 +1,5 @@
 /** Shared axis, execution bars, and playhead for the graph timeline. @module */
-import type { Ref } from "react";
+import type * as React from "react";
 import { duration } from "../execution.ts";
 import type { BarFrame, TimelineFrame } from "./animation.ts";
 import { timelineLabel } from "./scale.ts";
@@ -9,7 +9,7 @@ export function Axis({
   axisRef,
 }: {
   frame: TimelineFrame;
-  axisRef: Ref<HTMLDivElement>;
+  axisRef: React.Ref<HTMLDivElement>;
 }) {
   return (
     <div className="axis" ref={axisRef}>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import * as React from "react";
 
 /** Startup feedback floats over the notebook without changing its layout. */
 export function KernelStartupNotice({
@@ -12,8 +12,8 @@ export function KernelStartupNotice({
   message?: string | null;
   cancel?: () => void;
 }) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
+  const [visible, setVisible] = React.useState(false);
+  React.useEffect(() => {
     if (!active) {
       setVisible(false);
       return;

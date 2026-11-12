@@ -1,8 +1,8 @@
-import { expect, test } from "vite-plus/test";
+import * as Vitest from "vite-plus/test";
 import { Effect } from "effect";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Document from "@moku/editor/Document";
-import { runCell } from "../../src/plugins/basic/index.tsx";
+import { runCell } from "../../src/plugins/basic/actions.ts";
 
 function fixture(removed = false) {
   const calls: unknown[] = [];
@@ -27,21 +27,24 @@ function fixture(removed = false) {
   return { notebook, document, calls };
 }
 
-test("runs only the selected cell with its confirmed source without starting the runtime", async () => {
-  const { notebook, document, calls } = fixture();
-  await Effect.runPromise(runCell(notebook, document, "a"));
-  expect(calls).toEqual([
-    {
-      requestId: expect.any(String),
-      request: { cells: [{ id: "a", etag: "confirmed" }] },
-    },
-  ]);
-});
+Vitest.test(
+  "runs only the selected cell with its confirmed source without starting the runtime",
+  async () => {
+    const { notebook, document, calls } = fixture();
+    await Effect.runPromise(runCell(notebook, document, "a"));
+    Vitest.expect(calls).toEqual([
+      {
+        requestId: Vitest.expect.any(String),
+        request: { cells: [{ id: "a", etag: "confirmed" }] },
+      },
+    ]);
+  },
+);
 
-test("does not execute a cell removed before edits were confirmed", async () => {
+Vitest.test("does not execute a cell removed before edits were confirmed", async () => {
   const { notebook, document, calls } = fixture(true);
-  await expect(Effect.runPromise(runCell(notebook, document, "a"))).rejects.toThrow(
-    "removed or disabled",
-  );
-  expect(calls).toEqual([]);
+  await Vitest.expect(
+    Effect.runPromise(runCell(notebook, document, "a")),
+  ).rejects.toThrow("removed or disabled");
+  Vitest.expect(calls).toEqual([]);
 });

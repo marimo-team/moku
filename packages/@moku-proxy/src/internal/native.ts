@@ -3,8 +3,8 @@
  *
  * @module
  */
-import type * as Http from "node:http";
-import { Readable } from "node:stream";
+import type * as NodeHttp from "node:http";
+import * as NodeStream from "node:stream";
 import { Schema } from "effect";
 import { ComponentValues, FunctionCall, ModelValue } from "@moku/core/Interaction";
 import { json, readBody } from "./http.ts";
@@ -17,15 +17,15 @@ const routes = {
 const sessionPattern = /^[a-zA-Z0-9_-]{1,128}$/;
 
 export function createNative(
-  requests: Map<AbortController, Http.ServerResponse>,
+  requests: Map<AbortController, NodeHttp.ServerResponse>,
   clientName: string,
 ) {
   const credentials = new Map<string, { token: string; serverToken: string }>();
   return {
     close: () => credentials.clear(),
     async handle(
-      req: Http.IncomingMessage,
-      res: Http.ServerResponse,
+      req: NodeHttp.IncomingMessage,
+      res: NodeHttp.ServerResponse,
       options: {
         connectionId: string;
         baseUrl: string;
@@ -177,7 +177,7 @@ export function createNative(
         });
         res.flushHeaders();
         if (!response.body) return res.end();
-        const output = Readable.from(response.body.values());
+        const output = NodeStream.Readable.from(response.body.values());
         output.on("data", heartbeat);
         output.on("error", () => res.destroy());
         output.pipe(res);

@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import * as React from "react";
+import * as ReactRouter from "react-router";
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
 import type * as Notebook from "@moku/core/Notebook";
@@ -21,7 +22,8 @@ export function ViewHeader({
   runtime: Runtime;
   workspace: Workspace.Workspace;
 }) {
-  useEffect(() => rememberView(viewKey), [viewKey]);
+  const navigate = ReactRouter.useNavigate();
+  React.useEffect(() => rememberView(viewKey), [viewKey]);
   const { connections } = useAtomValue(workspace.state);
   const connection = connections.find((item) => item.id === target.connectionId);
   const attachment = useAtomValue(runtime.notebook(target));
@@ -35,7 +37,7 @@ export function ViewHeader({
           includeHost={false}
           onChange={(value) => {
             rememberView(value);
-            window.location.assign(viewHref(target, value));
+            void navigate(viewHref(target, value));
           }}
         />
       }

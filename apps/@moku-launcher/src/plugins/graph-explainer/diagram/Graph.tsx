@@ -1,5 +1,5 @@
 /** Rows and dependency rails for a notebook execution graph. @module */
-import { useMemo } from "react";
+import * as React from "react";
 import type { TimelineFrame } from "../timeline/animation.ts";
 import * as Timeline from "../timeline/Timeline.tsx";
 import type { CellStatus } from "../execution.ts";
@@ -106,7 +106,7 @@ function nodeRadius(status: CellStatus) {
 }
 
 export function Rails({ rows, edges, width, hovered }: RailsProps) {
-  const connections = useMemo(() => {
+  const connections = React.useMemo(() => {
     const statuses = new Map(rows.map((row) => [row.id, row.status]));
     return edges
       .map((edge) => ({

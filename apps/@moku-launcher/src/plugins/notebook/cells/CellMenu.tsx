@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import * as React from "react";
 
 export function CellMenu({
   name,
@@ -16,12 +16,12 @@ export function CellMenu({
   };
   remove?: { readonly pending: boolean; readonly run: () => void };
 }) {
-  const id = useId();
-  const root = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(false);
+  const id = React.useId();
+  const root = React.useRef<HTMLDivElement>(null);
+  const trigger = React.useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = React.useState(false);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!open) return;
     function outside(event: PointerEvent) {
       if (event.target instanceof Node && !root.current?.contains(event.target)) {

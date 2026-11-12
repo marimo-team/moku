@@ -1,6 +1,5 @@
-import { useState } from "react";
+import * as React from "react";
 import { useAtomValue } from "@effect/atom-react";
-import * as Outputs from "@moku/outputs";
 import type { ViewProps } from "@moku/plugin";
 import { newestRun } from "./execution.ts";
 import { useRunActions } from "./actions.ts";
@@ -10,17 +9,9 @@ import { CellDetails } from "./CellDetails.tsx";
 import { DependencyGraph } from "./diagram/DependencyGraph.tsx";
 
 export function GraphExplainer({ notebook }: ViewProps) {
-  return (
-    <Outputs.Provider notebook={notebook}>
-      <Graph notebook={notebook} />
-    </Outputs.Provider>
-  );
-}
-
-function Graph({ notebook }: ViewProps) {
   const { value: state, status, error } = useAtomValue(notebook.state);
-  const [selected, setSelected] = useState("");
-  const [expanded, setExpanded] = useState(false);
+  const [selected, setSelected] = React.useState("");
+  const [expanded, setExpanded] = React.useState(false);
   const run = newestRun(state);
   const active = run && run.status !== "completed";
   const actions = useRunActions(notebook, state, run, status === "connected");

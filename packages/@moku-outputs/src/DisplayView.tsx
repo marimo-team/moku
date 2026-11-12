@@ -3,24 +3,17 @@
  *
  * @module
  */
-import {
-  Component,
-  Suspense,
-  use,
-  useContext,
-  type ReactElement,
-  type ReactNode,
-} from "react";
+import * as React from "react";
 import type { DisplayData, DisplayViewProps } from "./types.ts";
 import { loadRenderer, loadStyles } from "./internal/renderer.ts";
 import { ShadowOutput } from "./internal/ShadowOutput.tsx";
 import { OutputContext } from "./Provider.tsx";
 import "./style.css";
 
-function RichDisplay(props: DisplayViewProps): ReactElement {
-  const { DisplayRenderer } = use(loadRenderer());
-  const css = use(loadStyles());
-  const context = useContext(OutputContext);
+function RichDisplay(props: DisplayViewProps): React.ReactElement {
+  const { DisplayRenderer } = React.use(loadRenderer());
+  const css = React.use(loadStyles());
+  const context = React.useContext(OutputContext);
   return (
     <ShadowOutput css={css}>
       <DisplayRenderer {...props} {...context} />
@@ -40,16 +33,16 @@ export function DisplayView({
   data,
   className,
   runtimeId,
-}: DisplayViewProps): ReactElement {
+}: DisplayViewProps): React.ReactElement {
   return (
     <div className={["moku-display", className].filter(Boolean).join(" ")}>
       {data.mimetype === "text/plain" ? (
         <pre className="moku-output-text">{data.data}</pre>
       ) : (
         <DisplayErrorBoundary data={data}>
-          <Suspense fallback={null}>
+          <React.Suspense fallback={null}>
             <RichDisplay data={data} runtimeId={runtimeId} />
-          </Suspense>
+          </React.Suspense>
         </DisplayErrorBoundary>
       )}
     </div>
@@ -61,8 +54,8 @@ interface BoundaryState {
   readonly failed: boolean;
 }
 
-class DisplayErrorBoundary extends Component<
-  { readonly data: DisplayData; readonly children: ReactNode },
+class DisplayErrorBoundary extends React.Component<
+  { readonly data: DisplayData; readonly children: React.ReactNode },
   BoundaryState
 > {
   state: BoundaryState = { data: null, failed: false };
@@ -78,7 +71,7 @@ class DisplayErrorBoundary extends Component<
     return data === state.data ? null : { data, failed: false };
   }
 
-  render(): ReactNode {
+  render(): React.ReactNode {
     if (this.state.failed) {
       return (
         <p className="moku-output-notice" role="alert">

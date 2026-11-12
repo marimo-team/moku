@@ -1,17 +1,35 @@
 import { Atom } from "effect/reactivity";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
-import { useEffect, useMemo } from "react";
-import { useDocument } from "./DocumentContext.ts";
+import * as React from "react";
+import * as ReactRouter from "react-router";
+import type * as Document from "@moku/editor/Document";
 
 /** Keep the document mounted while a link navigation flushes pending edits. */
-export function useDraftNavigationGuard(unsaved: boolean) {
-  const model = useDocument();
+export function useDraftNavigationGuard(model: Document.Interface, unsaved: boolean) {
   const flush = useAtomSet(
-    useMemo(() => Atom.fn(() => model.flush).pipe(Atom.setIdleTTL(0)), [model]),
+    React.useMemo(() => Atom.fn(() => model.flush).pipe(Atom.setIdleTTL(0)), [model]),
     { mode: "promise" },
   );
   const dirty = useAtomValue(model.state, (state) => state.dirty);
-  useEffect(() => {
+  const blocker = ReactRouter.useBlocker(
+    React.useCallback(() => model.registry.get(model.state).dirty, [model]),
+  );
+  React.useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    let active = true;
+    void flush().then(
+      () => {
+        if (active) blocker.proceed();
+      },
+      () => {
+        if (active) blocker.reset();
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [blocker, flush]);
+  React.useEffect(() => {
     if (!dirty && !unsaved) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -19,7 +37,7 @@ export function useDraftNavigationGuard(unsaved: boolean) {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty, unsaved]);
-  useEffect(() => {
+  React.useEffect(() => {
     const navigate = (event: MouseEvent) => {
       if (
         event.defaultPrevented ||

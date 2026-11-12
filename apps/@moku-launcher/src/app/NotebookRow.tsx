@@ -1,4 +1,5 @@
 import type * as Workspace from "@moku/core/Workspace";
+import * as ReactRouter from "react-router";
 import type * as Protocol from "@moku/core/Protocol";
 import { viewHref } from "./routes.ts";
 import { HOST_VIEW } from "./LauncherBar.tsx";
@@ -61,13 +62,13 @@ export function NotebookRow({
             <span aria-hidden="true">{host.pending ? "…" : "↗"}</span>
           </button>
         ) : (
-          <a
+          <ReactRouter.Link
             className="notebook-open"
-            href={viewHref(target, selectedView)}
+            to={viewHref(target, selectedView)}
             aria-label={label}
           >
             <span aria-hidden="true">↗</span>
-          </a>
+          </ReactRouter.Link>
         )}
       </div>
       {selectedView === HOST_VIEW && host.error && (

@@ -33,6 +33,15 @@ Configure its command in [marimo.ts](scripts/marimo.ts).
 Register views in
 [plugins.ts](apps/@moku-launcher/src/plugins.ts).
 
+## Imports
+
+Prefer namespace imports for library functions: `React.useState`,
+`ReactRouter.useNavigate`, `Vitest.test`, and `NodeFs.readFile`.
+Use separate namespaces for CodeMirror's state, view, and commands modules.
+Keep Effect's module imports (`Effect`, `Stream`, `Atom`, etc.): they already
+provide namespaces. Keep named imports from `@effect/atom-react` and Vitest's
+`vi` namespace. Direct component and type imports are fine.
+
 ## Checks
 
 ```sh

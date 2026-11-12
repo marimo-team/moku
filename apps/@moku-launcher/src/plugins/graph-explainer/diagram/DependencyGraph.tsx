@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import * as React from "react";
 import type * as Protocol from "@moku/core/Protocol";
 import type { NotebookState } from "../execution.ts";
 import * as Timeline from "../timeline/Timeline.tsx";
@@ -29,20 +29,20 @@ export function DependencyGraph({
   onRunCell,
   runDisabled,
 }: DependencyGraphProps) {
-  const graph = useMemo(
+  const graph = React.useMemo(
     () => dependencyGraph(state),
     [state.document, state.analysis, state.cells],
   );
   const [groups, setGroups] = useGroups(groupKey);
-  const [editingGroups, setEditingGroups] = useState(false);
-  const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
-  const [collapsed, setCollapsed] = useState(false);
-  const [hovered, setHovered] = useState<string | null>(null);
-  const layout = useMemo(
+  const [editingGroups, setEditingGroups] = React.useState(false);
+  const [closedGroups, setClosedGroups] = React.useState<Set<string>>(new Set());
+  const [collapsed, setCollapsed] = React.useState(false);
+  const [hovered, setHovered] = React.useState<string | null>(null);
+  const layout = React.useMemo(
     () => layoutView(graph.order, graph.edges, groups, closedGroups),
     [graph, groups, closedGroups],
   );
-  const view = useMemo(
+  const view = React.useMemo(
     () => createGraphView(state, run, layout.rows, graph.current),
     [state, run, layout.rows, graph.current],
   );

@@ -1,6 +1,6 @@
 import { dependencyGraph } from "../../src/plugins/graph-explainer/diagram/dependencies.ts";
 import * as NodeAssert from "node:assert/strict";
-import { test } from "vite-plus/test";
+import * as Vitest from "vite-plus/test";
 import * as Protocol from "@moku/core/Protocol";
 import {
   cellStatus,
@@ -64,22 +64,25 @@ function example(): NotebookState {
   };
 }
 
-test("dependency order follows code, and stale analysis cannot describe an edited document", () => {
-  const state = example();
-  NodeAssert.deepEqual(dependencyGraph(state), {
-    current: true,
-    order: ["source", "consumer"],
-    edges: [{ from: "source", to: "consumer", names: ["x"] }],
-  });
-  const edited = { ...state, document: { ...state.document!, etag: "v2" } };
-  NodeAssert.deepEqual(dependencyGraph(edited), {
-    current: false,
-    order: ["consumer", "source"],
-    edges: [],
-  });
-});
+Vitest.test(
+  "dependency order follows code, and stale analysis cannot describe an edited document",
+  () => {
+    const state = example();
+    NodeAssert.deepEqual(dependencyGraph(state), {
+      current: true,
+      order: ["source", "consumer"],
+      edges: [{ from: "source", to: "consumer", names: ["x"] }],
+    });
+    const edited = { ...state, document: { ...state.document!, etag: "v2" } };
+    NodeAssert.deepEqual(dependencyGraph(edited), {
+      current: false,
+      order: ["consumer", "source"],
+      edges: [],
+    });
+  },
+);
 
-test("cycles remain inspectable without losing or duplicating cells", () => {
+Vitest.test("cycles remain inspectable without losing or duplicating cells", () => {
   const state = example();
   state.analysis!.cells.source.refs = ["y"];
   const graph = dependencyGraph(state);
@@ -87,7 +90,7 @@ test("cycles remain inspectable without losing or duplicating cells", () => {
   NodeAssert.deepEqual(new Set(graph.order), new Set(["source", "consumer"]));
 });
 
-test("not executed does not mean skipped, and explicit skip is retained", () => {
+Vitest.test("not executed does not mean skipped, and explicit skip is retained", () => {
   const cell = example().cells.consumer;
   NodeAssert.equal(cellStatus(cell, undefined, []), "pending");
   const execution = Protocol.Execution.parse({

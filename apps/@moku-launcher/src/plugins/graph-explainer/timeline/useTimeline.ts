@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, useSyncExternalStore } from "react";
+import * as React from "react";
 import { advanceTimeline, timelineTickCount, type TimelineInput } from "./animation.ts";
 
 function createTimeline(initial: TimelineInput) {
@@ -53,10 +53,10 @@ function createTimeline(initial: TimelineInput) {
 }
 
 export function useTimeline(input: TimelineInput) {
-  const [timeline] = useState(() => createTimeline(input));
-  const [axis, setAxis] = useState<HTMLDivElement | null>(null);
-  useLayoutEffect(() => timeline.setInput(input), [timeline, input]);
-  useLayoutEffect(() => {
+  const [timeline] = React.useState(() => createTimeline(input));
+  const [axis, setAxis] = React.useState<HTMLDivElement | null>(null);
+  React.useLayoutEffect(() => timeline.setInput(input), [timeline, input]);
+  React.useLayoutEffect(() => {
     if (!axis) return;
     timeline.setWidth(axis.getBoundingClientRect().width);
     const observer = new ResizeObserver(([entry]) =>
@@ -65,7 +65,7 @@ export function useTimeline(input: TimelineInput) {
     observer.observe(axis);
     return () => observer.disconnect();
   }, [timeline, axis]);
-  useLayoutEffect(() => {
+  React.useLayoutEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     const change = () => timeline.setReduced(media.matches);
     media.addEventListener("change", change);
@@ -73,7 +73,7 @@ export function useTimeline(input: TimelineInput) {
     return () => media.removeEventListener("change", change);
   }, [timeline]);
   return {
-    ...useSyncExternalStore(timeline.subscribe, timeline.getSnapshot),
+    ...React.useSyncExternalStore(timeline.subscribe, timeline.getSnapshot),
     axisRef: setAxis,
   };
 }

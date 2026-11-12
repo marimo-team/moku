@@ -1,9 +1,10 @@
-import { Component, type ReactNode } from "react";
+import * as React from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
 import type { Target } from "@moku/core/Notebook";
 import type { RegisteredView } from "./Host.ts";
 import type { Runtime } from "./runtime.ts";
+import { Provider } from "@moku/outputs";
 
 export function ViewInstance({
   target,
@@ -24,11 +25,17 @@ export function ViewInstance({
       </div>
     );
   const Render = view.render;
-  return <Render notebook={attachment.value} />;
+  return (
+    <Provider notebook={attachment.value}>
+      <ViewErrorBoundary key={view.key}>
+        <Render notebook={attachment.value} />
+      </ViewErrorBoundary>
+    </Provider>
+  );
 }
 
-export class ViewErrorBoundary extends Component<
-  { children: ReactNode },
+export class ViewErrorBoundary extends React.Component<
+  { children: React.ReactNode },
   { error: Error | null }
 > {
   state = { error: null as Error | null };

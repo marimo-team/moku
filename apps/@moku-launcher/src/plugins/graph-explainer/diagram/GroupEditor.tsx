@@ -1,5 +1,5 @@
 import type { Edge } from "./dependencies.ts";
-import { useState } from "react";
+import * as React from "react";
 import { cellLabel, type NotebookState } from "../execution.ts";
 import { validateGroup, type ViewGroup } from "./layout.ts";
 
@@ -16,9 +16,9 @@ export function GroupEditor({
   onChange: (groups: ViewGroup[]) => void;
   onClose: () => void;
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [label, setLabel] = useState("");
-  const [error, setError] = useState("");
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [label, setLabel] = React.useState("");
+  const [error, setError] = React.useState("");
   return (
     <form
       className="group-editor"

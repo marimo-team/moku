@@ -1,9 +1,4 @@
-import {
-  MarkdownParser,
-  SQLParser,
-  type MarkdownMetadata,
-  type SQLMetadata,
-} from "@marimo-team/smart-cells";
+import * as SmartCells from "@marimo-team/smart-cells";
 
 export type Language = "python" | "markdown" | "sql";
 export type Source =
@@ -11,16 +6,16 @@ export type Source =
   | {
       readonly language: "markdown";
       readonly code: string;
-      readonly metadata: MarkdownMetadata;
+      readonly metadata: SmartCells.MarkdownMetadata;
     }
   | {
       readonly language: "sql";
       readonly code: string;
-      readonly metadata: SQLMetadata;
+      readonly metadata: SmartCells.SQLMetadata;
     };
 
-const markdown = new MarkdownParser();
-const sql = new SQLParser();
+const markdown = new SmartCells.MarkdownParser();
+const sql = new SmartCells.SQLParser();
 
 /** Infer a smart cell initially; preserve its language on subsequent pulls. */
 export function read(code: string, language?: Language): Source {

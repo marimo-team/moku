@@ -1,7 +1,7 @@
 import { Cause, Effect, Exit, Stream } from "effect";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { useAtomSet } from "@effect/atom-react";
-import { useEffect, useRef } from "react";
+import * as React from "react";
 import { runtime } from "./effects.ts";
 import * as Notifications from "./Notifications.ts";
 import * as Problems from "./problems.ts";
@@ -56,10 +56,10 @@ export function useNotification(
 ) {
   const show = useAtomSet(showAtom);
   const dismiss = useAtomSet(dismissAtom);
-  const latest = useRef(message);
+  const latest = React.useRef(message);
   latest.current = message;
   const { title, description, details, kind, action } = message ?? {};
-  useEffect(() => {
+  React.useEffect(() => {
     if (!title || !kind) {
       dismiss({ id });
       return;
@@ -78,7 +78,7 @@ export function useNotification(
         : undefined,
     });
   }, [id, title, description, details, kind, action?.label, trigger, show, dismiss]);
-  useEffect(() => () => dismiss({ id }), [id, dismiss]);
+  React.useEffect(() => () => dismiss({ id }), [id, dismiss]);
 }
 
 export function useFailureNotification<A, E>(

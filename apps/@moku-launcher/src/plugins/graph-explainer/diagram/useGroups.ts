@@ -1,9 +1,9 @@
-import { useState } from "react";
+import * as React from "react";
 import type { ViewGroup } from "./layout.ts";
 
 /** Persists this graph's groups in the current browser. */
 export function useGroups(key: string) {
-  const [groups, setGroups] = useState<ViewGroup[]>(() => {
+  const [groups, setGroups] = React.useState<ViewGroup[]>(() => {
     try {
       const stored: unknown = JSON.parse(localStorage.getItem(key) ?? "[]");
       if (!Array.isArray(stored)) return [];

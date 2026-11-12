@@ -1,4 +1,4 @@
-import { onTestFinished } from "vite-plus/test";
+import * as Vitest from "vite-plus/test";
 import { Context, Effect, Exit, Layer, Scope, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import * as Protocol from "@moku/core/Protocol";
@@ -109,7 +109,7 @@ export async function setup(edit?: Notebook.Interface["edit"]) {
     closed = true;
     await Effect.runPromise(Scope.close(scope, Exit.void));
   };
-  onTestFinished(async () => {
+  Vitest.onTestFinished(async () => {
     await close();
     registry.dispose();
   });

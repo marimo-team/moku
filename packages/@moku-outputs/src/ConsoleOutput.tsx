@@ -3,7 +3,7 @@
  *
  * @module
  */
-import type { ReactElement } from "react";
+import type * as React from "react";
 import type { ConsoleOutputProps } from "./types.ts";
 import "./style.css";
 
@@ -17,7 +17,7 @@ import "./style.css";
 export function ConsoleOutput({
   chunks,
   className,
-}: ConsoleOutputProps): ReactElement | null {
+}: ConsoleOutputProps): React.ReactElement | null {
   if (chunks.length === 0) {
     return null;
   }

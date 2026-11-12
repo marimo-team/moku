@@ -3,13 +3,13 @@
  *
  * @module
  */
-import { spawn, execFile } from "node:child_process";
-import { createServer } from "node:net";
-import { resolve, join } from "node:path";
-import { createInterface } from "node:readline";
-import { setTimeout as delay } from "node:timers/promises";
-import { promisify } from "node:util";
-import { discoverHosts } from "@marimo-team/client/node";
+import * as NodeChildProcess from "node:child_process";
+import * as NodeNet from "node:net";
+import * as NodePath from "node:path";
+import * as NodeReadline from "node:readline";
+import * as NodeTimers from "node:timers/promises";
+import * as NodeUtil from "node:util";
+import * as MarimoNode from "@marimo-team/client/node";
 import type { HostRecordOutput } from "@marimo-team/client/protocol";
 
 /** A command that launches `marimo edit`, optionally through uv or another wrapper. */
@@ -28,7 +28,7 @@ export interface ManagedServer {
   readonly close: () => Promise<void>;
 }
 
-const exec = promisify(execFile);
+const exec = NodeUtil.promisify(NodeChildProcess.execFile);
 const managedFlags = new Set([
   "--port",
   "-p",
@@ -40,7 +40,7 @@ const managedFlags = new Set([
 ]);
 
 async function availablePort(): Promise<number> {
-  const socket = createServer();
+  const socket = NodeNet.createServer();
   await new Promise<void>((resolve, reject) => {
     socket.once("error", reject);
     socket.listen(0, "127.0.0.1", resolve);
@@ -75,7 +75,7 @@ export async function startServer(
   };
   context.log(`Starting marimo via ${options.command}…`);
   const startedAt = Date.now();
-  const child = spawn(
+  const child = NodeChildProcess.spawn(
     options.command,
     [
       ...args,
@@ -87,14 +87,14 @@ export async function startServer(
       "--no-token",
     ],
     {
-      cwd: resolve(context.root, options.cwd ?? "."),
+      cwd: NodePath.resolve(context.root, options.cwd ?? "."),
       env,
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
   for (const stream of [child.stdout, child.stderr])
-    createInterface({ input: stream }).on("line", (line) => {
+    NodeReadline.createInterface({ input: stream }).on("line", (line) => {
       if (line.trim()) context.log(line);
     });
   let host: HostRecordOutput | undefined;
@@ -187,7 +187,7 @@ export async function startServer(
   if (context.signal.aborted) abort();
   const signal = AbortSignal.any([context.signal, AbortSignal.timeout(60_000)]);
   const stateDir = env.XDG_STATE_HOME?.trim()
-    ? join(env.XDG_STATE_HOME, "marimo")
+    ? NodePath.join(env.XDG_STATE_HOME, "marimo")
     : undefined;
   const waiting = setInterval(() => {
     context.log(
@@ -197,7 +197,7 @@ export async function startServer(
   try {
     while (!signal.aborted) {
       if (failure) throw failure;
-      for await (const record of discoverHosts({ stateDir })) {
+      for await (const record of MarimoNode.discoverHosts({ stateDir })) {
         const url = new URL(record.url);
         if (url.port !== String(port)) continue;
         // uv and marimo's sandbox may introduce both children and new groups.
@@ -225,7 +225,7 @@ export async function startServer(
           close,
         };
       }
-      await delay(100, undefined, { signal });
+      await NodeTimers.setTimeout(100, undefined, { signal });
     }
     signal.throwIfAborted();
     throw new Error("Managed marimo did not publish a host record.");

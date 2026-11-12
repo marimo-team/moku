@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { createContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import * as React from "react";
 import { useAtom, useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import * as OutputSession from "./internal/output-session.ts";
@@ -15,10 +15,10 @@ export interface Notebook {
 }
 export interface ProviderProps {
   readonly notebook: Notebook;
-  readonly children: ReactNode;
+  readonly children: React.ReactNode;
 }
 
-export const OutputContext = createContext<{
+export const OutputContext = React.createContext<{
   session: Session | null;
   canInteract: boolean;
 }>({ session: null, canInteract: false });
@@ -42,13 +42,16 @@ export function Provider({ notebook, children }: ProviderProps) {
   const runtime = notebook.runtime;
   const connection = useAtomValue(runtime.state);
   const [reconnecting, reconnect] = useAtom(
-    useMemo(() => Atom.fn(() => runtime.retry).pipe(Atom.setIdleTTL(0)), [runtime]),
+    React.useMemo(
+      () => Atom.fn(() => runtime.retry).pipe(Atom.setIdleTTL(0)),
+      [runtime],
+    ),
   );
-  const [state, setState] = useState<OutputSession.State>({
+  const [state, setState] = React.useState<OutputSession.State>({
     session: null,
     error: null,
   });
-  useEffect(() => {
+  React.useEffect(() => {
     try {
       return OutputSession.acquire(runtime, setState);
     } catch (cause) {

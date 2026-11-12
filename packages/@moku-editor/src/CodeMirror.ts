@@ -3,22 +3,16 @@
  *
  * @module
  */
-import {
-  Annotation,
-  Compartment,
-  EditorState,
-  Transaction,
-  type Extension,
-} from "@codemirror/state";
-import { diff } from "@codemirror/merge";
-import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
+import * as CodeMirrorState from "@codemirror/state";
+import * as CodeMirrorMerge from "@codemirror/merge";
+import * as CodeMirrorView from "@codemirror/view";
 import type * as Document from "./Document.ts";
 
 /** Text shown by an editor and the conversion back to canonical cell source. */
 export interface Source {
   readonly code: string;
   readonly write: (code: string) => string;
-  readonly extension?: Extension;
+  readonly extension?: CodeMirrorState.Extension;
 }
 
 export interface CellOptions {
@@ -28,7 +22,7 @@ export interface CellOptions {
   readonly source?: (code: string) => Source;
 }
 
-const documentUpdate = Annotation.define<boolean>();
+const documentUpdate = CodeMirrorState.Annotation.define<boolean>();
 
 function readCode({ document, cellId }: CellOptions): string | null | undefined {
   return document.registry.get(document.state).document?.cells.get(cellId)?.code;
@@ -47,11 +41,13 @@ function canEdit(options: CellOptions): boolean {
   );
 }
 
-function permissions(editable: boolean): Extension {
+function permissions(editable: boolean): CodeMirrorState.Extension {
   return [
-    EditorState.readOnly.of(!editable),
-    EditorView.editable.of(editable),
-    EditorView.contentAttributes.of({ "aria-readonly": String(!editable) }),
+    CodeMirrorState.EditorState.readOnly.of(!editable),
+    CodeMirrorView.EditorView.editable.of(editable),
+    CodeMirrorView.EditorView.contentAttributes.of({
+      "aria-readonly": String(!editable),
+    }),
   ];
 }
 
@@ -81,14 +77,14 @@ function permissions(editable: boolean): Extension {
  * }
  * ```
  */
-export function bindCell(options: CellOptions): Extension {
-  const editable = new Compartment();
-  const source = new Compartment();
+export function bindCell(options: CellOptions): CodeMirrorState.Extension {
+  const editable = new CodeMirrorState.Compartment();
+  const source = new CodeMirrorState.Compartment();
 
   return [
     editable.of(permissions(canEdit(options))),
     source.of([]),
-    EditorState.transactionFilter.of((transaction) => {
+    CodeMirrorState.EditorState.transactionFilter.of((transaction) => {
       if (!transaction.docChanged || transaction.annotation(documentUpdate)) {
         return transaction;
       }
@@ -98,13 +94,16 @@ export function bindCell(options: CellOptions): Extension {
         project(options).code === transaction.startState.doc.toString();
       return canEdit(options) && matchesSource ? transaction : [];
     }),
-    ViewPlugin.define((view) => new CellBinding(view, options, editable, source), {
-      eventObservers: {
-        compositionend() {
-          this.compositionEnded();
+    CodeMirrorView.ViewPlugin.define(
+      (view) => new CellBinding(view, options, editable, source),
+      {
+        eventObservers: {
+          compositionend() {
+            this.compositionEnded();
+          },
         },
       },
-    }),
+    ),
   ];
 }
 
@@ -113,15 +112,15 @@ class CellBinding {
   private waitingForComposition = false;
   private destroyed = false;
   private editable: boolean | undefined;
-  private extension: Extension | undefined;
+  private extension: CodeMirrorState.Extension | undefined;
   private compositionTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly stopDocument: () => void;
 
   constructor(
-    private readonly view: EditorView,
+    private readonly view: CodeMirrorView.EditorView,
     private readonly options: CellOptions,
-    private readonly permissionCompartment: Compartment,
-    private readonly sourceCompartment: Compartment,
+    private readonly permissionCompartment: CodeMirrorState.Compartment,
+    private readonly sourceCompartment: CodeMirrorState.Compartment,
   ) {
     const { document } = options;
     this.stopDocument = document.registry.subscribe(document.state, () => {
@@ -130,7 +129,7 @@ class CellBinding {
     this.schedulePull();
   }
 
-  update(update: ViewUpdate): void {
+  update(update: CodeMirrorView.ViewUpdate): void {
     const fromDocument = update.transactions.every((transaction) =>
       transaction.annotation(documentUpdate),
     );
@@ -145,7 +144,7 @@ class CellBinding {
     }
   }
 
-  private publishEdit(update: ViewUpdate): void {
+  private publishEdit(update: CodeMirrorView.ViewUpdate): void {
     const { document, cellId } = this.options;
     const source = project(this.options);
     const matchesSource = source.code === update.startState.doc.toString();
@@ -192,7 +191,7 @@ class CellBinding {
     }
     const changes = this.waitingForComposition
       ? []
-      : diff(previous, next, { scanLimit: 500 }).map((change) => ({
+      : CodeMirrorMerge.diff(previous, next, { scanLimit: 500 }).map((change) => ({
           from: change.fromA,
           to: change.toA,
           insert: next.slice(change.fromB, change.toB),
@@ -208,8 +207,8 @@ class CellBinding {
       filter: false,
       annotations: [
         documentUpdate.of(true),
-        Transaction.remote.of(true),
-        Transaction.addToHistory.of(false),
+        CodeMirrorState.Transaction.remote.of(true),
+        CodeMirrorState.Transaction.addToHistory.of(false),
       ],
     });
   }

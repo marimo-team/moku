@@ -9,6 +9,7 @@ import type * as NodeHttp from "node:http";
 import * as NodeStream from "node:stream";
 import { discoverHosts } from "@marimo-team/client/node";
 import { json, readBody } from "./internal/http.ts";
+import type { ManagedServer } from "./internal/managed.ts";
 import { createNative } from "./internal/native.ts";
 import * as Protocol from "@marimo-team/client/protocol";
 
@@ -23,10 +24,11 @@ export interface HostSummary {
   pid?: number;
 }
 
-type Connection = { summary: HostSummary; token: string };
+type Connection = { summary: HostSummary; token: string; nativeToken?: string };
 
 interface Options {
   clientName?: string;
+  server?: Pick<ManagedServer, "host" | "token">;
   origin: () => string;
   discover?: () => AsyncIterable<Protocol.HostRecordOutput>;
 }
@@ -67,6 +69,7 @@ export function createApi({
   origin,
   discover = discoverHosts,
   clientName = "momo",
+  server,
 }: Options) {
   const launchKey = NodeCrypto.randomBytes(32).toString("hex");
   const sessionKey = NodeCrypto.randomBytes(32).toString("hex");
@@ -78,7 +81,7 @@ export function createApi({
 
   async function connections() {
     const found = new Map(manual);
-    for await (const host of discover()) {
+    const add = (host: Protocol.HostRecordOutput) => {
       const id = hostId(`${host.url}:${host.process.pid}:${host.process.started_at}`);
       found.set(id, {
         summary: {
@@ -89,8 +92,16 @@ export function createApi({
           pid: host.process.pid,
         },
         token: host.token,
+        nativeToken:
+          server?.host?.url === host.url &&
+          server.host.process.pid === host.process.pid &&
+          server.host.process.started_at === host.process.started_at
+            ? server.token
+            : undefined,
       });
-    }
+    };
+    if (server?.host) add(server.host);
+    for await (const host of discover()) add(host);
     return found;
   }
 
@@ -193,6 +204,7 @@ export function createApi({
       return native.handle(req, res, {
         connectionId: match[1],
         baseUrl: host.summary.url,
+        token: host.nativeToken,
         path: path.slice("/marimo".length),
         url,
         origin: expected,

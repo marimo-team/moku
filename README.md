@@ -22,21 +22,23 @@ The clients share connections, notebook state, editing, and output rendering thr
 A plugin can be as small as a live cell count:
 
 ```tsx
+import { Plugin } from "@moku/plugin";
 import { useAtomValue } from "@effect/atom-react";
-import { Plugin, type ViewProps } from "@moku/plugin";
-
-function CellCount({ notebook }: ViewProps) {
-  const count = useAtomValue(
-    notebook.state,
-    (state) => Object.keys(state.value.cells).length,
-  );
-  return <p>{count} cells</p>;
-}
 
 export default Plugin.define({
   id: "cell-count",
   effect: (ctx) =>
-    ctx.view.add({ id: "count", title: "Cell count", render: CellCount }),
+    ctx.view.add({
+      id: "count",
+      title: "Cell count",
+      render: ({ notebook }) => {
+        const count = useAtomValue(
+          notebook.state,
+          (state) => Object.keys(state.value.cells).length,
+        );
+        return <p>{count} cells</p>;
+      },
+    }),
 });
 ```
 

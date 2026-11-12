@@ -14,12 +14,14 @@
     "check": "vp check",
     "format": "vp fmt",
     "test": "vp test run",
+    "test:coverage": "vp test run --coverage",
     "setup": "bun scripts/setup.ts"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "5.1.0",
     "vite-plus": "1.5.0"
   },
   "overrides": {

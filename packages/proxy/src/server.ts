@@ -3,19 +3,22 @@ import * as NodeBuffer from "node:buffer";
 import type * as NodeHttp from "node:http";
 import * as NodeStream from "node:stream";
 import { discoverHosts } from "@marimo-team/client/node";
-import type { HostRecordOutput } from "@marimo-team/client/protocol";
+import * as Protocol from "@marimo-team/client/protocol";
 
 export interface HostSummary {
   id: string;
   name: string;
   url: string;
-  pid: number;
+  source: "local" | "manual";
+  pid?: number;
 }
+
+type Connection = { summary: HostSummary; token: string };
 
 interface Options {
   clientName?: string;
   origin: () => string;
-  discover?: () => AsyncIterable<HostRecordOutput>;
+  discover?: () => AsyncIterable<Protocol.HostRecordOutput>;
 }
 
 function matches(actual: string | undefined, expected: string) {
@@ -25,6 +28,12 @@ function matches(actual: string | undefined, expected: string) {
 }
 
 function json(res: NodeHttp.ServerResponse, status: number, body: unknown) {
+  if (status >= 400 && typeof body === "object" && body !== null) {
+    if ("code" in body && typeof body.code === "string") {
+      res.setHeader("X-Momo-Error", body.code);
+    }
+    body = { ...body, status };
+  }
   res.writeHead(status, {
     "Content-Type": "application/json",
     "Cache-Control": "no-store",
@@ -32,17 +41,38 @@ function json(res: NodeHttp.ServerResponse, status: number, body: unknown) {
   res.end(JSON.stringify(body));
 }
 
-async function readBody(req: NodeHttp.IncomingMessage) {
+async function readBody(
+  req: NodeHttp.IncomingMessage,
+  limit = 16_384,
+): Promise<unknown> {
   const chunks: NodeBuffer.Buffer[] = [];
   let bytes = 0;
   for await (const chunk of req) {
     const buffer = NodeBuffer.Buffer.from(chunk);
     bytes += buffer.length;
-    if (bytes > 65536) throw new Error("Request is too large");
+    if (bytes > limit) throw new Error("Request is too large");
     chunks.push(buffer);
   }
-  return NodeBuffer.Buffer.concat(chunks);
+  return JSON.parse(NodeBuffer.Buffer.concat(chunks).toString());
 }
+
+function normalizeHostUrl(input: string) {
+  const url = new URL(input);
+  if (
+    !["http:", "https:"].includes(url.protocol) ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  )
+    throw new Error(
+      "Use an HTTP or HTTPS API URL without credentials, query, or fragment.",
+    );
+  return url.href.replace(/\/+$/, "");
+}
+
+const hostId = (value: string) =>
+  NodeCrypto.createHash("sha256").update(value).digest("hex").slice(0, 24);
 
 export function createApi({
   origin,
@@ -52,30 +82,39 @@ export function createApi({
   const launchKey = NodeCrypto.randomBytes(32).toString("hex");
   const sessionKey = NodeCrypto.randomBytes(32).toString("hex");
   const cookieName = `momo_${NodeCrypto.randomBytes(8).toString("hex")}`;
+  const manual = new Map<string, Connection>();
+  const requests = new Map<AbortController, NodeHttp.ServerResponse>();
+  let closed = false;
 
-  async function hosts() {
-    const records = new Map<string, HostRecordOutput>();
+  async function connections() {
+    const found = new Map(manual);
     for await (const host of discover()) {
-      const id = NodeCrypto.createHash("sha256")
-        .update(`${host.url}:${host.process.pid}:${host.process.started_at}`)
-        .digest("hex")
-        .slice(0, 24);
-      records.set(id, host);
+      const id = hostId(`${host.url}:${host.process.pid}:${host.process.started_at}`);
+      found.set(id, {
+        summary: {
+          id,
+          name: host.name,
+          url: host.url,
+          source: "local",
+          pid: host.process.pid,
+        },
+        token: host.token,
+      });
     }
-    return records;
+    return found;
   }
 
   async function handle(req: NodeHttp.IncomingMessage, res: NodeHttp.ServerResponse) {
+    if (closed) return json(res, 503, { error: "The local proxy is shutting down." });
     const expected = origin();
     if (
       req.headers.host !== new URL(expected).host ||
       (req.headers.origin !== undefined && req.headers.origin !== expected) ||
       req.headers["sec-fetch-site"] === "cross-site"
     ) {
-      json(res, 403, {
+      return json(res, 403, {
         error: "Open the local launch link printed in your terminal.",
       });
-      return;
     }
     const url = new URL(req.url ?? "/", expected);
     if (url.pathname === "/api/session" && req.method === "POST") {
@@ -83,18 +122,17 @@ export function createApi({
         req.headers.origin !== expected ||
         !matches(req.headers.authorization, `Bearer ${launchKey}`)
       ) {
-        json(res, 401, {
+        return json(res, 401, {
+          code: "session-required",
           error:
             "This launch link is invalid. Use the link printed by the running server.",
         });
-        return;
       }
       res.setHeader(
         "Set-Cookie",
         `${cookieName}=${sessionKey}; HttpOnly; SameSite=Strict; Path=/`,
       );
-      json(res, 200, { authenticated: true });
-      return;
+      return json(res, 200, { authenticated: true });
     }
     const cookie = req.headers.cookie
       ?.split(";")
@@ -102,77 +140,141 @@ export function createApi({
       .find((part) => part.startsWith(`${cookieName}=`))
       ?.slice(cookieName.length + 1);
     if (!matches(cookie, sessionKey)) {
-      json(res, 401, {
+      return json(res, 401, {
+        code: "session-required",
         error: "Open the authenticated launch link from your terminal.",
       });
-      return;
     }
     if (url.pathname === "/api/session" && req.method === "GET") {
-      json(res, 200, { authenticated: true });
-      return;
+      return json(res, 200, { authenticated: true });
     }
     if (url.pathname === "/api/hosts" && req.method === "GET") {
-      const entries = await hosts();
-      json(
+      return json(
         res,
         200,
-        [...entries].map(([id, host]): HostSummary => ({
-          id,
-          name: host.name,
-          url: host.url,
-          pid: host.process.pid,
-        })),
+        [...(await connections()).values()].map((host) => host.summary),
       );
-      return;
     }
+    if (url.pathname === "/api/hosts" && req.method === "POST") {
+      if (req.headers.origin !== expected) {
+        return json(res, 403, { error: "Connect from the local app." });
+      }
+      try {
+        const input = await readBody(req);
+        if (
+          typeof input !== "object" ||
+          input === null ||
+          !("url" in input) ||
+          typeof input.url !== "string" ||
+          !("token" in input) ||
+          typeof input.token !== "string"
+        )
+          throw new Error("Invalid connection");
+        const url = normalizeHostUrl(input.url);
+        const id = hostId(url);
+        const summary: HostSummary = {
+          id,
+          name: new URL(url).host,
+          url,
+          source: "manual",
+        };
+        manual.set(id, { summary, token: input.token });
+        return json(res, 201, summary);
+      } catch {
+        return json(res, 400, {
+          error: "Enter a valid HTTP or HTTPS API URL and token.",
+        });
+      }
+    }
+
     const match = /^\/api\/hosts\/([a-f0-9]{24})(\/.*)$/.exec(url.pathname);
-    const path = match?.[2];
-    const read = path === "/events" || /^\/notebooks\/[^/]+\/events$/.test(path ?? "");
-    const write =
-      (req.method === "PUT" && /^\/notebooks\/[^/]+\/runtime$/.test(path ?? "")) ||
-      (req.method === "POST" &&
-        /^\/notebooks\/[^/]+\/runtime\/runs$/.test(path ?? "")) ||
+    const path = match?.[2] ?? "";
+    const read =
+      req.method === "GET" &&
+      (path === "/events" || /^\/notebooks\/[^/]+\/events$/.test(path));
+    const save = req.method === "POST" && /^\/notebooks\/[^/]+\/save$/.test(path);
+    const schema =
+      req.method === "POST" && /^\/notebooks\/[^/]+\/edits$/.test(path)
+        ? Protocol.EditRequest
+        : save
+          ? Protocol.SaveRequest
+          : req.method === "POST" && /^\/notebooks\/[^/]+\/runtime\/runs$/.test(path)
+            ? Protocol.RunRequest
+            : req.method === "PUT" && /^\/notebooks\/[^/]+\/runtime$/.test(path)
+              ? Protocol.StartRuntimeRequest
+              : undefined;
+    // Cancelling one run and interrupting the runtime are distinct operations.
+    const mutation =
+      schema !== undefined ||
       (req.method === "DELETE" &&
-        /^\/notebooks\/[^/]+\/runtime\/runs\/[^/]+$/.test(path ?? ""));
-    if (!match || !((req.method === "GET" && read) || write)) {
-      json(res, 404, { error: "This viewer does not expose that operation." });
-      return;
+        /^\/notebooks\/[^/]+\/runtime(?:\/runs\/[^/]+)?$/.test(path)) ||
+      (req.method === "POST" && /^\/notebooks\/[^/]+\/runtime\/interrupt$/.test(path));
+    if (!match || !(read || mutation)) {
+      return json(res, 404, { error: "This proxy does not expose that operation." });
     }
-    if (write && req.headers.origin !== expected) {
-      json(res, 403, { error: "An action must originate from this viewer." });
-      return;
+    if (mutation && req.headers.origin !== expected) {
+      return json(res, 403, { error: "An action must originate from the local app." });
     }
-    const host = (await hosts()).get(match[1]);
+    if (mutation && typeof req.headers["idempotency-key"] !== "string") {
+      return json(res, 400, { error: "The notebook request key is missing." });
+    }
+    const host = (await connections()).get(match[1]);
     if (!host) {
-      json(res, 404, {
-        error: "This marimo host is no longer running. Refresh hosts.",
+      return json(res, 404, {
+        code: "host-unavailable",
+        error: "This marimo host is no longer available. Refresh hosts.",
       });
+    }
+    let body: string | undefined;
+    if (schema) {
+      try {
+        body = JSON.stringify(schema.parse(await readBody(req, 8 * 1024 * 1024)));
+      } catch {
+        return json(res, 400, { error: "Invalid notebook request." });
+      }
+    }
+    if (closed || res.destroyed) {
+      res.destroy();
       return;
     }
-    const upstream = new URL(host.url.replace(/\/$/, "") + path);
-    // Only protocol stream filters are forwarded. Targets always come from discovery.
-    for (const key of ["types", "cursor", "run_id"]) {
-      const value = url.searchParams.get(key);
-      if (value !== null) upstream.searchParams.set(key, value);
+    const upstream = new URL(host.summary.url.replace(/\/$/, "") + path);
+    // A browser can select stream filters, never an arbitrary proxy target.
+    if (read) {
+      for (const key of ["types", "cursor", "run_id"]) {
+        const value = url.searchParams.get(key);
+        if (value !== null) upstream.searchParams.set(key, value);
+      }
     }
     const controller = new AbortController();
+    // Raw SSE comments count as activity even when no notebook state changes.
     const abort = () => controller.abort();
-    res.on("close", abort);
+    let idle = setTimeout(abort, 45_000);
+    const heartbeat = () => {
+      clearTimeout(idle);
+      idle = setTimeout(abort, 45_000);
+    };
+    requests.set(controller, res);
+    res.once("close", () => {
+      clearTimeout(idle);
+      controller.abort();
+      requests.delete(controller);
+    });
     try {
-      const headers = new Headers({ Authorization: `Bearer ${host.token}` });
-      headers.set("Marimo-Attachment-Kind", "browser");
-      headers.set("Marimo-Attachment-Name", clientName);
-      for (const name of [
-        "last-event-id",
-        "idempotency-key",
-        "content-type",
-        "accept",
-      ]) {
-        const value = req.headers[name];
-        if (typeof value === "string") headers.set(name, value);
+      const headers = new Headers();
+      if (host.token) headers.set("Authorization", `Bearer ${host.token}`);
+      if (mutation) {
+        headers.set("Idempotency-Key", String(req.headers["idempotency-key"]));
+        if (body !== undefined) headers.set("Content-Type", "application/json");
+        if (save && typeof req.headers["if-match"] === "string") {
+          headers.set("If-Match", req.headers["if-match"]);
+        }
+      } else {
+        headers.set("Accept", "text/event-stream");
+        headers.set("Marimo-Attachment-Kind", "browser");
+        headers.set("Marimo-Attachment-Name", clientName);
+        const cursor = req.headers["last-event-id"];
+        if (typeof cursor === "string") headers.set("Last-Event-ID", cursor);
       }
-      const body =
-        req.method === "POST" || req.method === "PUT" ? await readBody(req) : undefined;
       const response = await fetch(upstream, {
         method: req.method,
         headers,
@@ -188,6 +290,7 @@ export function createApi({
       res.flushHeaders();
       if (response.body) {
         const stream = NodeStream.Readable.from(response.body.values());
+        stream.on("data", heartbeat);
         stream.on("error", () => res.destroy());
         stream.pipe(res);
       } else res.end();
@@ -204,8 +307,17 @@ export function createApi({
 
   return {
     launchKey,
+    close: () => {
+      closed = true;
+      for (const [request, response] of requests) {
+        request.abort();
+        response.destroy();
+      }
+      manual.clear();
+    },
     handle: (req: NodeHttp.IncomingMessage, res: NodeHttp.ServerResponse) => {
       void handle(req, res).catch(() => {
+        if (res.destroyed) return;
         if (res.headersSent) res.destroy();
         else
           json(res, 500, {

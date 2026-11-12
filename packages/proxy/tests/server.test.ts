@@ -138,3 +138,267 @@ test("local authentication protects discovery and forwards authenticated streams
     403,
   );
 });
+
+async function fixture(
+  onTestFinished: (cleanup: () => void) => void,
+  respond?: NodeHttp.RequestListener,
+) {
+  const received: {
+    method: string | undefined;
+    url: string | undefined;
+    headers: NodeHttp.IncomingHttpHeaders;
+    body: string;
+  }[] = [];
+  const upstream = NodeHttp.createServer((req, res) => {
+    if (respond) return respond(req, res);
+    void (async () => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(Buffer.from(chunk));
+      received.push({
+        method: req.method,
+        url: req.url,
+        headers: req.headers,
+        body: Buffer.concat(chunks).toString(),
+      });
+      res.writeHead(req.headers["if-match"] === '"stale"' ? 412 : 200, {
+        "Content-Type": "application/json",
+      });
+      res.end(JSON.stringify({ received: true }));
+    })();
+  });
+  onTestFinished(() => {
+    upstream.closeAllConnections();
+    upstream.close();
+  });
+  await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+  const upstreamAddress = upstream.address();
+  if (!upstreamAddress || typeof upstreamAddress === "string")
+    throw new Error("Missing address");
+  const hostUrl = `http://127.0.0.1:${upstreamAddress.port}/api/marimo/v1`;
+  let origin = "";
+  const api = createApi({
+    origin: () => origin,
+    discover: async function* () {
+      yield {
+        version: 1,
+        name: "local",
+        url: hostUrl,
+        token: "local-secret",
+        process: { pid: 123, started_at: "2026-11-05T12:00:00Z" },
+      };
+    },
+  });
+  const server = NodeHttp.createServer(api.handle);
+  onTestFinished(() => {
+    api.close();
+    server.closeAllConnections();
+    server.close();
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Missing address");
+  origin = `http://127.0.0.1:${address.port}`;
+  const session = await fetch(`${origin}/api/session`, {
+    method: "POST",
+    headers: { Origin: origin, Authorization: `Bearer ${api.launchKey}` },
+  });
+  const cookie = session.headers.get("set-cookie")!.split(";")[0];
+  const headers = { Cookie: cookie, Origin: origin, "Idempotency-Key": "request-1" };
+  const hosts: { id: string }[] = await (
+    await fetch(`${origin}/api/hosts`, { headers })
+  ).json();
+  return {
+    api,
+    origin,
+    headers,
+    received,
+    hostUrl,
+    base: `${origin}/api/hosts/${hosts[0].id}`,
+  };
+}
+
+test("manual connections normalize URLs, replace credentials, and keep secrets server-side", async ({
+  onTestFinished,
+}) => {
+  const { origin, headers, received, hostUrl } = await fixture(onTestFinished);
+  const connect = (url: string, token = "manual-secret", requestHeaders = headers) =>
+    fetch(`${origin}/api/hosts`, {
+      method: "POST",
+      headers: requestHeaders,
+      body: JSON.stringify({ url, token }),
+    });
+  const first = await connect(`${hostUrl}///`);
+  NodeAssert.equal(first.status, 201);
+  const summary = await first.json();
+  NodeAssert.deepEqual(summary, {
+    id: summary.id,
+    name: new URL(hostUrl).host,
+    url: hostUrl,
+    source: "manual",
+  });
+  const replacement = await connect(hostUrl, "replacement-secret");
+  NodeAssert.deepEqual(await replacement.json(), summary);
+  const hosts = await (await fetch(`${origin}/api/hosts`, { headers })).json();
+  NodeAssert.equal(hosts.length, 2);
+  NodeAssert.equal(hosts[1].source, "local");
+  NodeAssert.equal(hosts[1].pid, 123);
+  NodeAssert.ok(!JSON.stringify(hosts).includes("secret"));
+  const response = await fetch(
+    `${origin}/api/hosts/${summary.id}/events?cursor=abc&run_id=run-1&target=https://example.com`,
+    { headers },
+  );
+  await response.text();
+  NodeAssert.equal(received[0].headers.authorization, "Bearer replacement-secret");
+  NodeAssert.equal(received[0].headers.cookie, undefined);
+  NodeAssert.equal(received[0].url, "/api/marimo/v1/events?cursor=abc&run_id=run-1");
+  NodeAssert.equal((await connect(hostUrl, "")).status, 201);
+  await (await fetch(`${origin}/api/hosts/${summary.id}/events`, { headers })).text();
+  NodeAssert.equal(received[1].headers.authorization, undefined);
+  const missingOrigin = await connect(hostUrl, "secret", { ...headers, Origin: "" });
+  NodeAssert.equal(missingOrigin.status, 403);
+  for (const invalid of [
+    "file:///tmp/notebook",
+    "http://user:secret@example.com",
+    "https://example.com/?token=secret",
+    "https://example.com/#secret",
+    "bad url",
+  ]) {
+    const response = await connect(invalid);
+    NodeAssert.equal(response.status, 400);
+    NodeAssert.ok(!(await response.text()).includes("secret"));
+  }
+});
+
+test("editor writes and both interrupt operations preserve protocol preconditions", async ({
+  onTestFinished,
+}) => {
+  const { base, headers, received } = await fixture(onTestFinished);
+  const code = "# large source\n".repeat(6000);
+  const routes = [
+    {
+      method: "POST",
+      path: "/edits",
+      body: {
+        changes: [
+          { kind: "put_cell", base_etag: null, cell: { id: "a", code }, before: "b" },
+        ],
+      },
+    },
+    { method: "POST", path: "/save", body: { decisions: { overwrite: "yes" } } },
+    { method: "PUT", path: "/runtime", body: {} },
+    {
+      method: "POST",
+      path: "/runtime/runs",
+      body: { cells: [{ id: "a", etag: "v1" }] },
+    },
+    { method: "DELETE", path: "/runtime/runs/run-1" },
+    { method: "POST", path: "/runtime/interrupt" },
+    { method: "DELETE", path: "/runtime" },
+  ];
+  for (const route of routes) {
+    const response = await fetch(`${base}/notebooks/n${route.path}`, {
+      method: route.method,
+      headers: { ...headers, "If-Match": '"document-v1"' },
+      body: route.body && JSON.stringify(route.body),
+    });
+    NodeAssert.equal(response.status, 200, route.path);
+    await response.text();
+    const request = received.at(-1)!;
+    NodeAssert.equal(request.method, route.method);
+    NodeAssert.equal(request.url, `/api/marimo/v1/notebooks/n${route.path}`);
+    NodeAssert.equal(request.headers["idempotency-key"], "request-1");
+    NodeAssert.equal(request.headers.authorization, "Bearer local-secret");
+    NodeAssert.equal(
+      request.headers["if-match"],
+      route.path === "/save" ? '"document-v1"' : undefined,
+    );
+    NodeAssert.equal(request.headers.cookie, undefined);
+  }
+  NodeAssert.equal(JSON.parse(received[0].body).changes[0].cell.code, code);
+  NodeAssert.equal(JSON.parse(received[0].body).changes[0].before, "b");
+  NodeAssert.equal(received[4].body, "");
+  NodeAssert.equal(received[5].body, "");
+  const conflict = await fetch(`${base}/notebooks/n/save`, {
+    method: "POST",
+    headers: { ...headers, "If-Match": '"stale"' },
+    body: "{}",
+  });
+  NodeAssert.equal(conflict.status, 412);
+  NodeAssert.deepEqual(await conflict.json(), { received: true });
+});
+
+test("invalid writes and unavailable hosts fail locally without reaching upstream", async ({
+  onTestFinished,
+}) => {
+  const { base, origin, headers, received } = await fixture(onTestFinished);
+  const post = (
+    path: string,
+    body: string,
+    requestHeaders: Record<string, string> = headers,
+  ) =>
+    fetch(`${base}/notebooks/n${path}`, {
+      method: "POST",
+      headers: requestHeaders,
+      body,
+    });
+  NodeAssert.equal(
+    (
+      await post("/edits", "{}", {
+        Cookie: headers.Cookie,
+        "Idempotency-Key": "request-1",
+      })
+    ).status,
+    403,
+  );
+  NodeAssert.equal(
+    (await post("/edits", "{}", { Cookie: headers.Cookie, Origin: origin })).status,
+    400,
+  );
+  for (const [path, body] of [
+    ["/edits", "{}"],
+    ["/edits", "{"],
+    ["/runtime/runs", '{"cells":[]}'],
+    ["/save", '{"decisions":42}'],
+  ]) {
+    NodeAssert.equal((await post(path, body)).status, 400);
+  }
+  NodeAssert.equal((await post("/open", "{}")).status, 404);
+  NodeAssert.equal((await fetch(`${base}/notebooks/n/save`, { headers })).status, 404);
+  const missing = await fetch(`${origin}/api/hosts/${"0".repeat(24)}/events`, {
+    headers,
+  });
+  NodeAssert.equal(missing.status, 404);
+  NodeAssert.equal(missing.headers.get("x-momo-error"), "host-unavailable");
+  const unauthenticated = await fetch(`${origin}/api/hosts`);
+  NodeAssert.equal(unauthenticated.headers.get("x-momo-error"), "session-required");
+  NodeAssert.equal(received.length, 0);
+});
+
+for (const shutdown of ["browser disconnect", "proxy shutdown"] as const) {
+  test(`${shutdown} releases the upstream event stream`, async ({ onTestFinished }) => {
+    const disconnected = Promise.withResolvers<void>();
+    const { api, base, headers, origin } = await fixture(
+      onTestFinished,
+      (_req, res) => {
+        res.writeHead(200, { "Content-Type": "text/event-stream" });
+        res.write(": heartbeat\n\n");
+        res.once("close", () => disconnected.resolve());
+      },
+    );
+    const controller = new AbortController();
+    const response = await fetch(`${base}/events`, {
+      headers,
+      signal: controller.signal,
+    });
+    const reader = response.body!.getReader();
+    NodeAssert.equal((await reader.read()).done, false);
+    if (shutdown === "browser disconnect") controller.abort();
+    else api.close();
+    await NodeAssert.rejects(reader.read());
+    await disconnected.promise;
+    if (shutdown === "proxy shutdown") {
+      api.close();
+      NodeAssert.equal((await fetch(`${origin}/api/hosts`, { headers })).status, 503);
+    }
+  });
+}

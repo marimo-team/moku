@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "momo",
+      "name": "moku",
       "devDependencies": {
         "@types/node": "^24.13.6",
         "@types/react": "^19.2.14",
@@ -11,13 +11,13 @@
         "vite-plus": "1.5.0",
       },
     },
-    "apps/@momo-dag": {
-      "name": "@momo/dag",
+    "apps/@moku-dag": {
+      "name": "@moku/dag",
       "dependencies": {
         "@effect/atom-react": "4.1.0",
-        "@momo/model": "workspace:*",
-        "@momo/outputs": "workspace:*",
-        "@momo/plugin": "workspace:*",
+        "@moku/model": "workspace:*",
+        "@moku/outputs": "workspace:*",
+        "@moku/plugin": "workspace:*",
         "effect": "4.1.0",
         "react": "^19.3.0",
       },
@@ -26,14 +26,14 @@
         "react-dom": "^19.3.0",
       },
     },
-    "apps/@momo-launcher": {
-      "name": "@momo/launcher",
+    "apps/@moku-launcher": {
+      "name": "@moku/launcher",
       "dependencies": {
         "@effect/atom-react": "4.1.0",
-        "@momo/dag": "workspace:*",
-        "@momo/model": "workspace:*",
-        "@momo/plugin": "workspace:*",
-        "@momo/proxy": "workspace:*",
+        "@moku/dag": "workspace:*",
+        "@moku/model": "workspace:*",
+        "@moku/plugin": "workspace:*",
+        "@moku/proxy": "workspace:*",
         "effect": "4.1.0",
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
@@ -43,11 +43,11 @@
         "happy-dom": "^21.0.4",
       },
     },
-    "packages/@momo-editor": {
-      "name": "@momo/editor",
+    "packages/@moku-editor": {
+      "name": "@moku/editor",
       "dependencies": {
         "@codemirror/merge": "^6.12.3",
-        "@momo/model": "workspace:*",
+        "@moku/model": "workspace:*",
       },
       "devDependencies": {
         "@codemirror/commands": "^6.11.1",
@@ -59,17 +59,17 @@
         "effect": "4.1.0",
       },
     },
-    "packages/@momo-model": {
-      "name": "@momo/model",
+    "packages/@moku-model": {
+      "name": "@moku/model",
       "dependencies": {
         "@marimo-team/client": "file:../../vendor/marimo-client-29327a665.tgz",
         "effect": "4.1.0",
       },
     },
-    "packages/@momo-outputs": {
-      "name": "@momo/outputs",
+    "packages/@moku-outputs": {
+      "name": "@moku/outputs",
       "dependencies": {
-        "@momo/model": "workspace:*",
+        "@moku/model": "workspace:*",
       },
       "devDependencies": {
         "happy-dom": "^21.0.4",
@@ -82,21 +82,21 @@
         "react-dom": "^19.3.0",
       },
     },
-    "packages/@momo-plugin": {
-      "name": "@momo/plugin",
+    "packages/@moku-plugin": {
+      "name": "@moku/plugin",
       "dependencies": {
-        "@momo/model": "workspace:*",
+        "@moku/model": "workspace:*",
       },
       "peerDependencies": {
         "effect": "4.1.0",
         "react": "^19.3.0",
       },
     },
-    "packages/@momo-proxy": {
-      "name": "@momo/proxy",
+    "packages/@moku-proxy": {
+      "name": "@moku/proxy",
       "dependencies": {
         "@marimo-team/client": "file:../../vendor/marimo-client-29327a665.tgz",
-        "@momo/model": "workspace:*",
+        "@moku/model": "workspace:*",
         "effect": "4.1.0",
       },
       "peerDependencies": {
@@ -146,19 +146,19 @@
 
     "@marimo-team/client": ["@marimo-team/client@../../vendor/marimo-client-29327a665.tgz", { "dependencies": { "zod": "^4.6.7" } }, "sha512-klNLJkorb0H80u4/Att6yyxrQmmDqlsFw1Rnoy4jSe/Qt1ka18hmXYrJAqu7AgEv/9TndReDE6SAfAnPV1J/QA=="],
 
-    "@momo/dag": ["@momo/dag@workspace:apps/@momo-dag"],
+    "@moku/dag": ["@moku/dag@workspace:apps/@moku-dag"],
 
-    "@momo/editor": ["@momo/editor@workspace:packages/@momo-editor"],
+    "@moku/editor": ["@moku/editor@workspace:packages/@moku-editor"],
 
-    "@momo/launcher": ["@momo/launcher@workspace:apps/@momo-launcher"],
+    "@moku/launcher": ["@moku/launcher@workspace:apps/@moku-launcher"],
 
-    "@momo/model": ["@momo/model@workspace:packages/@momo-model"],
+    "@moku/model": ["@moku/model@workspace:packages/@moku-model"],
 
-    "@momo/outputs": ["@momo/outputs@workspace:packages/@momo-outputs"],
+    "@moku/outputs": ["@moku/outputs@workspace:packages/@moku-outputs"],
 
-    "@momo/plugin": ["@momo/plugin@workspace:packages/@momo-plugin"],
+    "@moku/plugin": ["@moku/plugin@workspace:packages/@moku-plugin"],
 
-    "@momo/proxy": ["@momo/proxy@workspace:packages/@momo-proxy"],
+    "@moku/proxy": ["@moku/proxy@workspace:packages/@moku-proxy"],
 
     "@oxc-project/runtime": ["@oxc-project/runtime@0.157.0", "", {}, "sha512-srnUknwVoji5JdmU664pA4XyjBJXmgxP8rWlnZhFovzw6XQxaICGWAuScZdlLmIHI+ZRc7WgeiC2CURF4tAszQ=="],
 

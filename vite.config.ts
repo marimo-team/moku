@@ -4,6 +4,6 @@ export default defineConfig({
   fmt: { printWidth: 88 },
   lint: {
     options: { typeAware: true, typeCheck: true },
-    ignorePatterns: ["packages/@momo-outputs/bundle/**"],
+    ignorePatterns: ["packages/@moku-outputs/bundle/**"],
   },
 });

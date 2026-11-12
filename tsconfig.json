@@ -12,5 +12,5 @@
     "types": ["node", "vite-plus/client"]
   },
   "include": ["apps", "packages", "vite.config.ts"],
-  "exclude": ["packages/@momo-outputs/bundle"]
+  "exclude": ["packages/@moku-outputs/bundle"]
 }

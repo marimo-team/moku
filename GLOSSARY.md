@@ -1,6 +1,6 @@
-# Momo
+# Moku
 
-Momo is a playground of clients for browsing and working with notebooks presented
+Moku is a playground of clients for browsing and working with notebooks presented
 by marimo-compatible hosts.
 
 ## Language

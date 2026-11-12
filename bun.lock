@@ -76,6 +76,8 @@
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
+        "@effect/atom-react": "4.1.0",
+        "effect": "4.1.0",
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
       },
@@ -94,6 +96,8 @@
       "name": "@momo/proxy",
       "dependencies": {
         "@marimo-team/client": "file:../../vendor/marimo-client-29327a665.tgz",
+        "@momo/model": "workspace:*",
+        "effect": "4.1.0",
       },
       "peerDependencies": {
         "vite-plus": "1.5.0",

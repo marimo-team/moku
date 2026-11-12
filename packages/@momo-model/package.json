@@ -7,7 +7,9 @@
     "./Workspace": "./src/Workspace.ts",
     "./Notebook": "./src/Notebook.ts",
     "./Protocol": "./src/Protocol.ts",
-    "./Outputs": "./src/Outputs.ts"
+    "./Outputs": "./src/Outputs.ts",
+    "./Runtime": "./src/Runtime.ts",
+    "./Interaction": "./src/Interaction.ts"
   },
   "dependencies": {
     "@marimo-team/client": "file:../../vendor/marimo-client-29327a665.tgz",

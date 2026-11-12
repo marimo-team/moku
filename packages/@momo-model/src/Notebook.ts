@@ -8,6 +8,8 @@
  */
 import { Context, Effect, Layer, type Scope } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
+import type * as Runtime from "./Runtime.ts";
+import * as Interactions from "./internal/interactions.ts";
 import type * as Protocol from "./Protocol.ts";
 import * as Transport from "./internal/transport.ts";
 import { observe, type Observation } from "./internal/observe.ts";
@@ -75,21 +77,6 @@ export interface SaveOptions extends RequestOptions {
   readonly decisions?: Record<string, string>;
 }
 
-export interface StartOptions extends RequestOptions {
-  /**
-   * Choices supplied in response to a host decision request.
-   */
-  readonly decisions?: Record<string, string>;
-}
-
-export interface RunOptions extends RequestOptions {
-  readonly request: Protocol.RunRequest;
-}
-
-export interface CancelOptions extends RequestOptions {
-  readonly runId: string;
-}
-
 /**
  * A notebook observation and commands bound to one host connection.
  */
@@ -116,39 +103,9 @@ export interface Interface {
   ) => Effect.Effect<Protocol.EditResponseOutput, Transport.RequestError>;
 
   /**
-   * Starts the notebook runtime.
+   * Execution commands and native output interactions for this notebook.
    */
-  readonly start: (
-    options: StartOptions,
-  ) => Effect.Effect<Protocol.RuntimeOutput, Transport.RequestError>;
-
-  /**
-   * Runs the confirmed cells and etags in the request.
-   */
-  readonly run: (
-    options: RunOptions,
-  ) => Effect.Effect<Protocol.RunOutput, Transport.RequestError>;
-
-  /**
-   * Interrupts work in the notebook runtime.
-   */
-  readonly interrupt: (
-    options: RequestOptions,
-  ) => Effect.Effect<Protocol.RuntimeOutput, Transport.RequestError>;
-
-  /**
-   * Cancels the run identified by `runId`.
-   */
-  readonly cancel: (
-    options: CancelOptions,
-  ) => Effect.Effect<Protocol.RunOutput, Transport.RequestError>;
-
-  /**
-   * Stops the notebook runtime.
-   */
-  readonly stop: (
-    options: RequestOptions,
-  ) => Effect.Effect<Protocol.RuntimeOutput, Transport.RequestError>;
+  readonly runtime: Runtime.Interface;
 }
 
 /**
@@ -253,6 +210,7 @@ export function make(
         },
       };
     });
+    const interactions = yield* Interactions.make(target, state);
     return Service.of({
       target,
       state,
@@ -269,26 +227,29 @@ export function make(
             signal,
           }),
         ),
-      start: ({ requestId, decisions }) =>
-        Transport.mutation((signal) =>
-          notebook.start({ idempotencyKey: requestId, decisions, signal }),
-        ),
-      run: ({ request, requestId }) =>
-        Transport.mutation((signal) =>
-          notebook.run({ ...request, idempotencyKey: requestId, signal }),
-        ),
-      interrupt: ({ requestId }) =>
-        Transport.mutation((signal) =>
-          notebook.interrupt({ idempotencyKey: requestId, signal }),
-        ),
-      cancel: ({ runId, requestId }) =>
-        Transport.mutation((signal) =>
-          notebook.cancel({ runId, idempotencyKey: requestId, signal }),
-        ),
-      stop: ({ requestId }) =>
-        Transport.mutation((signal) =>
-          notebook.stop({ idempotencyKey: requestId, signal }),
-        ),
+      runtime: {
+        ...interactions,
+        start: ({ requestId, decisions }) =>
+          Transport.mutation((signal) =>
+            notebook.start({ idempotencyKey: requestId, decisions, signal }),
+          ),
+        run: ({ request, requestId }) =>
+          Transport.mutation((signal) =>
+            notebook.run({ ...request, idempotencyKey: requestId, signal }),
+          ),
+        interrupt: ({ requestId }) =>
+          Transport.mutation((signal) =>
+            notebook.interrupt({ idempotencyKey: requestId, signal }),
+          ),
+        cancel: ({ runId, requestId }) =>
+          Transport.mutation((signal) =>
+            notebook.cancel({ runId, idempotencyKey: requestId, signal }),
+          ),
+        stop: ({ requestId }) =>
+          Transport.mutation((signal) =>
+            notebook.stop({ idempotencyKey: requestId, signal }),
+          ),
+      },
     });
   });
 }

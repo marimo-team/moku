@@ -3,14 +3,23 @@
  *
  * @module
  */
-import { Component, Suspense, use, type ReactElement, type ReactNode } from "react";
+import {
+  Component,
+  Suspense,
+  use,
+  useContext,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import type { DisplayData, DisplayViewProps } from "./types.ts";
 import { loadRenderer } from "./internal/renderer.ts";
+import { OutputContext } from "./Provider.tsx";
 import "./style.css";
 
 function RichDisplay(props: DisplayViewProps): ReactElement {
   const { DisplayRenderer } = use(loadRenderer());
-  return <DisplayRenderer {...props} />;
+  const context = useContext(OutputContext);
+  return <DisplayRenderer {...props} {...context} />;
 }
 
 /**
@@ -20,7 +29,11 @@ function RichDisplay(props: DisplayViewProps): ReactElement {
  * stylesheet on demand, render nothing while loading, and show an error message
  * if rendering fails.
  */
-export function DisplayView({ data, className }: DisplayViewProps): ReactElement {
+export function DisplayView({
+  data,
+  className,
+  runtimeId,
+}: DisplayViewProps): ReactElement {
   return (
     <div className={["momo-display", className].filter(Boolean).join(" ")}>
       {data.mimetype === "text/plain" ? (
@@ -28,7 +41,7 @@ export function DisplayView({ data, className }: DisplayViewProps): ReactElement
       ) : (
         <DisplayBoundary data={data}>
           <Suspense fallback={null}>
-            <RichDisplay data={data} />
+            <RichDisplay data={data} runtimeId={runtimeId} />
           </Suspense>
         </DisplayBoundary>
       )}

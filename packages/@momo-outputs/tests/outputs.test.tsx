@@ -41,6 +41,7 @@ test("execution selection isolates records and orders replaced display and conso
     displays: { d: newer },
   };
   expect(Outputs.forExecution(state, "e")).toEqual({
+    runtimeId: null,
     outcome: null,
     items: [
       { kind: "console", ...state.consoles.a },
@@ -48,7 +49,11 @@ test("execution selection isolates records and orders replaced display and conso
     ],
   });
   expect(Outputs.forExecution({ ...state, displays: {} }, "e").items).toHaveLength(1);
-  expect(Outputs.forExecution(state, "missing")).toEqual({ outcome: null, items: [] });
+  expect(Outputs.forExecution(state, "missing")).toEqual({
+    runtimeId: null,
+    outcome: null,
+    items: [],
+  });
 });
 
 test("outputs preserve interleaving, group adjacent console chunks, and render the result last", () => {

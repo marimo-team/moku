@@ -1,5 +1,5 @@
 import { onTestFinished } from "vite-plus/test";
-import { Context, Effect, Exit, Layer, Scope } from "effect";
+import { Context, Effect, Exit, Layer, Scope, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import * as Protocol from "@momo/model/Protocol";
 import * as Notebook from "@momo/model/Notebook";
@@ -72,11 +72,25 @@ export async function setup(edit?: Notebook.Interface["edit"]) {
           });
         })),
     save: unused,
-    start: unused,
-    run: unused,
-    interrupt: unused,
-    cancel: unused,
-    stop: unused,
+    runtime: {
+      state: Atom.readable(() => ({
+        runtime: null,
+        connection: "idle" as const,
+        canInteract: false,
+        error: null,
+      })),
+      events: Stream.empty,
+      start: unused,
+      run: unused,
+      interrupt: unused,
+      cancel: unused,
+      stop: unused,
+      invoke: unused,
+      setUIValues: unused,
+      sendWidgetMessage: unused,
+      assetUrl: () => "",
+      retry: Effect.void,
+    },
   };
   const scope = Effect.runSync(Scope.make());
   const make = () =>

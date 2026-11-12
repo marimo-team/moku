@@ -19,6 +19,8 @@ export type OutputItem = Outputs.Item;
 export type Theme = "light" | "dark";
 
 export interface DisplayViewProps {
+  /** The runtime that produced this output; required for interaction. */
+  readonly runtimeId?: string | null;
   readonly data: DisplayData;
   readonly className?: string;
 }
@@ -28,6 +30,7 @@ export interface ConsoleOutputProps {
   readonly className?: string;
 }
 
-export interface CellOutputsProps extends Outputs.Snapshot {
+export interface CellOutputsProps extends Omit<Outputs.Snapshot, "runtimeId"> {
+  readonly runtimeId?: string | null;
   readonly className?: string;
 }

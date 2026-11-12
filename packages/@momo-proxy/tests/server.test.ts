@@ -402,3 +402,123 @@ for (const shutdown of ["browser disconnect", "proxy shutdown"] as const) {
     }
   });
 }
+
+test("native outputs keep credentials server-side and force an attach-only stream", async ({
+  onTestFinished,
+}) => {
+  const calls: { url: string; headers: NodeHttp.IncomingHttpHeaders; body: string }[] =
+    [];
+  const { base, headers } = await fixture(onTestFinished, (req, res) => {
+    void (async () => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(Buffer.from(chunk));
+      calls.push({
+        url: req.url ?? "",
+        headers: req.headers,
+        body: Buffer.concat(chunks).toString(),
+      });
+      if (req.url === "/") {
+        res.end(
+          '<marimo-server-token data-token="server-secret"></marimo-server-token>',
+        );
+      } else if (req.url?.startsWith("/sse")) {
+        res.writeHead(200, { "Content-Type": "text/event-stream" });
+        res.end("event: ready\ndata: {}\n\n");
+      } else if (req.url?.startsWith("/@file/")) {
+        res.writeHead(200, { "Content-Type": "text/javascript" });
+        res.end("export default {};");
+      } else {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end('{"success":true}');
+      }
+    })();
+  });
+  const native = base + "/marimo";
+  const post = (path: string, body: unknown, supplied: HeadersInit = headers) =>
+    fetch(native + path, {
+      method: "POST",
+      headers: supplied,
+      body: JSON.stringify(body),
+    });
+  NodeAssert.equal((await fetch(native + "/@file/code.js", { headers })).status, 401);
+  const authorized = await post("/auth", { token: "native-secret" });
+  NodeAssert.deepEqual(await authorized.json(), { success: true });
+  NodeAssert.equal(calls[0].headers.authorization, "Bearer native-secret");
+  NodeAssert.equal(calls[0].headers.cookie, undefined);
+  const stream = await fetch(
+    native +
+      "/sse?session_id=output-1&file=%2Fproject%2Fn.py&kiosk=false&types=cell&target=https://example.com",
+    { headers },
+  );
+  await stream.text();
+  const url = new URL(calls[1].url, "http://upstream");
+  NodeAssert.equal(url.pathname, "/sse");
+  NodeAssert.equal(url.searchParams.get("kiosk"), "true");
+  NodeAssert.equal(url.searchParams.get("types"), "notebook,runtime,marimo");
+  NodeAssert.equal(url.searchParams.get("target"), null);
+  NodeAssert.equal(calls[1].headers.authorization, "Bearer native-secret");
+  NodeAssert.equal(calls[1].headers["last-event-id"], undefined);
+  const body = {
+    modelId: "model",
+    message: { method: "update", state: { x: null }, bufferPaths: [["x"]] },
+    buffers: ["AQ=="],
+  };
+  NodeAssert.equal(
+    (
+      await post("/api/kernel/set_model_value", body, {
+        ...headers,
+        "Marimo-Session-Id": "output-1",
+      })
+    ).status,
+    200,
+  );
+  NodeAssert.deepEqual(JSON.parse(calls[2].body), body);
+  NodeAssert.equal(calls[2].headers["marimo-server-token"], "server-secret");
+  NodeAssert.equal(calls[2].headers["marimo-session-id"], "output-1");
+  NodeAssert.equal(calls[2].headers["idempotency-key"], undefined);
+  const asset = await fetch(native + "/@file/code.js", { headers });
+  NodeAssert.equal(await asset.text(), "export default {};");
+  NodeAssert.equal(asset.headers.get("content-type"), "text/javascript");
+  NodeAssert.equal((await post("/api/kernel/set_model_value", body)).status, 400);
+  NodeAssert.equal(
+    (
+      await post(
+        "/api/kernel/function_call",
+        {},
+        { ...headers, "Marimo-Session-Id": "output-1" },
+      )
+    ).status,
+    400,
+  );
+  NodeAssert.equal((await post("/api/kernel/run", {})).status, 404);
+  NodeAssert.equal((await post("/auth", {}, { ...headers, Origin: "" })).status, 403);
+  NodeAssert.equal(calls.length, 4);
+});
+
+test("closing the proxy releases native output streams", async ({ onTestFinished }) => {
+  const disconnected = Promise.withResolvers<void>();
+  const { api, base, headers } = await fixture(onTestFinished, (req, res) => {
+    if (req.url === "/") {
+      res.end('<marimo-server-token data-token="skew"></marimo-server-token>');
+      return;
+    }
+    res.writeHead(200, { "Content-Type": "text/event-stream" });
+    res.write(": heartbeat\n\n");
+    res.once("close", disconnected.resolve);
+  });
+  const auth = await fetch(base + "/marimo/auth", {
+    method: "POST",
+    headers,
+    body: "{}",
+  });
+  NodeAssert.equal(auth.status, 200);
+  const response = await fetch(
+    base + "/marimo/sse?session_id=output-1&file=%2Fproject%2Fn.py",
+    { headers },
+  );
+  const reader = response.body!.getReader();
+  NodeAssert.equal((await reader.read()).done, false);
+  api.close();
+  await NodeAssert.rejects(reader.read());
+  await disconnected.promise;
+});

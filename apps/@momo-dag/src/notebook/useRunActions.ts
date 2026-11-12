@@ -58,16 +58,16 @@ export function useRunActions(
     try {
       const requestId = crypto.randomUUID();
       let request: Effect.Effect<unknown, unknown>;
-      if (kind === "start") request = notebook.start({ requestId });
+      if (kind === "start") request = notebook.runtime.start({ requestId });
       else if (kind === "cancel" && run)
-        request = notebook.cancel({ runId: run.id, requestId });
+        request = notebook.runtime.cancel({ runId: run.id, requestId });
       else {
         const ids = cellId ? [cellId] : (state.document?.order ?? []);
         const cells = ids.flatMap((id) => {
           const cell = state.cells[id];
           return cell && !cell.config.disabled ? [{ id, etag: cell.etag }] : [];
         });
-        request = notebook.run({ request: { cells }, requestId });
+        request = notebook.runtime.run({ request: { cells }, requestId });
       }
       await Effect.runPromise(request.pipe(Effect.timeout("10 seconds")));
     } catch (error) {

@@ -80,6 +80,16 @@ export interface Workspace {
    * Rediscovers hosts and replaces the current connection list.
    */
   readonly refresh: Effect.Effect<void, Transport.RequestError>;
+
+  /**
+   * Stores native output credentials on the proxy, separately from host API credentials.
+   *
+   * Retry the notebook's runtime connection after authorization succeeds.
+   */
+  readonly authorizeInteractions: (input: {
+    readonly connectionId: string;
+    readonly token: string;
+  }) => Effect.Effect<void, Transport.RequestError>;
 }
 const empty: Catalog = { ready: false, notebooks: {} };
 function reduce(state: Catalog, event: CatalogEvent): Catalog {
@@ -190,6 +200,19 @@ export const make = (options: { launchKey?: string } = {}) =>
     const workspace: Workspace = {
       state: Atom.readable((get) => get(current)),
       refresh,
+      authorizeInteractions: ({ connectionId, token }) =>
+        transport
+          .json(
+            `/api/hosts/${encodeURIComponent(connectionId)}/marimo/auth`,
+            Schema.Struct({ success: Schema.Literal(true) }),
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token }),
+              signal: lifetime.signal,
+            },
+          )
+          .pipe(Effect.asVoid),
       connect: (input) =>
         update(
           transport

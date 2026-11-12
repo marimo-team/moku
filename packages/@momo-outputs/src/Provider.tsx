@@ -1,0 +1,76 @@
+/**
+ * Connect output renderers to a notebook's runtime capabilities.
+ *
+ * @module
+ */
+import { createContext, useEffect, useState, type ReactNode } from "react";
+import { useAtomValue } from "@effect/atom-react";
+import { Effect } from "effect";
+import * as OutputSession from "./internal/output-session.ts";
+import type { Session } from "./internal/session.ts";
+
+/** The subset of a notebook needed by output renderers. */
+export interface Notebook {
+  readonly runtime: OutputSession.Runtime;
+}
+export interface ProviderProps {
+  readonly notebook: Notebook;
+  readonly children: ReactNode;
+}
+
+export const OutputContext = createContext<{
+  session: Session | null;
+  canInteract: boolean;
+}>({ session: null, canInteract: false });
+
+/**
+ * Supplies native widgets, function calls, and assets to descendant outputs.
+ *
+ * Outputs must include their producing `runtimeId` to enable interaction.
+ * Providers for the same notebook share a connection. The embedded renderer
+ * currently supports one interactive notebook per page; unmounting its last
+ * provider releases the connection and clears its widget registries.
+ *
+ * @example Render a selected execution
+ * ```tsx
+ * <Outputs.Provider notebook={notebook}>
+ *   <Outputs.CellOutputs {...outputs} />
+ * </Outputs.Provider>
+ * ```
+ */
+export function Provider({ notebook, children }: ProviderProps) {
+  const runtime = notebook.runtime;
+  const connection = useAtomValue(runtime.state);
+  const [state, setState] = useState<OutputSession.State>({
+    session: null,
+    error: null,
+  });
+  useEffect(() => {
+    try {
+      return OutputSession.acquire(runtime, setState);
+    } catch (cause) {
+      setState({
+        session: null,
+        error: cause instanceof Error ? cause : new Error(String(cause)),
+      });
+    }
+  }, [runtime]);
+  const error = state.error ?? connection.error;
+  return (
+    <OutputContext.Provider
+      value={{ session: state.session, canInteract: connection.canInteract }}
+    >
+      {error && (
+        <div className="momo-output-notice" role="alert">
+          {error.message}
+          {!state.error && (
+            <button type="button" onClick={() => void Effect.runPromise(runtime.retry)}>
+              Reconnect outputs
+            </button>
+          )}
+        </div>
+      )}
+      {state.error ? null : children}
+    </OutputContext.Provider>
+  );
+}

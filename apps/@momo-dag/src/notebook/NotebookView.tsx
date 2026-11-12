@@ -88,7 +88,6 @@ export function Dag({ notebook }: ViewProps) {
           <CellDetails
             state={state}
             cellId={selected}
-            run={run}
             onClose={() => setSelected("")}
           />
         )}

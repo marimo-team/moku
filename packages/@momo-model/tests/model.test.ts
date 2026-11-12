@@ -427,16 +427,18 @@ test("bound commands preserve preconditions, distinguish cancel from interrupt, 
       decisions: { overwrite: "yes" },
     }),
   );
-  await f.run(handle.start({ requestId: "start-key", decisions: { start: "yes" } }));
   await f.run(
-    handle.run({
+    handle.runtime.start({ requestId: "start-key", decisions: { start: "yes" } }),
+  );
+  await f.run(
+    handle.runtime.run({
       request: { cells: [{ id: "a", etag: "cell-1" }] },
       requestId: "run-key",
     }),
   );
-  await f.run(handle.cancel({ runId: "run /1", requestId: "cancel-key" }));
-  await f.run(handle.interrupt({ requestId: "interrupt-key" }));
-  await f.run(handle.stop({ requestId: "stop-key" }));
+  await f.run(handle.runtime.cancel({ runId: "run /1", requestId: "cancel-key" }));
+  await f.run(handle.runtime.interrupt({ requestId: "interrupt-key" }));
+  await f.run(handle.runtime.stop({ requestId: "stop-key" }));
   const commands = f.requests.filter((request) => request.method !== "GET");
   expect(
     commands.map((request) => [
@@ -467,12 +469,12 @@ test("bound commands preserve preconditions, distinguish cancel from interrupt, 
   expect(await commands[2].json()).toEqual({ decisions: { start: "yes" } });
   expect(await commands[3].json()).toEqual({ cells: [{ id: "a", etag: "cell-1" }] });
   f.refuse();
-  await expect(f.run(handle.interrupt({ requestId: "refused" }))).rejects.toMatchObject(
-    {
-      status: 409,
-      problem: { type: "urn:marimo:problem:no-runtime" },
-    },
-  );
+  await expect(
+    f.run(handle.runtime.interrupt({ requestId: "refused" })),
+  ).rejects.toMatchObject({
+    status: 409,
+    problem: { type: "urn:marimo:problem:no-runtime" },
+  });
   f.hold();
   const pending = f.run(handle.save({ etag: "doc-1", requestId: "held" })).then(
     () => "accepted",

@@ -44,7 +44,9 @@ function groupItems({ items, outcome }: CellOutputsProps): Group[] {
 
 function ErrorView({
   error,
+  runtimeId,
 }: {
+  readonly runtimeId?: string | null;
   readonly error: Extract<Outcome, { kind: "error" }>["error"];
 }): ReactElement {
   const heading = (
@@ -62,7 +64,7 @@ function ErrorView({
             {heading}
           </summary>
           <div className="momo-traceback">
-            <DisplayView data={error.traceback} />
+            <DisplayView data={error.traceback} runtimeId={runtimeId} />
           </div>
         </details>
       ) : (
@@ -72,15 +74,23 @@ function ErrorView({
   );
 }
 
-function OutcomeView({ outcome }: { readonly outcome: Outcome | null }): ReactNode {
+function OutcomeView({
+  outcome,
+  runtimeId,
+}: {
+  readonly outcome: Outcome | null;
+  readonly runtimeId?: string | null;
+}): ReactNode {
   if (outcome === null) {
     return null;
   }
   switch (outcome.kind) {
     case "value":
-      return outcome.display ? <DisplayView data={outcome.display} /> : null;
+      return outcome.display ? (
+        <DisplayView data={outcome.display} runtimeId={runtimeId} />
+      ) : null;
     case "error":
-      return <ErrorView error={outcome.error} />;
+      return <ErrorView error={outcome.error} runtimeId={runtimeId} />;
     case "interrupted":
       return <p className="momo-output-notice">Interrupted</p>;
     case "skipped":
@@ -111,7 +121,7 @@ function OutcomeView({ outcome }: { readonly outcome: Outcome | null }): ReactNo
  * ```
  */
 export function CellOutputs(props: CellOutputsProps): ReactElement | null {
-  const { outcome, items, className } = props;
+  const { outcome, items, className, runtimeId } = props;
   if (
     items.length === 0 &&
     (outcome === null || (outcome.kind === "value" && outcome.display === null))
@@ -123,12 +133,16 @@ export function CellOutputs(props: CellOutputsProps): ReactElement | null {
     <div className={["momo-cell-outputs", className].filter(Boolean).join(" ")}>
       {groupItems(props).map((group) =>
         group.kind === "display" ? (
-          <DisplayView key={`display:${group.item.id}`} data={group.item.content} />
+          <DisplayView
+            key={`display:${group.item.id}`}
+            data={group.item.content}
+            runtimeId={runtimeId}
+          />
         ) : (
           <ConsoleOutput key={`console:${group.id}`} chunks={group.chunks} />
         ),
       )}
-      <OutcomeView outcome={outcome} />
+      <OutcomeView outcome={outcome} runtimeId={runtimeId} />
     </div>
   );
 }

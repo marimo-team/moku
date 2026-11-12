@@ -2,7 +2,7 @@
 
 React components for marimo displays, console output, and execution outcomes.
 
-[Components and examples](src/index.ts)
+[Components](src/index.ts) · [Interactive outputs](src/Provider.tsx)
 
 Build the embedded renderer from a marimo checkout with frontend dependencies installed:
 

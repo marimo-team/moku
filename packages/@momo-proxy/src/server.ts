@@ -8,6 +8,8 @@ import * as NodeBuffer from "node:buffer";
 import type * as NodeHttp from "node:http";
 import * as NodeStream from "node:stream";
 import { discoverHosts } from "@marimo-team/client/node";
+import { json, readBody } from "./internal/http.ts";
+import { createNative } from "./internal/native.ts";
 import * as Protocol from "@marimo-team/client/protocol";
 
 /**
@@ -33,35 +35,6 @@ function matches(actual: string | undefined, expected: string) {
   const value = NodeBuffer.Buffer.from(actual ?? "");
   const target = NodeBuffer.Buffer.from(expected);
   return value.length === target.length && NodeCrypto.timingSafeEqual(value, target);
-}
-
-function json(res: NodeHttp.ServerResponse, status: number, body: unknown) {
-  if (status >= 400 && typeof body === "object" && body !== null) {
-    if ("code" in body && typeof body.code === "string") {
-      res.setHeader("X-Momo-Error", body.code);
-    }
-    body = { ...body, status };
-  }
-  res.writeHead(status, {
-    "Content-Type": "application/json",
-    "Cache-Control": "no-store",
-  });
-  res.end(JSON.stringify(body));
-}
-
-async function readBody(
-  req: NodeHttp.IncomingMessage,
-  limit = 16_384,
-): Promise<unknown> {
-  const chunks: NodeBuffer.Buffer[] = [];
-  let bytes = 0;
-  for await (const chunk of req) {
-    const buffer = NodeBuffer.Buffer.from(chunk);
-    bytes += buffer.length;
-    if (bytes > limit) throw new Error("Request is too large");
-    chunks.push(buffer);
-  }
-  return JSON.parse(NodeBuffer.Buffer.concat(chunks).toString());
 }
 
 function normalizeHostUrl(input: string) {
@@ -100,6 +73,7 @@ export function createApi({
   const cookieName = `momo_${NodeCrypto.randomBytes(8).toString("hex")}`;
   const manual = new Map<string, Connection>();
   const requests = new Map<AbortController, NodeHttp.ServerResponse>();
+  const native = createNative(requests, clientName);
   let closed = false;
 
   async function connections() {
@@ -205,6 +179,25 @@ export function createApi({
 
     const match = /^\/api\/hosts\/([a-f0-9]{24})(\/.*)$/.exec(url.pathname);
     const path = match?.[2] ?? "";
+    if (match && path.startsWith("/marimo/")) {
+      const host = (await connections()).get(match[1]);
+      if (!host)
+        return json(res, 404, {
+          code: "host-unavailable",
+          error: "This marimo host is no longer available.",
+        });
+      if (closed || res.destroyed) {
+        res.destroy();
+        return;
+      }
+      return native.handle(req, res, {
+        connectionId: match[1],
+        baseUrl: host.summary.url,
+        path: path.slice("/marimo".length),
+        url,
+        origin: expected,
+      });
+    }
     const read =
       req.method === "GET" &&
       (path === "/events" || /^\/notebooks\/[^/]+\/events$/.test(path));
@@ -329,6 +322,7 @@ export function createApi({
         request.abort();
         response.destroy();
       }
+      native.close();
       manual.clear();
     },
     handle: (req: NodeHttp.IncomingMessage, res: NodeHttp.ServerResponse) => {

@@ -56,6 +56,8 @@ export function mutation<A>(
 export class Service extends Context.Service<
   Service,
   {
+    readonly fetch: typeof globalThis.fetch;
+    readonly url: (path: string) => string;
     readonly client: (connectionId: string, signal: AbortSignal) => Client;
     readonly json: <A>(
       path: string,
@@ -82,6 +84,8 @@ export const layer = (
   return Layer.succeed(
     Service,
     Service.of({
+      fetch,
+      url: (path) => new URL(path, base).href,
       client: (connectionId, lifetime) =>
         new Client(new URL(`/api/hosts/${encodeURIComponent(connectionId)}`, base), {
           fetch: (input, init) =>

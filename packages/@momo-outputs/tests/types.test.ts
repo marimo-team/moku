@@ -9,6 +9,7 @@ import type {
   CellOutputs,
   OutputItem,
 } from "../src/index.ts";
+import type { DisplayRendererProps } from "../src/internal/session.ts";
 import type { DisplayRenderer } from "../dist/renderer.js";
 
 test("component and generated renderer props preserve the protocol types", () => {
@@ -21,9 +22,9 @@ test("component and generated renderer props preserve the protocol types", () =>
   expectTypeOf<
     ComponentProps<typeof CellOutputs>["outcome"]
   >().toEqualTypeOf<Protocol.OutcomeOutput | null>();
-  expectTypeOf<ComponentProps<typeof DisplayRenderer>>().toEqualTypeOf<
-    ComponentProps<typeof DisplayView>
-  >();
+  expectTypeOf<
+    ComponentProps<typeof DisplayRenderer>
+  >().toEqualTypeOf<DisplayRendererProps>();
   expectTypeOf<OutputItem>().toEqualTypeOf<Outputs.Item>();
   expectTypeOf<
     Extract<OutputItem, { kind: "display" }>["content"]

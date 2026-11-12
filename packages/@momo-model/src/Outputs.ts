@@ -17,6 +17,7 @@ export type Item =
  * The outcome and ordered output records for one execution.
  */
 export interface Snapshot {
+  readonly runtimeId: string | null;
   readonly outcome: Protocol.OutcomeOutput | null;
   readonly items: readonly Item[];
 }
@@ -45,5 +46,9 @@ export function forExecution(
   }
   items.sort((a, b) => a.seq - b.seq);
 
-  return { outcome: state.executions[executionId]?.outcome ?? null, items };
+  return {
+    runtimeId: state.executions[executionId]?.runtime_id ?? null,
+    outcome: state.executions[executionId]?.outcome ?? null,
+    items,
+  };
 }

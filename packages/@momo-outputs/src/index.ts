@@ -3,7 +3,7 @@
  *
  * Pass output records from your chosen execution. Components do not subscribe
  * to notebook state. Rich displays load the embedded marimo renderer on demand;
- * widget sessions, function calls, and runtime asset routes are not connected.
+ * Provider connects native widgets and function calls to a notebook runtime.
  *
  * ```tsx
  * import { DisplayView } from "@momo/outputs";
@@ -13,6 +13,7 @@
  *
  * @module
  */
+export { Provider, type ProviderProps } from "./Provider.tsx";
 export { DisplayView } from "./DisplayView.tsx";
 export { ConsoleOutput } from "./ConsoleOutput.tsx";
 export { CellOutputs } from "./CellOutputs.tsx";

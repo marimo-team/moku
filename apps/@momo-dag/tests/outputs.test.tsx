@@ -203,3 +203,37 @@ test("the output tab renders errors once and updates to an empty execution", asy
   await view.click("Logs");
   expect(view.panel().textContent).toBe("No console output for this execution.");
 });
+
+test("live cell details retain outputs across downstream runs and discard prior runtimes", async () => {
+  const { state: initial, run } = fixture();
+  const runtime = Protocol.Runtime.parse({
+    id: "rt",
+    notebook_id: "n",
+    status: "running",
+    message: null,
+    marimo_version: null,
+    started_at: "2026-11-05T11:00:00Z",
+  });
+  let state: NotebookState = { ...initial, runtime };
+  state.executions.old = {
+    ...state.executions.old,
+    started_at: "2026-11-05T11:00:00Z",
+  };
+  state.executions.selected = {
+    ...state.executions.selected,
+    started_at: "2026-11-05T12:00:00Z",
+  };
+  state.runs.downstream = {
+    ...run,
+    id: "downstream",
+    cells: ["other"],
+    completed_at: "2026-11-05T13:00:00Z",
+  };
+  const render = () => <CellDetails state={state} cellId="c" onClose={() => {}} />;
+  const view = await mount(render());
+  await view.click("Output");
+  expect(view.panel().textContent).toBe("earlierlaterselected result");
+  state = { ...state, runtime: { ...runtime, id: "replacement" } };
+  await view.render(render());
+  expect(view.panel().textContent).toBe("No rendered output for this execution.");
+});

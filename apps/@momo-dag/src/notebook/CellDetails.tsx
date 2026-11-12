@@ -12,18 +12,26 @@ export function CellDetails({
 }: {
   state: NotebookState;
   cellId: string;
-  run: Protocol.RunOutput | undefined;
+  run?: Protocol.RunOutput;
   onClose: () => void;
 }) {
   const [tab, setTab] = useState("Source");
   const cell = state.cells[cellId];
   if (!cell) return null;
-  const execution = Object.values(state.executions).find(
-    (e) => e.cell_id === cellId && (!run || e.run_id === run.id),
-  );
+  const execution = Object.values(state.executions)
+    .filter(
+      (e) =>
+        e.cell_id === cellId &&
+        (run ? e.run_id === run.id : e.runtime_id === state.runtime?.id),
+    )
+    .sort(
+      (a, b) =>
+        (Date.parse(b.started_at ?? b.completed_at ?? "") || 0) -
+        (Date.parse(a.started_at ?? a.completed_at ?? "") || 0),
+    )[0];
   const outputs: Outputs.Snapshot = execution
     ? Outputs.forExecution(state, execution.id)
-    : { items: [], outcome: null };
+    : { runtimeId: null, items: [], outcome: null };
   const logs = outputs.items.filter((item) => item.kind === "console");
   const displays = outputs.items.filter((item) => item.kind === "display");
   const hasOutput =
@@ -112,7 +120,11 @@ export function CellDetails({
           ))}
         {tab === "Output" &&
           (hasOutput ? (
-            <CellOutputs items={displays} outcome={outputs.outcome} />
+            <CellOutputs
+              items={displays}
+              outcome={outputs.outcome}
+              runtimeId={outputs.runtimeId}
+            />
           ) : (
             <p className="empty-detail">No rendered output for this execution.</p>
           ))}

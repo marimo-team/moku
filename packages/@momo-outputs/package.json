@@ -20,6 +20,8 @@
     "typescript": "^5.9.3"
   },
   "peerDependencies": {
+    "@effect/atom-react": "4.1.0",
+    "effect": "4.1.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   }

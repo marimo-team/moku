@@ -26,6 +26,7 @@ export class SyncError extends Data.TaggedError("DocumentSyncError")<{
  *
  * `pending` waits for the debounce interval; `sending` waits for the request;
  * `confirming` waits for the stream to reach the accepted revision.
+ * A confirmation timeout reports an error that clears when confirmation arrives.
  * `unavailable` means source or edit permission is missing.
  */
 export type SyncStatus =
@@ -40,6 +41,42 @@ export interface Interface {
   readonly retry: Effect.Effect<Confirmed, SyncError>;
 }
 
+interface Request {
+  readonly submission: State.Submission;
+  readonly key: string;
+  readonly startedAt: number;
+}
+
+/** An accepted request only waits for the stream; it must never be sent again. */
+type Progress =
+  | { readonly kind: "idle" | "pending" | "unavailable" }
+  | { readonly kind: "sending"; readonly request: Request }
+  | { readonly kind: "uncertain"; readonly request: Request; readonly error: SyncError }
+  | {
+      readonly kind: "rejected";
+      readonly request: Request;
+      readonly problem: Protocol.ProblemOutput;
+      readonly error: SyncError;
+    }
+  | { readonly kind: "confirming" }
+  | { readonly kind: "confirmation-delayed" | "failed"; readonly error: SyncError };
+
+function withFailure(progress: Progress, error: SyncError): Progress {
+  switch (progress.kind) {
+    case "sending":
+      return { kind: "uncertain", request: progress.request, error };
+    case "confirming":
+      return { kind: "confirmation-delayed", error };
+    case "uncertain":
+    case "rejected":
+    case "confirmation-delayed":
+    case "failed":
+      return { ...progress, error };
+    default:
+      return { kind: "failed", error };
+  }
+}
+
 // Keep retries of uncertain writes bounded, preserving the same request and key.
 const retryWindow = 60_000;
 const stopped = () =>
@@ -52,21 +89,26 @@ export function synchronize(
 ): Effect.Effect<Interface, never, Scope.Scope> {
   return Effect.gen(function* () {
     const wake = yield* Queue.dropping<void>(1);
-    const status = Atom.make<SyncStatus>({ status: "idle" });
-    const unmount = registry.mount(status);
+    const progress = Atom.make<Progress>({ kind: "idle" });
+    const unmount = registry.mount(progress);
+    const status = Atom.readable((get): SyncStatus => {
+      const current = get(progress);
+      return "error" in current
+        ? { status: "error", error: current.error }
+        : { status: current.kind };
+    });
+    const setProgress = (next: Progress) => registry.set(progress, next);
     const waiters = new Set<Deferred.Deferred<Confirmed, SyncError>>();
     let closed = false;
     let retryRequested = false;
-    let failure: SyncError | undefined;
-    let active:
-      | {
-          submission: State.Submission;
-          key: string;
-          startedAt: number;
-          response?: Protocol.DocumentOutput;
-          rejection?: Protocol.ProblemOutput;
-        }
-      | undefined;
+    const recoverConfirmation = () => {
+      if (
+        registry.get(progress).kind === "confirmation-delayed" &&
+        model.get().pending === null
+      ) {
+        setProgress({ kind: "idle" });
+      }
+    };
     const notify = () => {
       Queue.offerUnsafe(wake, undefined);
     };
@@ -84,7 +126,9 @@ export function synchronize(
     const drain = Effect.gen(function* () {
       while (true) {
         const current = model.get();
-        if (!active) {
+        const phase = registry.get(progress);
+        if ("error" in phase) return yield* Effect.fail(phase.error);
+        if (phase.kind !== "sending" && phase.kind !== "confirming") {
           if (!current.source.document) {
             return yield* Effect.fail(
               new SyncError({
@@ -113,15 +157,18 @@ export function synchronize(
               }),
             );
           }
-          active = {
-            submission,
-            key: crypto.randomUUID(),
-            startedAt: yield* Clock.currentTimeMillis,
-          };
+          setProgress({
+            kind: "sending",
+            request: {
+              submission,
+              key: crypto.randomUUID(),
+              startedAt: yield* Clock.currentTimeMillis,
+            },
+          });
         }
-        const request = active;
-        if (!request.response) {
-          registry.set(status, { status: "sending" });
+        const sending = registry.get(progress);
+        if (sending.kind === "sending") {
+          const request = sending.request;
           for (let attempt = 0; ; attempt++) {
             if ((yield* Clock.currentTimeMillis) - request.startedAt >= retryWindow) {
               return yield* Effect.fail(
@@ -144,8 +191,8 @@ export function synchronize(
                   }),
                 );
               }
-              request.response = result.success.document;
-              model.settle(request.submission, request.response);
+              setProgress({ kind: "confirming" });
+              model.settle(request.submission, result.success.document);
               break;
             }
             const cause = result.failure;
@@ -156,14 +203,25 @@ export function synchronize(
               cause.status < 500
             ) {
               const problem = Protocol.Problem.safeParse(cause.problem);
-              if (problem.success) request.rejection = problem.data;
+              if (problem.success) {
+                const error = new SyncError({
+                  message: `${problem.data.detail ?? problem.data.title} Your draft is retained.`,
+                  retryable: true,
+                  cause,
+                });
+                setProgress({
+                  kind: "rejected",
+                  request,
+                  problem: problem.data,
+                  error,
+                });
+                return yield* Effect.fail(error);
+              }
             }
-            if (request.rejection || attempt === 2) {
+            if (attempt === 2) {
               return yield* Effect.fail(
                 new SyncError({
-                  message: request.rejection
-                    ? `${request.rejection.detail ?? request.rejection.title} Your draft is retained.`
-                    : "Could not confirm the edit. Your draft is retained.",
+                  message: "Could not confirm the edit. Your draft is retained.",
                   retryable: true,
                   cause,
                 }),
@@ -172,7 +230,6 @@ export function synchronize(
             yield* Effect.sleep(250 * 2 ** attempt);
           }
         }
-        registry.set(status, { status: "confirming" });
         yield* confirm.pipe(
           Effect.timeout("10 seconds"),
           Effect.mapError(
@@ -183,17 +240,19 @@ export function synchronize(
               }),
           ),
         );
-        active = undefined;
+        setProgress({ kind: "idle" });
       }
     });
 
     const retry = Effect.gen(function* () {
-      if (failure && !failure.retryable) return yield* Effect.fail(failure);
-      if (active?.rejection) {
+      const current = registry.get(progress);
+      if ("error" in current && !current.error.retryable)
+        return yield* Effect.fail(current.error);
+      if (current.kind === "rejected") {
         const source = model.get().source.document;
         const rejectedAt =
-          active.rejection.type === "urn:marimo:problem:precondition-failed"
-            ? active.rejection.document.version
+          current.problem.type === "urn:marimo:problem:precondition-failed"
+            ? current.problem.document.version
             : undefined;
         if (
           !source ||
@@ -206,23 +265,29 @@ export function synchronize(
             }),
           );
         }
-        model.settle(active.submission, null);
-        active = undefined;
+        model.settle(current.request.submission, null);
+        setProgress({ kind: "idle" });
+      } else if (current.kind === "uncertain") {
+        setProgress({ kind: "sending", request: current.request });
+      } else if (current.kind === "confirmation-delayed") {
+        setProgress({ kind: "confirming" });
+      } else if (current.kind === "failed") {
+        setProgress({ kind: "idle" });
       }
-      failure = undefined;
     });
 
     const cycle = Effect.gen(function* () {
       yield* Queue.take(wake);
-      if (!retryRequested && failure) return;
+      recoverConfirmation();
+      if (!retryRequested && "error" in registry.get(progress)) return;
       if (!retryRequested && waiters.size === 0) {
-        if (Draft.isEmptyDraft(model.get().draft) && !active) {
-          registry.set(status, {
-            status: model.get().source.document ? "idle" : "unavailable",
+        if (Draft.isEmptyDraft(model.get().draft)) {
+          setProgress({
+            kind: model.get().source.document ? "idle" : "unavailable",
           });
           return;
         }
-        registry.set(status, { status: "pending" });
+        setProgress({ kind: "pending" });
         while (waiters.size === 0) {
           const changed = yield* Queue.take(wake).pipe(
             Effect.timeoutOption("400 millis"),
@@ -240,8 +305,7 @@ export function synchronize(
         }),
       );
       if (Exit.isSuccess(result)) {
-        failure = undefined;
-        registry.set(status, { status: "idle" });
+        setProgress({ kind: "idle" });
       } else {
         // Preserve interruption semantics; the scope's finalizer releases joiners.
         if (Exit.hasInterrupts(result)) return yield* result;
@@ -254,8 +318,7 @@ export function synchronize(
               cause: result.cause,
             }),
         );
-        failure = error;
-        registry.set(status, { status: "error", error });
+        setProgress(withFailure(registry.get(progress), error));
       }
       const completed = [...waiters];
       waiters.clear();
@@ -277,7 +340,9 @@ export function synchronize(
     const request = (retry: boolean) =>
       Effect.gen(function* () {
         if (closed) return yield* Effect.fail(stopped());
-        if (failure && !retry) return yield* Effect.fail(failure);
+        recoverConfirmation();
+        const current = registry.get(progress);
+        if ("error" in current && !retry) return yield* Effect.fail(current.error);
         const waiter = yield* Deferred.make<Confirmed, SyncError>();
         waiters.add(waiter);
         retryRequested ||= retry;

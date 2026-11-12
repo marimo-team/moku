@@ -55,8 +55,10 @@ test("flush callers share one immutable submission", async () => {
 
 for (const newerTyping of [false, true]) {
   test(`late confirmation recovers without retry (newer typing: ${newerTyping})`, async () => {
-    vi.useFakeTimers();
-    onTestFinished(() => vi.useRealTimers());
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const h = await setup();
     h.change("accepted");
     const flushed = Effect.runPromiseExit(h.model.flush);
@@ -69,6 +71,10 @@ for (const newerTyping of [false, true]) {
     expect((await flushed)._tag).toBe("Failure");
     expect(h.registry.get(h.model.state).status.status).toBe("error");
 
+    h.publish(cell.code!, 1);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(h.registry.get(h.model.state).status.status).toBe("error");
+    expect(h.calls).toHaveLength(1);
     if (newerTyping) h.change("newer");
     h.publish("accepted", 2);
     if (newerTyping) {
@@ -92,6 +98,32 @@ for (const newerTyping of [false, true]) {
     await h.close();
   });
 }
+
+test("retrying a delayed confirmation waits without resending the accepted edit", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+  const h = await setup();
+  h.change("accepted");
+  const flushed = Effect.runPromiseExit(h.model.flush);
+  await vi.waitFor(() => expect(h.calls).toHaveLength(1));
+  h.calls[0].respond(2);
+  await vi.waitFor(() =>
+    expect(h.registry.get(h.model.state).status.status).toBe("confirming"),
+  );
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect((await flushed)._tag).toBe("Failure");
+
+  const retried = Effect.runPromise(h.model.retry);
+  await vi.waitFor(() =>
+    expect(h.registry.get(h.model.state).status.status).toBe("confirming"),
+  );
+  h.publish("accepted", 2);
+  expect((await retried).revision.version).toBe(2);
+  expect(h.calls).toHaveLength(1);
+  await h.close();
+});
 
 test("transactions roll back, reject async callbacks, and cannot escape", async () => {
   const h = await setup();
@@ -204,6 +236,46 @@ test("lost responses reuse the exact request and key without losing new typing",
   h.publish("second", 3);
   await flushed;
 });
+
+for (const expired of [false, true]) {
+  test(`explicit retry preserves an uncertain request's key and deadline (expired: ${expired})`, async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const attempts: { request: Protocol.EditRequest; key: string }[] = [];
+    const h = await setup(({ request, requestId: key }) => {
+      attempts.push({ request, key });
+      return attempts.length <= 3
+        ? Effect.fail(new RequestError({ message: "Connection lost" }))
+        : Effect.succeed({ document: { ...document, version: 2 }, cells: {} });
+    });
+    h.change("accepted");
+    const flushed = Effect.runPromiseExit(h.model.flush);
+    await vi.waitFor(() => expect(attempts).toHaveLength(3), { timeout: 2000 });
+    expect((await flushed)._tag).toBe("Failure");
+    // Matching source alone cannot establish the outcome of an uncertain write.
+    h.publish("accepted", 2);
+    await vi.advanceTimersByTimeAsync(expired ? 60_000 : 500);
+    expect(h.registry.get(h.model.state).status.status).toBe("error");
+    expect(attempts).toHaveLength(3);
+
+    if (expired) {
+      await expect(Effect.runPromise(h.model.retry)).rejects.toThrow("expired");
+      await expect(Effect.runPromise(h.model.retry)).rejects.toThrow("expired");
+      expect(attempts).toHaveLength(3);
+    } else {
+      expect((await Effect.runPromise(h.model.retry)).revision.version).toBe(2);
+      expect(attempts).toHaveLength(4);
+      for (const attempt of attempts) {
+        expect(attempt.key).toBe(attempts[0].key);
+        expect(attempt.request).toBe(attempts[0].request);
+      }
+      expect(h.registry.get(h.model.state).dirty).toBe(false);
+    }
+    await h.close();
+  });
+}
 
 test("scope closure interrupts an in-flight request and releases its flush caller", async () => {
   const h = await setup();

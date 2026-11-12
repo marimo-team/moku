@@ -55,6 +55,14 @@ bun dev
 
 Open the authenticated link printed in the terminal.
 
+## Checks and tests
+
+```sh
+bun run check
+bun run test
+bun run test:coverage  # coverage/index.html
+```
+
 ## Tinker
 
 Add a view with [@moku/plugin](packages/@moku-plugin/README.md) and register it in [main.tsx](apps/@moku-launcher/src/main.tsx).

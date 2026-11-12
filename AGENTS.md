@@ -48,5 +48,10 @@ provide namespaces. Keep named imports from `@effect/atom-react` and Vitest's
 bun run check
 bun run format
 bun run test
+bun run test:coverage
 bun run build
 ```
+
+CI runs checks and tests with coverage in separate steps. `bun setup --checks`
+prepares only the dependencies needed for these steps; use regular `bun setup`
+before running the development server.

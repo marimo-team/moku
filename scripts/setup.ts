@@ -4,6 +4,8 @@ import * as NodeFs from "node:fs/promises";
 import * as NodePath from "node:path";
 import * as Marimo from "./marimo.ts";
 
+// Checks need the client and embedded renderer, but not marimo's native app.
+const checks = process.argv.includes("--checks");
 if (!/^[a-f0-9]{40}$/.test(Marimo.revision)) {
   throw new Error("Set package.json marimo.revision to a full GitHub commit SHA.");
 }
@@ -66,24 +68,38 @@ const upstream = JSON.parse(
 if (!/^pnpm@\d+\.\d+\.\d+$/.test(upstream.packageManager)) {
   throw new Error(`Unsupported upstream package manager: ${upstream.packageManager}`);
 }
-const pnpmVersion = NodeChildProcess.execFileSync("pnpm", ["--version"], {
-  cwd: Marimo.checkout,
-  encoding: "utf8",
-  env,
-}).trim();
-if (`pnpm@${pnpmVersion}` !== upstream.packageManager) {
-  throw new Error(
-    `Install ${upstream.packageManager} to prepare this marimo revision (found pnpm@${pnpmVersion}).`,
-  );
+if (checks) {
+  run("bun", [
+    "x",
+    "--trust",
+    "--package",
+    upstream.packageManager,
+    "pnpm",
+    "install",
+    "--frozen-lockfile",
+    "--ignore-scripts",
+  ]);
+} else {
+  const pnpmVersion = NodeChildProcess.execFileSync("pnpm", ["--version"], {
+    cwd: Marimo.checkout,
+    encoding: "utf8",
+    env,
+  }).trim();
+  if (`pnpm@${pnpmVersion}` !== upstream.packageManager) {
+    throw new Error(
+      `Install ${upstream.packageManager} to prepare this marimo revision (found pnpm@${pnpmVersion}).`,
+    );
+  }
+  run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"]);
 }
-run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"]);
 run("bun", ["run", "build"], NodePath.join(Marimo.checkout, "packages/client"));
 run("bun", ["run", "codegen"], NodePath.join(Marimo.checkout, "packages/llm-info"));
-run(
-  "bun",
-  ["run", "build", "--outDir", "../marimo/_static"],
-  NodePath.join(Marimo.checkout, "frontend"),
-);
+if (!checks)
+  run(
+    "bun",
+    ["run", "build", "--outDir", "../marimo/_static"],
+    NodePath.join(Marimo.checkout, "frontend"),
+  );
 
 for (const [name, content] of [
   ["client", "dist"],
@@ -120,6 +136,10 @@ for (const [name, content] of [
     );
   }
 }
-run("bun", ["install", ...(Marimo.local ? ["--force"] : [])], Marimo.root);
+run(
+  "bun",
+  ["install", ...(checks ? ["--frozen-lockfile"] : Marimo.local ? ["--force"] : [])],
+  Marimo.root,
+);
 run("bun", ["run", "--filter", "@moku/outputs", "build"], Marimo.root);
 console.log(`Prepared marimo ${revision}`);

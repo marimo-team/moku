@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Check and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Cache Bun downloads
+        uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Cache prepared marimo dependencies
+        id: marimo
+        uses: actions/cache@v6
+        with:
+          path: |
+            vendor/client
+            vendor/smart-cells
+            packages/@moku-outputs/dist
+          key: marimo-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package.json', 'bun.lock', 'apps/*/package.json', 'packages/*/package.json', 'scripts/setup.ts', 'scripts/marimo.ts', 'packages/@moku-outputs/scripts/**', 'packages/@moku-outputs/bundle/**', 'packages/@moku-outputs/src/**') }}
+
+      - name: Prepare marimo dependencies
+        if: steps.marimo.outputs.cache-hit != 'true'
+        run: bun setup --checks
+
+      - name: Install dependencies
+        id: install
+        run: bun install --frozen-lockfile
+
+      - name: Check
+        run: bun run check
+
+      - name: Test with coverage
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run test:coverage
+
+      - name: Coverage summary
+        if: ${{ !cancelled() && hashFiles('coverage/coverage-summary.json') != '' }}
+        run: |
+          node --input-type=module <<'JS'
+          import * as NodeFs from "node:fs";
+          const { total } = JSON.parse(NodeFs.readFileSync("coverage/coverage-summary.json", "utf8"));
+          const rows = ["lines", "statements", "functions", "branches"].map(
+            (name) => `| ${name} | ${total[name].pct}% | ${total[name].covered}/${total[name].total} |`,
+          );
+          NodeFs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            ["## Coverage", "", "| Metric | Coverage | Covered |", "| --- | ---: | ---: |", ...rows, ""].join("\n"));
+          JS
+
+      - name: Upload coverage report
+        if: ${{ !cancelled() && hashFiles('coverage/coverage-summary.json') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 14

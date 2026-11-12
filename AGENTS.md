@@ -31,7 +31,7 @@ Configure its command in [marimo.ts](scripts/marimo.ts).
 ## Adding views
 
 Register views in
-[plugins.ts](apps/@moku-launcher/src/plugins.ts).
+[main.tsx](apps/@moku-launcher/src/main.tsx).
 
 ## Imports
 

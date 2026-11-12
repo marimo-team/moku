@@ -57,7 +57,7 @@ Open the authenticated link printed in the terminal.
 
 ## Tinker
 
-Add a view with [@moku/plugin](packages/@moku-plugin/README.md) and register it in [plugins.ts](apps/@moku-launcher/src/plugins.ts).
+Add a view with [@moku/plugin](packages/@moku-plugin/README.md) and register it in [main.tsx](apps/@moku-launcher/src/main.tsx).
 
 ## License
 

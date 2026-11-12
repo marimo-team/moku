@@ -13,6 +13,7 @@ export type { SyncStatus };
 
 /** Local edits layered over one notebook's confirmed document. */
 export interface Interface {
+  readonly registry: AtomRegistry.AtomRegistry;
   readonly document: Atom.Atom<EditableDocument | null>;
   readonly canEdit: Atom.Atom<boolean>;
   readonly dirty: Atom.Atom<boolean>;
@@ -39,6 +40,7 @@ export function make(
     );
     const sync = yield* synchronize(model, registry, notebook);
     return Service.of({
+      registry,
       document: model.document,
       canEdit: model.canEdit,
       dirty: model.dirty,

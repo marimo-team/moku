@@ -4,12 +4,20 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./Document": "./src/Document.ts"
+    "./Document": "./src/Document.ts",
+    "./CodeMirror": "./src/CodeMirror.ts"
   },
   "dependencies": {
+    "@codemirror/merge": "^6.12.3",
     "@momo/model": "workspace:*"
   },
+  "devDependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "happy-dom": "^21.0.4"
+  },
   "peerDependencies": {
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
     "effect": "4.1.0"
   }
 }

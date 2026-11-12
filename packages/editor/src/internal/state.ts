@@ -83,7 +83,7 @@ export function makeState(
       ? Draft.viewDocument(current.source.document, current.draft)
       : null;
   });
-  const canEdit = Atom.make((get) => get(state).source.canEdit);
+  const canEdit = Atom.make((get) => !closed && get(state).source.canEdit);
   const dirty = Atom.make((get) => !Draft.isEmptyDraft(get(state).draft));
   const edit = Atom.writable(
     () => undefined,
@@ -153,6 +153,10 @@ export function makeState(
     dispose() {
       closed = true;
       unsubscribe();
+      registry.update(state, (current) => ({
+        ...current,
+        source: { ...current.source, canEdit: false },
+      }));
       unmount();
     },
   };

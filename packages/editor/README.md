@@ -1,9 +1,11 @@
 # @momo/editor
 
-A scoped editable notebook document with local drafts, reactive state, and synchronization.
+A scoped editable notebook document with local drafts, synchronization, and optional CodeMirror bindings.
 
 ```ts
 import * as Document from "@momo/editor/Document";
+import * as CodeMirror from "@momo/editor/CodeMirror";
+import { EditorView } from "@codemirror/view";
 
 Document.make(notebook); // scoped Effect constructing an Interface
 Document.Service; // Context.Service for the current editing session
@@ -20,6 +22,7 @@ Document.layer; // provides Service; requires Notebook.Service and its AtomRegis
 
 // In an Effect: const document = yield* Document.Service;
 
+document.registry; // the AtomRegistry captured by make()
 document.document; // editable snapshot atom: order + cells, or null while unavailable
 document.canEdit; // edit availability atom
 document.dirty; // pending local changes atom
@@ -43,5 +46,21 @@ registry.set(document.edit, (tx) => {
 // Failed synchronization retains the draft for explicit retry.
 // Each make() owns a draft; share its returned document among cell editors.
 // Flush before closing its scope to retain edits. Closing cancels synchronization.
-// CodeMirror bindings are not implemented yet.
+
+CodeMirror.bindCell({ document, cellId }); // CodeMirror Extension
+// Public type: CodeMirror.CellOptions
+
+const view = new EditorView({
+  parent,
+  extensions: [
+    CodeMirror.bindCell({ document, cellId }),
+    ...yourExtensions, // themes, languages, completions, keymaps, and history
+  ],
+});
+
+// The binding initializes the view from raw cell code on the next microtask.
+// Host updates map selections and stay out of undo history.
+// Missing source, permission loss, or document closure makes the view read-only.
+// Text updates wait until IME composition finishes.
+view.destroy(); // releases the binding; the document and its draft remain alive
 ```

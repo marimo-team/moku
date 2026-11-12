@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { expect, onTestFinished, test, vi } from "vite-plus/test";
+import { beforeEach, expect, onTestFinished, test, vi } from "vite-plus/test";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";
@@ -10,6 +10,7 @@ import { makeRuntime } from "../src/app/runtime.ts";
 import { parseRoute, viewHref, type Route } from "../src/app/routes.ts";
 
 vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+beforeEach(() => localStorage.clear());
 
 async function mount(route: Route) {
   const requests: string[] = [];
@@ -21,7 +22,13 @@ async function mount(route: Route) {
     if (path === "/api/session") return Response.json({ authenticated: true });
     if (path === "/api/hosts")
       return Response.json([
-        { id: "a", name: "First host", url: "http://localhost:2718", source: "local" },
+        {
+          id: "a",
+          name: "First host",
+          url: "http://localhost:2718",
+          source: "local",
+          pid: 1234,
+        },
         {
           id: "b",
           name: "Second host",
@@ -29,6 +36,7 @@ async function mount(route: Route) {
           source: "manual",
         },
       ]);
+    if (path.endsWith("/open")) return Response.json({ success: true });
     return new Response(
       new ReadableStream({
         start(controller) {
@@ -36,9 +44,11 @@ async function mount(route: Route) {
             id: "n",
             project_id: "p",
             name: "example.py",
-            path: "notebooks/example.py",
-            operations: [],
-            updated_at: null,
+            path: path.includes("/hosts/a/")
+              ? "example.py"
+              : "/other/project/example.py",
+            operations: path.includes("/hosts/a/") ? ["notebook.open"] : [],
+            updated_at: path.includes("/hosts/a/") ? "2026-11-12T12:00:00Z" : null,
           };
           controller.enqueue(
             new TextEncoder().encode(
@@ -97,16 +107,38 @@ async function mount(route: Route) {
   return { element, requests, closed, close };
 }
 
-test("the catalog groups notebooks by host and links each registered view", async () => {
+test("the shared picker updates every notebook link and remembers the selection", async () => {
   const { element, requests } = await mount({ kind: "catalog" });
   await vi.waitFor(() =>
     expect(element.querySelectorAll(".notebook-row")).toHaveLength(2),
   );
   expect(
-    [...element.querySelectorAll(".host-heading h2")].map((h) => h.textContent),
+    [...element.querySelectorAll(".host-section")].map((section) =>
+      section.getAttribute("aria-label"),
+    ),
   ).toEqual(["First host", "Second host"]);
-  expect(element.querySelector("input, select")).toBeNull();
-  const links = [...element.querySelectorAll<HTMLAnchorElement>(".open-with a")];
+  expect(
+    [...element.querySelectorAll(".host-heading h2")].map(
+      (heading) => heading.textContent,
+    ),
+  ).toEqual(["localhost:2718", "localhost:2719"]);
+  expect(element.querySelector(".host-facts")?.textContent).toContain("PID 1234");
+  expect(
+    [...element.querySelectorAll(".notebook-path")].map((path) => path.textContent),
+  ).toEqual(["example.py", "/other/project/example.py"]);
+  expect(element.querySelector("time")?.dateTime).toBe("2026-11-12T12:00:00Z");
+  expect(element.querySelectorAll("time")).toHaveLength(1);
+  const picker = element.querySelector("select")!;
+  expect(picker.value).toBe("host");
+  expect(element.querySelectorAll("[popover]")).toHaveLength(0);
+  const buttons = element.querySelectorAll<HTMLButtonElement>(".notebook-open");
+  expect(buttons[0].disabled).toBe(false);
+  expect(buttons[1].disabled).toBe(true);
+  await act(async () => {
+    picker.value = "test/identity";
+    picker.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  const links = [...element.querySelectorAll<HTMLAnchorElement>("a.notebook-open")];
   expect(
     links.map((link) =>
       parseRoute(new URL(link.getAttribute("href")!, "http://moku.test")),
@@ -119,6 +151,10 @@ test("the catalog groups notebooks by host and links each registered view", asyn
     })),
   );
   expect(requests.some((path) => path.includes("/notebooks/"))).toBe(false);
+  const next = await mount({ kind: "catalog" });
+  await vi.waitFor(() =>
+    expect(next.element.querySelector("select")?.value).toBe("test/identity"),
+  );
 });
 
 test("a direct view URL mounts only that notebook and releases its stream on close", async () => {
@@ -133,14 +169,39 @@ test("a direct view URL mounts only that notebook and releases its stream on clo
     expect(view.element.querySelector("h1")?.textContent).toBe("b:n"),
   );
   expect(view.element.querySelector(".catalog-page")).toBeNull();
+  expect(view.element.querySelector("select")?.value).toBe("test/identity");
+  expect(view.element.querySelector('option[value="host"]')).toBeNull();
+  expect(view.element.querySelector(".view-notebook")?.textContent).toBe("example.py");
   expect(view.requests.filter((path) => path.endsWith("/events"))).toEqual([
     "/api/hosts/b/notebooks/n/events",
   ]);
-  expect(view.element.querySelector(".back-link")?.getAttribute("href")).toBe("/");
+  expect(view.element.querySelector(".view-breadcrumbs a")?.getAttribute("href")).toBe(
+    "/",
+  );
   await view.close();
   await vi.waitFor(() =>
     expect(view.closed).toContain("/api/hosts/b/notebooks/n/events"),
   );
+});
+
+test("Host opens the chosen notebook without opening any notebook streams", async () => {
+  const { element, requests } = await mount({ kind: "catalog" });
+  await vi.waitFor(() =>
+    expect(element.querySelectorAll(".notebook-open")).toHaveLength(2),
+  );
+  await act(async () =>
+    element.querySelector<HTMLButtonElement>(".notebook-open")!.click(),
+  );
+  await vi.waitFor(() => expect(requests).toContain("/api/hosts/a/notebooks/n/open"));
+  expect(requests.filter((path) => path.includes("/notebooks/"))).toEqual([
+    "/api/hosts/a/notebooks/n/open",
+  ]);
+});
+
+test("a removed preferred view falls back to Host", async () => {
+  localStorage.setItem("moku:open-with", "removed/view");
+  const { element } = await mount({ kind: "catalog" });
+  await vi.waitFor(() => expect(element.querySelector("select")?.value).toBe("host"));
 });
 
 test("view URLs preserve identifiers and malformed routes stay unavailable", () => {

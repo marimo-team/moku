@@ -19,7 +19,6 @@ export function GraphExplainer({ notebook }: ViewProps) {
 
 function Graph({ notebook }: ViewProps) {
   const { value: state, status, error } = useAtomValue(notebook.state);
-  const name = state.notebook?.name ?? notebook.target.notebookId;
   const [selected, setSelected] = useState("");
   const [expanded, setExpanded] = useState(false);
   const run = newestRun(state);
@@ -43,7 +42,6 @@ function Graph({ notebook }: ViewProps) {
     <div className="dag">
       <section className={`run-view ${expanded ? "expanded" : ""}`}>
         <GraphToolbar
-          name={name}
           runId={run?.id}
           statusLabel={statusLabel}
           active={!!active}

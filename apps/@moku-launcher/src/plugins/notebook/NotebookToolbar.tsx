@@ -3,8 +3,6 @@ import { ConnectionStatus } from "./ConnectionStatus.tsx";
 import { ThemeSelect } from "./appearance/ThemeSelect.tsx";
 
 interface Props {
-  name: string;
-  path: string;
   connection: Pick<Notebook.State, "status" | "error"> & { ready: boolean };
   save?: { pending: boolean; disabled: boolean; onClick: () => void };
   execution?: {
@@ -15,26 +13,10 @@ interface Props {
   };
 }
 
-export function NotebookToolbar({ name, path, connection, save, execution }: Props) {
+export function NotebookToolbar({ connection, save, execution }: Props) {
   return (
     <header className="notebook-heading">
-      <a href="/" className="back-link" aria-label="Back to notebooks">
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="m10 3-5 5 5 5" />
-        </svg>
-      </a>
-      <div className="notebook-title-row">
-        <h1 title={path}>{name}</h1>
+      <div className="notebook-connection">
         <ConnectionStatus
           status={connection.status}
           ready={connection.ready}

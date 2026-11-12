@@ -109,8 +109,6 @@ function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interfa
         cancel={canCancel ? () => cancel() : undefined}
       />
       <NotebookToolbar
-        name={state.notebook?.name ?? "Connecting…"}
-        path={state.notebook?.path ?? notebook.target.notebookId}
         connection={{ status, error, ready: state.ready }}
         save={
           canSave

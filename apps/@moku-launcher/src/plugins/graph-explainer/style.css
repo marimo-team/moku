@@ -9,7 +9,7 @@
   }
   .run-view.expanded {
     position: fixed;
-    inset: 12px;
+    inset: calc(var(--view-header-height, 0px) + 12px) 12px 12px;
     z-index: 5;
     overflow: auto;
   }
@@ -27,10 +27,6 @@
     display: flex;
     gap: 8.94px;
     align-items: center;
-  }
-  .run-name strong {
-    font-weight: 600;
-    color: #4d4d4b;
   }
   .run-name > span {
     color: #999;

@@ -25,4 +25,5 @@ export const server = {
     "--sandbox",
   ],
   cwd: root,
+  env: { UV_OFFLINE: "1" },
 };

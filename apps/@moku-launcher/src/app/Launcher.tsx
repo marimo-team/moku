@@ -1,10 +1,17 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import type { Effect } from "effect";
 import { Atom } from "effect/reactivity";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type * as Workspace from "@moku/core/Workspace";
 import type * as Host from "./Host.ts";
 import { HostNotebooks } from "./HostNotebooks.tsx";
+import {
+  LauncherBar,
+  ViewPicker,
+  HOST_VIEW,
+  preferredView,
+  rememberView,
+} from "./LauncherBar.tsx";
 
 export function Launcher({
   workspace,
@@ -16,6 +23,10 @@ export function Launcher({
   const connections = useAtomValue(workspace.state, (state) => state.connections);
   const discovery = useAtomValue(workspace.state, (state) => state.status);
   const { views, failures } = useAtomValue(host.state);
+  const [preference, setPreference] = useState(preferredView);
+  const selectedView = views.some((view) => view.key === preference)
+    ? preference
+    : HOST_VIEW;
   const refresh = useAtomSet(
     useMemo(
       () => Atom.fn(() => workspace.refresh).pipe(Atom.setIdleTTL(0)),
@@ -24,34 +35,42 @@ export function Launcher({
   );
   return (
     <main className="catalog-page">
-      <header className="catalog-heading">
-        <h1>
-          <img src="/moku-icon.svg" alt="" width="24" height="24" />
-          moku playground
-        </h1>
-        <button
-          type="button"
-          className="refresh-hosts"
-          aria-label="Refresh hosts"
-          title="Refresh hosts"
-          disabled={discovery.pending}
-          onClick={() => refresh()}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M13 6a5 5 0 1 0 0 4M13 2v4H9" />
-          </svg>
-        </button>
-      </header>
+      <LauncherBar
+        actions={
+          <>
+            <ViewPicker
+              value={selectedView}
+              views={views}
+              onChange={(value) => {
+                rememberView(value);
+                setPreference(value);
+              }}
+            />
+            <button
+              type="button"
+              className="refresh-hosts"
+              aria-label="Refresh hosts"
+              title="Refresh hosts"
+              disabled={discovery.pending}
+              onClick={() => refresh()}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M13 6a5 5 0 1 0 0 4M13 2v4H9" />
+              </svg>
+            </button>
+          </>
+        }
+      />
       <div className="catalog-content">
         {discovery.error && (
           <p className="error-banner" role="alert">
@@ -69,7 +88,7 @@ export function Launcher({
               key={connection.id}
               connection={connection}
               workspace={workspace}
-              views={views}
+              selectedView={selectedView}
             />
           ))
         ) : (

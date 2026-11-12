@@ -1,0 +1,70 @@
+import { useEffect } from "react";
+import { useAtomValue } from "@effect/atom-react";
+import { AsyncResult } from "effect/reactivity";
+import type * as Notebook from "@moku/core/Notebook";
+import type * as Workspace from "@moku/core/Workspace";
+import type { RegisteredView } from "./Host.ts";
+import type { Runtime } from "./runtime.ts";
+import { viewHref } from "./routes.ts";
+import { LauncherBar, ViewPicker, rememberView } from "./LauncherBar.tsx";
+
+export function ViewHeader({
+  target,
+  viewKey,
+  views,
+  runtime,
+  workspace,
+}: {
+  target: Notebook.Target;
+  viewKey: string;
+  views: readonly RegisteredView[];
+  runtime: Runtime;
+  workspace: Workspace.Workspace;
+}) {
+  useEffect(() => rememberView(viewKey), [viewKey]);
+  const { connections } = useAtomValue(workspace.state);
+  const connection = connections.find((item) => item.id === target.connectionId);
+  const attachment = useAtomValue(runtime.notebook(target));
+
+  return (
+    <LauncherBar
+      actions={
+        <ViewPicker
+          value={viewKey}
+          views={views}
+          includeHost={false}
+          onChange={(value) => {
+            rememberView(value);
+            window.location.assign(viewHref(target, value));
+          }}
+        />
+      }
+    >
+      <span aria-hidden="true">/</span>
+      <span className="view-host" title={connection?.url ?? target.connectionId}>
+        {connection?.name ?? target.connectionId}
+      </span>
+      <span aria-hidden="true">/</span>
+      {AsyncResult.isSuccess(attachment) ? (
+        <NotebookName notebook={attachment.value} />
+      ) : (
+        <span className="view-notebook" aria-current="page">
+          {target.notebookId}
+        </span>
+      )}
+    </LauncherBar>
+  );
+}
+
+function NotebookName({ notebook }: { notebook: Notebook.Interface }) {
+  const { value } = useAtomValue(notebook.state);
+  return (
+    <span
+      className="view-notebook"
+      aria-current="page"
+      title={value.notebook?.path ?? notebook.target.notebookId}
+    >
+      {value.notebook?.name ?? notebook.target.notebookId}
+    </span>
+  );
+}

@@ -1,10 +1,7 @@
 @import "@fontsource-variable/inter";
-.view-page:has(.moku-notebook) {
+.view-content:has(.moku-notebook) {
   padding: 0;
   max-width: none;
-}
-.view-page:has(.moku-notebook) > .back-link {
-  display: none;
 }
 @scope (.moku-notebook) to (.moku-display) {
   :scope {
@@ -183,14 +180,14 @@
     display: flex;
     color: var(--color-faint);
   }
-  /* The title, code blocks, and footer share the same content column. */
+  /* The controls, code blocks, and footer share the same content column. */
   .notebook-screen {
     --notebook-inset: max(
       var(--panel-inset),
       calc((100% - var(--notebook-width)) / 2 + var(--panel-inset))
     );
     width: 100%;
-    height: 100dvh;
+    height: calc(100dvh - var(--view-header-height, 0px));
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -502,7 +499,7 @@
   }
   .notebook-heading {
     display: grid;
-    grid-template-columns: var(--cell-gutter) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     column-gap: var(--cell-gap);
     align-items: center;
     flex-shrink: 0;
@@ -510,34 +507,12 @@
     padding: var(--space-1) var(--notebook-inset);
     border-bottom: 1px solid var(--color-hairline);
   }
-  .back-link {
-    display: grid;
-    place-items: center;
-    min-height: var(--control-size);
-    text-decoration: none;
-    color: var(--color-muted);
-    white-space: nowrap;
-    border-radius: var(--radius-sm);
-  }
-  .back-link:hover {
-    color: var(--color-ink);
-    background: var(--color-surface-subtle);
-  }
-  .notebook-title-row {
-    grid-column: 2;
+  .notebook-connection {
     display: flex;
     align-items: center;
     gap: var(--space-4);
     min-width: 0;
     min-height: var(--leading-title);
-  }
-  .notebook-title-row h1 {
-    font-size: var(--text-title);
-    line-height: var(--leading-title);
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .notebook-access {
     color: var(--color-muted);
@@ -576,12 +551,9 @@
       border: 0;
       border-radius: 0;
     }
-    .notebook-title-row {
+    .notebook-connection {
       gap: var(--space-2);
       flex-wrap: wrap;
-    }
-    .notebook-title-row h1 {
-      max-width: 100%;
     }
   }
   @media (max-width: 600px) {
@@ -590,7 +562,6 @@
       --cell-gap: 0px;
     }
     .notebook-heading {
-      grid-template-columns: var(--control-size) minmax(0, 1fr) auto;
       column-gap: var(--space-2);
     }
     .cell {
@@ -877,14 +848,14 @@
     box-shadow: 0 4px 16px #00000018;
   }
   /* A changing connection label must not grow the notebook header. */
-  .notebook-title-row {
+  .notebook-connection {
     flex-wrap: nowrap;
   }
-  .notebook-title-row .connection-status-menu {
+  .notebook-connection .connection-status-menu {
     flex-shrink: 0;
     max-width: 110px;
   }
-  .notebook-title-row > .connection-status {
+  .notebook-connection > .connection-status {
     max-width: 110px;
     white-space: nowrap;
     overflow: hidden;
@@ -919,8 +890,5 @@
   }
   :scope {
     font-size: var(--text-control);
-  }
-  .back-link {
-    margin-bottom: 0;
   }
 }

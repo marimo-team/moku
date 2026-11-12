@@ -1,5 +1,4 @@
 interface Props {
-  name: string;
   runId?: string;
   statusLabel: string;
   active: boolean;
@@ -13,7 +12,6 @@ interface Props {
 }
 
 export function GraphToolbar({
-  name,
   runId,
   statusLabel,
   active,
@@ -28,7 +26,6 @@ export function GraphToolbar({
   return (
     <header className="run-header">
       <div className="run-name">
-        <strong>{name.replace(/\.py$/, "")}</strong>
         <span>
           {runId ? `Run ${runId.replace(/^run-/, "").slice(0, 8)}` : "No run yet"}
         </span>

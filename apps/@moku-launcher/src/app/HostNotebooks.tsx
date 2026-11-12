@@ -1,31 +1,34 @@
 import type * as Workspace from "@moku/core/Workspace";
-import type { RegisteredView } from "./Host.ts";
 import { useCatalog } from "./catalog.ts";
 import { NotebookRow } from "./NotebookRow.tsx";
 
 export function HostNotebooks({
   connection,
   workspace,
-  views,
+  selectedView,
 }: {
   connection: Workspace.Connection;
   workspace: Workspace.Workspace;
-  views: readonly RegisteredView[];
+  selectedView: string;
 }) {
   const catalog = useCatalog(workspace, connection.id);
   const notebooks = catalog.notebooks.toSorted((a, b) => a.name.localeCompare(b.name));
+  const address = new URL(connection.url);
   return (
     <section className="host-section" aria-label={connection.name}>
       <header className="host-heading">
-        <h2 title={connection.url}>{connection.name}</h2>
-        {connection.name !== new URL(connection.url).host && (
-          <span className="host-address">{new URL(connection.url).host}</span>
-        )}
-        <span className="host-count">
-          {catalog.ready
-            ? `${notebooks.length} ${notebooks.length === 1 ? "notebook" : "notebooks"}`
-            : "Connecting…"}
-        </span>
+        <h2 title={`${connection.name} · ${connection.url}`}>
+          {address.host}
+          {address.pathname === "/" ? "" : address.pathname}
+        </h2>
+        <div className="host-facts">
+          {connection.pid !== undefined && <span>PID {connection.pid}</span>}
+          <span>
+            {catalog.ready
+              ? `${notebooks.length} ${notebooks.length === 1 ? "notebook" : "notebooks"}`
+              : "Reading…"}
+          </span>
+        </div>
       </header>
       {catalog.error && (
         <p className="error-banner" role="alert">
@@ -40,7 +43,7 @@ export function HostNotebooks({
               notebook={notebook}
               connectionId={connection.id}
               workspace={workspace}
-              views={views}
+              selectedView={selectedView}
             />
           ))}
         </ul>

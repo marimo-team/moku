@@ -6,6 +6,8 @@ import { ViewInstance, ViewErrorBoundary } from "./ViewInstance.tsx";
 import type { Runtime } from "./runtime.ts";
 import type { Route } from "./routes.ts";
 import type * as Host from "./Host.ts";
+import { ViewHeader } from "./ViewHeader.tsx";
+import { LauncherBar } from "./LauncherBar.tsx";
 
 export function App({ runtime, route }: { runtime: Runtime; route: Route }) {
   const workspace = useAtomValue(runtime.workspace);
@@ -45,16 +47,23 @@ function WorkspaceApp({
   return route.kind === "catalog" ? (
     <Launcher workspace={workspace} host={host.value} />
   ) : (
-    <ViewPage runtime={runtime} state={host.value.state} route={route} />
+    <ViewPage
+      runtime={runtime}
+      workspace={workspace}
+      state={host.value.state}
+      route={route}
+    />
   );
 }
 
 function ViewPage({
   runtime,
+  workspace,
   state,
   route,
 }: {
   runtime: Runtime;
+  workspace: Workspace.Workspace;
   state: Atom.Atom<Host.State>;
   route: Exclude<Route, { kind: "catalog" }>;
 }) {
@@ -64,26 +73,38 @@ function ViewPage({
       ? views.find((view) => view.key === route.viewKey)
       : undefined;
   return (
-    <main className="view-page">
-      <a className="back-link" href="/">
-        ← Notebooks
-      </a>
-      {route.kind === "view" && view ? (
-        <ViewErrorBoundary>
-          <ViewInstance target={route.target} view={view} runtime={runtime} />
-        </ViewErrorBoundary>
+    <div className="view-page">
+      {route.kind === "view" ? (
+        <ViewHeader
+          target={route.target}
+          viewKey={route.viewKey}
+          views={views}
+          runtime={runtime}
+          workspace={workspace}
+        />
       ) : (
-        <div className="empty-state">
-          <h1>
-            {route.kind === "missing" ? "Page not found." : "This view is unavailable."}
-          </h1>
-          {failures.map((failure, index) => (
-            <p key={`${failure.pluginId}:${index}`} role="alert">
-              {failure.message}
-            </p>
-          ))}
-        </div>
+        <LauncherBar />
       )}
-    </main>
+      <main className="view-content">
+        {route.kind === "view" && view ? (
+          <ViewErrorBoundary>
+            <ViewInstance target={route.target} view={view} runtime={runtime} />
+          </ViewErrorBoundary>
+        ) : (
+          <div className="empty-state">
+            <h1>
+              {route.kind === "missing"
+                ? "Page not found."
+                : "This view is unavailable."}
+            </h1>
+            {failures.map((failure, index) => (
+              <p key={`${failure.pluginId}:${index}`} role="alert">
+                {failure.message}
+              </p>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
   );
 }

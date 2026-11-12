@@ -1,7 +1,7 @@
 import { Atom } from "effect/reactivity";
 
 export type Preference = "system" | "light" | "dark";
-export type Appearance = Exclude<Preference, "system">;
+type Appearance = Exclude<Preference, "system">;
 const storageKey = "moku:notebook:theme";
 
 function readPreference(): Preference {

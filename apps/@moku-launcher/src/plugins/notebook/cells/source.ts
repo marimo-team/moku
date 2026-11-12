@@ -44,9 +44,3 @@ export function write(source: Source, code: string): string {
       return code;
   }
 }
-
-export function sameMetadata(a: Source, b: Source): boolean {
-  if (a.language !== b.language) return false;
-  if (a.language === "python" || b.language === "python") return true;
-  return JSON.stringify(a.metadata) === JSON.stringify(b.metadata);
-}

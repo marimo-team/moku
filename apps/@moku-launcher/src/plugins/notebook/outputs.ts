@@ -7,6 +7,7 @@ export interface Selection {
   readonly runtimeId: string | null;
   readonly current: ReadonlyMap<string, Protocol.ExecutionOutput>;
   readonly results: ReadonlyMap<string, Protocol.ExecutionOutput>;
+  readonly outputs: ReadonlyMap<string, readonly Outputs.Item[]>;
 }
 const time = (execution: Protocol.ExecutionOutput) =>
   Date.parse(execution.started_at ?? execution.completed_at ?? "") || 0;
@@ -44,7 +45,7 @@ export function select(state: Notebook.Snapshot, previous?: Selection): Selectio
     const old = results.get(id);
     if (!old || time(execution) >= time(old)) results.set(id, execution);
   }
-  return { runtimeId, current, results };
+  return { runtimeId, current, results, outputs: Outputs.index(state) };
 }
 
 export function forCell(
@@ -55,7 +56,7 @@ export function forCell(
   const current = selection.current.get(cellId);
   const result = selection.results.get(cellId);
   const outputs = current
-    ? Outputs.forExecution(state, current.id)
+    ? Outputs.forExecution(state, current.id, selection.outputs)
     : { runtimeId: result?.runtime_id ?? null, items: [], outcome: null };
   const outcome =
     current && current.status !== "completed" && current.outcome !== null

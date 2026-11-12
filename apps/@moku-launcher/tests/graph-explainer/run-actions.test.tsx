@@ -206,6 +206,63 @@ Vitest.test(
   },
 );
 
+Vitest.test(
+  "runs enabled cells in document order with their latest etags",
+  async () => {
+    const f = await fixture();
+    await f.click();
+    await React.act(async () =>
+      f.registry.update(f.state, (s) => ({
+        ...s,
+        value: {
+          ...s.value,
+          document: { ...s.value.document!, order: ["last", "disabled", "c"] },
+          cells: {
+            c: s.value.cells.c,
+            last: { ...s.value.cells.c, id: "last", etag: "latest" },
+            disabled: {
+              ...s.value.cells.c,
+              id: "disabled",
+              config: { ...s.value.cells.c.config, disabled: true },
+            },
+          },
+        },
+      })),
+    );
+    await f.ready();
+    Vitest.expect(f.run.mock.calls[0]).toEqual([
+      {
+        request: {
+          cells: [
+            { id: "last", etag: "latest" },
+            { id: "c", etag: "before-start" },
+          ],
+        },
+        requestId: Vitest.expect.any(String),
+      },
+    ]);
+  },
+);
+
+Vitest.test("a removed cell prevents submitting a partial run", async () => {
+  const f = await fixture();
+  await f.click();
+  await React.act(async () =>
+    f.registry.update(f.state, (s) => ({
+      ...s,
+      value: {
+        ...s.value,
+        document: { ...s.value.document!, order: ["c", "removed"] },
+      },
+    })),
+  );
+  await f.ready();
+  Vitest.expect(f.run).not.toHaveBeenCalled();
+  Vitest.expect(f.element.querySelector('[role="alert"]')!.textContent).toContain(
+    "removed",
+  );
+});
+
 Vitest.test("failed startup reports the error without submitting cells", async () => {
   const f = await fixture();
   await f.click();

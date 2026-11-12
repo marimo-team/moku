@@ -96,7 +96,7 @@ export function updateTimelineScale(
   };
 }
 
-export function easeOut(elapsed: number) {
+function easeOut(elapsed: number) {
   const progress = Math.min(1, Math.max(0, elapsed) / ANIMATION_MS);
   return 1 - (1 - progress) ** 3;
 }

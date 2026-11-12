@@ -6,7 +6,7 @@
 import * as NodeCrypto from "node:crypto";
 import * as NodeBuffer from "node:buffer";
 import type * as NodeHttp from "node:http";
-import * as NodeStream from "node:stream";
+import * as Forward from "./internal/forward.ts";
 import * as MarimoNode from "@marimo-team/client/node";
 import { json, readBody } from "./internal/http.ts";
 import type { ManagedServer } from "./internal/managed.ts";
@@ -261,20 +261,7 @@ export function createApi({
         if (value !== null) upstream.searchParams.set(key, value);
       }
     }
-    const controller = new AbortController();
-    // Raw SSE comments count as activity even when no notebook state changes.
-    const abort = () => controller.abort();
-    let idle = setTimeout(abort, 45_000);
-    const heartbeat = () => {
-      clearTimeout(idle);
-      idle = setTimeout(abort, 45_000);
-    };
-    requests.set(controller, res);
-    res.once("close", () => {
-      clearTimeout(idle);
-      controller.abort();
-      requests.delete(controller);
-    });
+    const forward = Forward.create(res, requests);
     try {
       const headers = new Headers();
       if (host.token) headers.set("Authorization", `Bearer ${host.token}`);
@@ -295,7 +282,7 @@ export function createApi({
         method: req.method,
         headers,
         body,
-        signal: controller.signal,
+        signal: forward.signal,
         redirect: "error",
       });
       if (open && response.ok) {
@@ -303,18 +290,7 @@ export function createApi({
         await response.body?.cancel();
         return json(res, 200, { success: true });
       }
-      res.writeHead(response.status, {
-        "Content-Type": response.headers.get("content-type") ?? "application/json",
-        "Cache-Control": "no-store",
-        "X-Accel-Buffering": "no",
-      });
-      res.flushHeaders();
-      if (response.body) {
-        const stream = NodeStream.Readable.from(response.body.values());
-        stream.on("data", heartbeat);
-        stream.on("error", () => res.destroy());
-        stream.pipe(res);
-      } else res.end();
+      forward.pipe(response, "application/json");
     } catch {
       if (!res.destroyed) {
         if (res.headersSent) res.destroy();

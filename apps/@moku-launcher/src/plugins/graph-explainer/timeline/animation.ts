@@ -18,7 +18,7 @@ interface RowAnimation {
   endOffset: OffsetAnimation;
 }
 
-export interface TimeSpan {
+interface TimeSpan {
   start: number;
   end: number;
   open: boolean;

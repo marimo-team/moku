@@ -131,7 +131,7 @@ export function CodeEditor({
 }
 
 /** Cmd/Ctrl+Enter stays in place; Shift+Enter advances after submission. */
-export function cellRunKeymap(run: (advance: boolean) => void) {
+function cellRunKeymap(run: (advance: boolean) => void) {
   return CodeMirrorState.Prec.highest(
     CodeMirrorView.keymap.of(
       ["Mod-Enter", "Ctrl-Enter", "Shift-Enter"].map((key) => ({

@@ -127,7 +127,7 @@ function applyEdit(cell: EditableCell, edit: CellEdit): EditableCell {
   };
 }
 
-export function sameCell(a: EditableCell, b: EditableCell): boolean {
+function sameCell(a: EditableCell, b: EditableCell): boolean {
   return (
     a.id === b.id &&
     a.code === b.code &&

@@ -5,7 +5,7 @@ import * as NodePath from "node:path";
 import * as Marimo from "./marimo.ts";
 
 if (!/^[a-f0-9]{40}$/.test(Marimo.revision)) {
-  throw new Error("Set marimo.json revision to a full GitHub commit SHA.");
+  throw new Error("Set package.json marimo.revision to a full GitHub commit SHA.");
 }
 const env = { ...process.env };
 // This subprocess selects a different workspace's package-manager pin.
@@ -47,7 +47,9 @@ if (!Marimo.local) {
     git("rev-parse", "HEAD") !== Marimo.revision ||
     git("status", "--porcelain", "--untracked-files=no")
   ) {
-    throw new Error(`Expected an unmodified checkout of ${Marimo.revision} at ${Marimo.checkout}.`);
+    throw new Error(
+      `Expected an unmodified checkout of ${Marimo.revision} at ${Marimo.checkout}.`,
+    );
   }
 }
 const revision = git("rev-parse", "HEAD");
@@ -89,7 +91,9 @@ for (const [name, content] of [
 ] as const) {
   const source = NodePath.join(Marimo.checkout, "packages", name);
   const destination = NodePath.join(Marimo.root, "vendor", name);
-  const manifest = JSON.parse(await NodeFs.readFile(NodePath.join(source, "package.json"), "utf8"));
+  const manifest = JSON.parse(
+    await NodeFs.readFile(NodePath.join(source, "package.json"), "utf8"),
+  );
   delete manifest.scripts;
   delete manifest.devDependencies;
   manifest.version = `${manifest.version}-moku.${revision}`;

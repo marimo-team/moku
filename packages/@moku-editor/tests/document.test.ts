@@ -53,6 +53,46 @@ test("flush callers share one immutable submission", async () => {
   expect(h.calls).toHaveLength(1);
 });
 
+for (const newerTyping of [false, true]) {
+  test(`late confirmation recovers without retry (newer typing: ${newerTyping})`, async () => {
+    vi.useFakeTimers();
+    onTestFinished(() => vi.useRealTimers());
+    const h = await setup();
+    h.change("accepted");
+    const flushed = Effect.runPromiseExit(h.model.flush);
+    await vi.waitFor(() => expect(h.calls).toHaveLength(1));
+    h.calls[0].respond(2);
+    await vi.waitFor(() =>
+      expect(h.registry.get(h.model.state).status.status).toBe("confirming"),
+    );
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect((await flushed)._tag).toBe("Failure");
+    expect(h.registry.get(h.model.state).status.status).toBe("error");
+
+    if (newerTyping) h.change("newer");
+    h.publish("accepted", 2);
+    if (newerTyping) {
+      expect(h.code()).toBe("newer");
+      await vi.waitFor(() => expect(h.calls).toHaveLength(2));
+      expect(h.calls[1].key).not.toBe(h.calls[0].key);
+      expect(h.calls[1].request.changes[0]).toMatchObject({
+        base_etag: "cell-v2",
+        cell: { code: "newer" },
+      });
+      h.calls[1].respond(3);
+      h.publish("newer", 3);
+    }
+    await vi.waitFor(() =>
+      expect(h.registry.get(h.model.state).status.status).toBe("idle"),
+    );
+    expect(h.registry.get(h.model.state).dirty).toBe(false);
+    const confirmed = await Effect.runPromise(h.model.flush);
+    expect(confirmed.revision.version).toBe(newerTyping ? 3 : 2);
+    expect(h.calls).toHaveLength(newerTyping ? 2 : 1);
+    await h.close();
+  });
+}
+
 test("transactions roll back, reject async callbacks, and cannot escape", async () => {
   const h = await setup();
   let escaped: Document.Editor | undefined;

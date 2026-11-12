@@ -1,7 +1,7 @@
 /** Select the upstream source shared by setup, outputs, and the dev server. @module */
 import * as NodePath from "node:path";
 import * as NodeUrl from "node:url";
-import config from "../marimo.json";
+import { marimo as config } from "../package.json";
 
 export const root = NodeUrl.fileURLToPath(new URL("../", import.meta.url));
 export const repository = config.repository;

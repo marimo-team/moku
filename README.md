@@ -1,4 +1,10 @@
-<h1 align="center">moku</h1>
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/moku-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/moku-light.svg">
+    <img src="assets/moku-light.svg" width="360" height="200" alt="moku">
+  </picture>
+</h1>
 
 <p align="center">
   <sub>/ˈmo.ku/</sub>

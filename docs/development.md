@@ -20,7 +20,7 @@ MARIMO_CHECKOUT=../marimo bun dev
 ```
 
 Rerun setup when switching sources. The override does not change the GitHub pin.
-The development server opens `examples/` and discovers other running hosts.
+The development server opens `notebooks/` and discovers other running hosts.
 Configure its command in [marimo.ts](../scripts/marimo.ts).
 
 Register views in

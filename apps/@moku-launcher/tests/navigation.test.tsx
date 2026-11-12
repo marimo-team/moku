@@ -36,7 +36,7 @@ async function mount(route: Route) {
             id: "n",
             project_id: "p",
             name: "example.py",
-            path: "examples/example.py",
+            path: "notebooks/example.py",
             operations: [],
             updated_at: null,
           };

@@ -10,7 +10,7 @@ const options: Options = {
   clientName: "moku",
   server: {
     command: "uv",
-    args: ["run", "--project", "../marimo", "marimo", "edit", "examples"],
+    args: ["run", "--project", "../marimo", "marimo", "edit", "notebooks"],
   },
 };
 

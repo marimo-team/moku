@@ -1,6 +1,8 @@
-<h1 align="center">moku <sub>/ˈmo.ku/</sub></h1>
+<h1 align="center">moku</h1>
 
 <p align="center">
+  <sub>/ˈmo.ku/</sub>
+  <br>
   building blocks for a <a href="https://wehe.hilo.hawaii.edu/?q=moku">“forest”</a> of marimo clients.
 </p>
 

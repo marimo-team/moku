@@ -23,7 +23,7 @@ export const server = {
     "marimo",
     "--quiet",
     "edit",
-    "examples",
+    "notebooks",
     "--sandbox",
   ],
   cwd: root,

@@ -30,7 +30,7 @@ export interface Options {
  * marimo({
  *   server: {
  *     command: "uv",
- *     args: ["run", "--project", "../marimo", "marimo", "edit", "examples"],
+ *     args: ["run", "--project", "../marimo", "marimo", "edit", "notebooks"],
  *   },
  * });
  * ```

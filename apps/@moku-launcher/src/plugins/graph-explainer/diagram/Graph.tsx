@@ -28,13 +28,12 @@ export function Row({
   onHover,
   onRun,
 }: RowProps) {
-  const isGroup = row.kind === "group";
   const rerunTitle =
     runDisabled || (row.disabled ? "This cell is disabled" : `Rerun ${row.label}`);
   return (
     <div className="graph-row-wrap">
       <button
-        className={`graph-row ${row.status} ${row.depth ? "child-row" : ""} ${selected ? "selected" : ""}`}
+        className={`graph-row ${row.status} ${selected ? "selected" : ""}`}
         onMouseEnter={() => onHover(row.id)}
         onMouseLeave={() => onHover(null)}
         onFocus={() => onHover(row.id)}
@@ -55,7 +54,6 @@ export function Row({
               ⚠
             </span>
           )}
-          {isGroup && <span className="row-chevron">{expanded ? "⌄" : "›"}</span>}
         </div>
         <div className="progress-value">{row.progress}</div>
         <Timeline.Bar
@@ -64,31 +62,23 @@ export function Row({
           status={row.status}
         />
       </button>
-      {!isGroup && (
-        <button
-          className="cell-rerun"
-          aria-label={`Rerun ${row.label}`}
-          title={rerunTitle}
-          disabled={!!runDisabled || row.disabled}
-          onClick={onRun}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M20 7v5h-5M20 12a8 8 0 1 0-2.34 5.66"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-      )}
+      <button
+        className="cell-rerun"
+        aria-label={`Rerun ${row.label}`}
+        title={rerunTitle}
+        disabled={!!runDisabled || row.disabled}
+        onClick={onRun}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M20 7v5h-5M20 12a8 8 0 1 0-2.34 5.66"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
     </div>
   );
 }

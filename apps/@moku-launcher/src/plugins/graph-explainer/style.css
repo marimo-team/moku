@@ -238,14 +238,6 @@
   .variable-icon {
     font-size: 10.43px;
   }
-  .row-chevron {
-    visibility: visible;
-    color: #a1a19c;
-  }
-  .graph-row:hover .row-chevron,
-  .graph-row.selected .row-chevron {
-    visibility: visible;
-  }
   .warning {
     color: #b5975f;
   }
@@ -545,10 +537,6 @@
     }
   }
 
-  .child-row .cell-label {
-    position: relative;
-  }
-
   .connection .edge {
     stroke: #d2d2d0;
     stroke-width: 1.5;
@@ -572,75 +560,6 @@
     align-items: center;
     justify-content: space-between;
     padding-right: 18px;
-  }
-  .groups-toggle {
-    border: 0;
-    background: none;
-    padding: 2px 6px;
-    font-size: 11px;
-    color: #aaa;
-  }
-  .groups-toggle:hover {
-    color: #555;
-  }
-  .group-editor {
-    padding: 16px 22px;
-    background: #fafafa;
-    border-bottom: 1px solid #e5e5e5;
-    font-size: 12px;
-  }
-  .group-editor-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .group-editor p {
-    color: #888;
-    max-width: 580px;
-    line-height: 1.5;
-  }
-  .group-cell-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px 20px;
-    margin: 16px 0;
-  }
-  .group-cell-list label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .group-cell-list input {
-    accent-color: #777;
-  }
-  .group-create {
-    display: flex;
-    gap: 8px;
-  }
-  .group-create input {
-    width: 220px;
-    border: 1px solid #ddd;
-    border-radius: 3px;
-    padding: 6px 8px;
-  }
-  .group-create button,
-  .saved-group button {
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 3px;
-    padding: 5px 8px;
-  }
-  .saved-group {
-    display: flex;
-    gap: 14px;
-    align-items: center;
-    margin: 8px 0;
-  }
-  .saved-group span:nth-child(2) {
-    color: #999;
-  }
-  .group-editor .group-error {
-    color: #a8645a;
   }
   .connection {
     --connection-color: #d2d2d0;

@@ -2,16 +2,8 @@ import type { Edge } from "./dependencies.ts";
 
 export const ROW_HEIGHT = 30;
 const LANE_SPACING = 24;
-export interface ViewGroup {
-  id: string;
-  label: string;
-  members: string[];
-}
 export interface RailRow {
   id: string;
-  members: string[];
-  label?: string;
-  depth: number;
   x: number;
   labelX: number;
 }
@@ -103,123 +95,19 @@ export function layoutGraph(ids: string[], edges: Edge[]) {
   return { order, lanes, count: Math.max(1, occupiedUntil.length), feedback };
 }
 
-function projectedEdges(edges: Edge[], owners: Map<string, string>) {
-  const merged = new Map<string, Edge>();
-  for (const edge of edges) {
-    const from = owners.get(edge.from),
-      to = owners.get(edge.to);
-    if (!from || !to || from === to) continue;
-    const key = JSON.stringify([from, to]);
-    merged.set(key, {
-      from,
-      to,
-      names: [...new Set([...(merged.get(key)?.names ?? []), ...edge.names])],
-    });
-  }
-  return [...merged.values()];
-}
-
-export function validateGroup(
-  groups: ViewGroup[],
-  members: string[],
-  edges: Edge[],
-): string | null {
-  const selected = new Set(members);
-  if (selected.size < 2) return "Choose at least two cells.";
-  for (const group of groups) {
-    const overlap = group.members.filter((id) => selected.has(id)).length;
-    if (overlap === selected.size && overlap === group.members.length)
-      return "These cells already form a group.";
-    if (overlap && overlap !== selected.size && overlap !== group.members.length)
-      return "Groups must be nested or separate. Include the whole existing group.";
-  }
-  // Collapsing a group must not conceal a dependency that leaves and re-enters it.
-  const outside = edges
-    .filter((edge) => selected.has(edge.from) && !selected.has(edge.to))
-    .map((edge) => edge.to);
-  const seen = new Set<string>();
-  while (outside.length) {
-    const id = outside.pop()!;
-    if (selected.has(id))
-      return "Include the intermediate cells so dependencies do not leave and re-enter the group.";
-    if (seen.has(id)) continue;
-    seen.add(id);
-    outside.push(...edges.filter((edge) => edge.from === id).map((edge) => edge.to));
-  }
-  return null;
-}
-
-export function layoutView(
-  order: string[],
-  edges: Edge[],
-  groups: ViewGroup[],
-  closed: Set<string>,
-) {
-  const rows: RailRow[] = [];
-  const connections: Array<Edge & { feedback: boolean; returnX: number }> = [];
+export function layoutView(order: string[], edges: Edge[]) {
   const available = new Set(order);
-  const validGroups: ViewGroup[] = [];
-  for (const group of groups) {
-    const members = [...new Set(group.members.filter((id) => available.has(id)))];
-    if (!validateGroup(validGroups, members, edges))
-      validGroups.push({ ...group, members });
-  }
-  function scope(
-    members: string[],
-    candidates: ViewGroup[],
-    depth: number,
-    originX: number,
-  ) {
-    const roots = candidates.filter(
-      (group) =>
-        !candidates.some(
-          (parent) =>
-            parent !== group &&
-            group.members.every((id) => parent.members.includes(id)),
-        ),
-    );
-    const owners = new Map(
-      members.map((id) => [
-        id,
-        roots.find((group) => group.members.includes(id))?.id ?? id,
-      ]),
-    );
-    const ids = [...new Set(members.map((id) => owners.get(id)!))];
-    const localEdges = projectedEdges(edges, owners);
-    const placement = layoutGraph(ids, localEdges);
-    const width = Math.max(40, 26 + (placement.count - 1) * LANE_SPACING);
-    const labelX = originX + width + 16;
-    const returnX = originX - 8;
-    for (const edge of localEdges)
-      connections.push({
-        ...edge,
-        feedback: placement.feedback.has(edge),
-        returnX,
-      });
-    for (const id of placement.order) {
-      const group = roots.find((group) => group.id === id);
-      rows.push({
-        id,
-        members: group?.members ?? [id],
-        label: group?.label,
-        depth,
-        x: originX + width - 6 - placement.lanes.get(id)! * LANE_SPACING,
-        labelX,
-      });
-      if (group && !closed.has(id))
-        scope(
-          members.filter((member) => group.members.includes(member)),
-          candidates.filter(
-            (candidate) =>
-              candidate !== group &&
-              candidate.members.every((member) => group.members.includes(member)),
-          ),
-          depth + 1,
-          labelX - 4,
-        );
-    }
-  }
-  scope(order, validGroups, 0, 8);
+  const connections = edges.filter(
+    (edge) =>
+      edge.from !== edge.to && available.has(edge.from) && available.has(edge.to),
+  );
+  const placement = layoutGraph(order, connections);
+  const width = Math.max(40, 26 + (placement.count - 1) * LANE_SPACING);
+  const rows: RailRow[] = placement.order.map((id) => ({
+    id,
+    x: width + 2 - placement.lanes.get(id)! * LANE_SPACING,
+    labelX: width + 24,
+  }));
   const positions = new Map(
     rows.map((row, index) => [
       row.id,
@@ -229,10 +117,12 @@ export function layoutView(
   const routes: RailEdge[] = connections.map((edge) => {
     const source = positions.get(edge.from)!,
       target = positions.get(edge.to)!;
-    if (edge.feedback) {
-      const x = Math.max(3, edge.returnX);
+    const feedback = placement.feedback.has(edge);
+    if (feedback) {
+      const x = 3;
       return {
         ...edge,
+        feedback,
         path: `M ${source.x - 7} ${source.y} H ${x} V ${target.y} H ${target.x - 12}`,
         arrow: `M ${target.x - 7} ${target.y} l -5 -3.5 v 7 Z`,
       };
@@ -240,6 +130,7 @@ export function layoutView(
     if (source.x === target.x)
       return {
         ...edge,
+        feedback,
         path: `M ${source.x} ${source.y + 7} V ${target.y - 12}`,
         arrow: `M ${target.x} ${target.y - 7} l -3.5 -5 h 7 Z`,
       };
@@ -249,6 +140,7 @@ export function layoutView(
     const radius = Math.max(0, Math.min(8, Math.abs(stem - source.x) - 4));
     return {
       ...edge,
+      feedback,
       path: `M ${source.x} ${source.y + 7} V ${target.y - radius} Q ${source.x} ${target.y} ${source.x + direction * radius} ${target.y} H ${stem}`,
       arrow: `M ${tip} ${target.y} l ${-direction * 5} -3.5 v 7 Z`,
     };

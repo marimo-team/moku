@@ -55,7 +55,6 @@ export function GraphExplainer({ notebook }: ViewProps) {
           <DependencyGraph
             onRunCell={(cellId) => action("run", cellId)}
             runDisabled={cellRunDisabled}
-            groupKey={`dag:groups:${encodeURIComponent(notebook.target.connectionId)}:${encodeURIComponent(notebook.target.notebookId)}`}
             state={state}
             run={run}
             selected={selected}

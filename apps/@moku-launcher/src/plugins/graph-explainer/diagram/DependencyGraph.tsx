@@ -5,8 +5,6 @@ import * as Timeline from "../timeline/Timeline.tsx";
 import { useTimeline } from "../timeline/useTimeline.ts";
 import { dependencyGraph } from "./dependencies.ts";
 import * as Graph from "./Graph.tsx";
-import { GroupEditor } from "./GroupEditor.tsx";
-import { useGroups } from "./useGroups.ts";
 import { layoutView } from "./layout.ts";
 import { createGraphView } from "./view.ts";
 
@@ -15,7 +13,6 @@ interface DependencyGraphProps {
   run: Protocol.RunOutput | undefined;
   selected: string;
   onSelect: (id: string) => void;
-  groupKey: string;
   onRunCell: (id: string) => void;
   runDisabled: string;
 }
@@ -25,7 +22,6 @@ export function DependencyGraph({
   run,
   selected,
   onSelect,
-  groupKey,
   onRunCell,
   runDisabled,
 }: DependencyGraphProps) {
@@ -33,29 +29,14 @@ export function DependencyGraph({
     () => dependencyGraph(state),
     [state.document, state.analysis, state.cells],
   );
-  const [groups, setGroups] = useGroups(groupKey);
-  const [editingGroups, setEditingGroups] = React.useState(false);
-  const [closedGroups, setClosedGroups] = React.useState<Set<string>>(new Set());
   const [collapsed, setCollapsed] = React.useState(false);
   const [hovered, setHovered] = React.useState<string | null>(null);
-  const layout = React.useMemo(
-    () => layoutView(graph.order, graph.edges, groups, closedGroups),
-    [graph, groups, closedGroups],
-  );
+  const layout = React.useMemo(() => layoutView(graph.order, graph.edges), [graph]);
   const view = React.useMemo(
     () => createGraphView(state, run, layout.rows, graph.current),
     [state, run, layout.rows, graph.current],
   );
   const timeline = useTimeline(view.timeline);
-
-  function toggleGroup(id: string) {
-    setClosedGroups((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
 
   return (
     <>
@@ -65,15 +46,6 @@ export function DependencyGraph({
             ? "Waiting for the updated dependency graph…"
             : "Waiting for dependency analysis…"}
         </div>
-      )}
-      {editingGroups && (
-        <GroupEditor
-          state={state}
-          edges={graph.edges}
-          groups={groups}
-          onChange={setGroups}
-          onClose={() => setEditingGroups(false)}
-        />
       )}
       <div className="graph-scroll">
         <div className="notebook-graph">
@@ -91,13 +63,6 @@ export function DependencyGraph({
                     {view.runningCount} running
                   </span>
                 )}
-              </button>
-              <button
-                className="groups-toggle"
-                title="Name and organize notebook groups"
-                onClick={() => setEditingGroups(!editingGroups)}
-              >
-                Groups
               </button>
             </div>
             <div>Progress</div>
@@ -117,20 +82,12 @@ export function DependencyGraph({
                   key={row.id}
                   row={row}
                   selected={selected === row.id}
-                  expanded={
-                    row.kind === "group"
-                      ? !closedGroups.has(row.id)
-                      : selected === row.id
-                  }
+                  expanded={selected === row.id}
                   timeline={timeline}
                   runDisabled={runDisabled}
                   onHover={setHovered}
                   onRun={() => onRunCell(row.id)}
-                  onActivate={() =>
-                    row.kind === "group"
-                      ? toggleGroup(row.id)
-                      : onSelect(selected === row.id ? "" : row.id)
-                  }
+                  onActivate={() => onSelect(selected === row.id ? "" : row.id)}
                 />
               ))}
               <Timeline.Playhead position={timeline.playhead} />

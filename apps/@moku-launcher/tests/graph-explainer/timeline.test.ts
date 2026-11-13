@@ -14,19 +14,19 @@ import {
   type TimelineInput,
 } from "../../src/plugins/graph-explainer/timeline/animation.ts";
 
-Vitest.test("queued children do not make a completed group's timing grow", () => {
-  const executions = [
-    {
-      started_at: "2026-11-05T12:00:00Z",
-      completed_at: "2026-11-05T12:00:01Z",
-    },
-    { started_at: null, completed_at: null },
-  ];
+Vitest.test("completed timings stay fixed and queued executions have no span", () => {
+  const execution = {
+    started_at: "2026-11-05T12:00:00Z",
+    completed_at: "2026-11-05T12:00:01Z",
+  };
   NodeAssert.equal(
-    executionSpan(executions, Date.parse("2026-11-05T13:00:00Z"))?.duration,
+    executionSpan(execution, Date.parse("2026-11-05T13:00:00Z"))?.duration,
     1000,
   );
-  NodeAssert.equal(executionSpan([executions[1]], Date.now()), null);
+  NodeAssert.equal(
+    executionSpan({ started_at: null, completed_at: null }, Date.now()),
+    null,
+  );
 });
 
 Vitest.test("the scale holds its range until elapsed time passes a breakpoint", () => {

@@ -8,6 +8,7 @@ import { makeRuntime } from "./app/runtime.ts";
 import GraphExplainerPlugin from "./plugins/graph-explainer/index.tsx";
 import NotebookEditorPlugin from "./plugins/notebook/index.tsx";
 import BasicPlugin from "./plugins/basic/index.tsx";
+import MinimapPlugin from "./plugins/minimap/index.tsx";
 
 import "./style.css";
 
@@ -18,7 +19,7 @@ if (launchKey) {
 const runtime = makeRuntime({
   baseUrl: location.origin,
   launchKey,
-  plugins: [GraphExplainerPlugin, NotebookEditorPlugin, BasicPlugin],
+  plugins: [GraphExplainerPlugin, NotebookEditorPlugin, BasicPlugin, MinimapPlugin],
 });
 
 const router = ReactRouter.createBrowserRouter([

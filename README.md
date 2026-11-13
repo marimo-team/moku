@@ -15,6 +15,7 @@
 moku is a development playground for building marimo clients entirely on the [host protocol](https://github.com/marimo-team/marimo/blob/main/protocols/host/README.md). The code is **experimental and not for production use**. Examples:
 
 - [**Notebook**](apps/@moku-launcher/src/plugins/notebook/) — a notebook editor with interactive outputs.
+- [**Minimap**](apps/@moku-launcher/src/plugins/minimap/) — a linear view of cell dependencies.
 - [**Graph explainer**](apps/@moku-launcher/src/plugins/graph-explainer/) — a view of cell dependencies and execution.
 
 The clients share connections, notebook state, editing, and output rendering through the [packages](packages/).

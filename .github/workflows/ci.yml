@@ -16,7 +16,7 @@ concurrency:
 jobs:
   ci:
     name: Check and test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-p-small
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7

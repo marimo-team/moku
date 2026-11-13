@@ -147,7 +147,14 @@ function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interfa
                 <Cell
                   key={cellId}
                   cell={cell}
-                  preferenceKey={`moku:source:${notebook.target.connectionId}:${notebook.target.notebookId}:${cellId}`}
+                  onHideCodeChange={
+                    canEdit
+                      ? (hide_code) =>
+                          documentModel.edit((edit) =>
+                            edit.updateConfig(cellId, { hide_code }),
+                          )
+                      : undefined
+                  }
                   focusRequest={
                     navigation.request?.id === cellId
                       ? navigation.request.sequence

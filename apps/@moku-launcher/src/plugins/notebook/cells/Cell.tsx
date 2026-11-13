@@ -10,7 +10,7 @@ import type * as Currentness from "../currentness.ts";
 export function Cell({
   cell,
   outputs,
-  preferenceKey,
+  onHideCodeChange,
   focusRequest,
   insert,
   remove,
@@ -22,7 +22,7 @@ export function Cell({
   hasResult: boolean;
   currentness: Currentness.Reason | null;
   outputs: Outputs.CellOutputs;
-  preferenceKey: string;
+  onHideCodeChange?: (hidden: boolean) => void;
   focusRequest?: number;
   execution?: {
     readonly running: boolean;
@@ -42,31 +42,13 @@ export function Cell({
   const sourceId = React.useId();
   const margin = React.useRef<HTMLButtonElement>(null);
   const source = React.useMemo(() => Source.read(cell.code ?? ""), [cell.code]);
-  const [preference, setPreference] = React.useState<boolean | undefined>(() => {
-    try {
-      const saved = localStorage.getItem(preferenceKey);
-      return saved === null ? undefined : saved === "pinned";
-    } catch {
-      return undefined;
-    }
-  });
   const [focused, setFocused] = React.useState(focusRequest !== undefined);
   React.useLayoutEffect(() => {
     if (focusRequest !== undefined) setFocused(true);
   }, [focusRequest]);
-  const pinned =
-    preference ?? (!cell.config.hide_code && source.language !== "markdown");
+  const pinned = !cell.config.hide_code;
   const visible = cell.code !== null && (!hasResult || pinned || focused);
   const name = cell.name === "_" ? `${source.language} cell` : cell.name;
-
-  function pin(value: boolean) {
-    setPreference(value);
-    try {
-      localStorage.setItem(preferenceKey, value ? "pinned" : "hidden");
-    } catch {
-      // This preference still works for this visit if storage is unavailable.
-    }
-  }
 
   const runButton = execution && (
     <button
@@ -169,14 +151,14 @@ export function Cell({
       )}
       <CellMenu
         name={name}
-        sourceVisible={visible}
+        sourceVisible={pinned}
         insert={insert}
         onToggleSource={
-          cell.code === null || !hasResult
+          cell.code === null || !hasResult || !onHideCodeChange
             ? undefined
             : () => {
                 setFocused(false);
-                pin(!visible);
+                onHideCodeChange(!cell.config.hide_code);
               }
         }
         remove={remove}

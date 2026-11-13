@@ -9,8 +9,7 @@ import {
 import type { TimelineInput } from "../timeline/animation.ts";
 import type { RailRow } from "./layout.ts";
 
-export interface GraphRow extends Omit<RailRow, "label"> {
-  kind: "cell" | "group";
+export interface GraphRow extends RailRow {
   label: string;
   status: CellStatus;
   progress: string;
@@ -18,22 +17,6 @@ export interface GraphRow extends Omit<RailRow, "label"> {
   warning?: string;
   edited: boolean;
   disabled: boolean;
-}
-
-function groupStatus(statuses: CellStatus[]): CellStatus {
-  for (const status of [
-    "running",
-    "waiting",
-    "queued",
-    "failed",
-    "interrupted",
-  ] as const) {
-    if (statuses.includes(status)) return status;
-  }
-  if (statuses.every((status) => status === "succeeded" || status === "skipped")) {
-    return statuses.includes("succeeded") ? "succeeded" : "skipped";
-  }
-  return statuses.every((status) => status === "disabled") ? "disabled" : "pending";
 }
 
 function progressLabel(status: CellStatus) {
@@ -61,30 +44,20 @@ export function createGraphView(
   const byCell = new Map(executions.map((execution) => [execution.cell_id, execution]));
   const inputs = Object.values(state.inputs);
   const rows: GraphRow[] = layout.map((rail, index) => {
-    const isGroup = rail.label !== undefined;
-    const cell = isGroup ? undefined : state.cells[rail.id];
-    const execution = cell ? byCell.get(cell.id) : undefined;
-    const members = rail.members.flatMap((id) =>
-      byCell.has(id) ? [byCell.get(id)!] : [],
-    );
-    const status = groupStatus(
-      rail.members.map((id) => cellStatus(state.cells[id], byCell.get(id), inputs)),
-    );
-    const analysis =
-      cell && analysisCurrent ? state.analysis?.cells[cell.id] : undefined;
-    const edited = !!execution && execution.code_fingerprint !== cell?.code_fingerprint;
+    const cell = state.cells[rail.id];
+    const execution = byCell.get(rail.id);
+    const status = cellStatus(cell, execution, inputs);
+    const analysis = analysisCurrent ? state.analysis?.cells[cell.id] : undefined;
+    const edited = !!execution && execution.code_fingerprint !== cell.code_fingerprint;
     return {
       ...rail,
-      kind: isGroup ? "group" : "cell",
-      label: cell ? cellLabel(cell, index) : rail.label!,
+      label: cellLabel(cell, index),
       status,
-      progress: isGroup
-        ? `${members.filter((member) => member.status === "completed").length} / ${rail.members.length}`
-        : progressLabel(status),
+      progress: progressLabel(status),
       bindings: execution?.status === "completed" ? (analysis?.defs ?? []) : [],
       warning: edited ? "Code changed since execution" : analysis?.errors[0]?.message,
       edited,
-      disabled: cell?.config.disabled ?? false,
+      disabled: cell.config.disabled,
     };
   });
 
@@ -106,10 +79,8 @@ export function createGraphView(
   );
   const spans = Object.fromEntries(
     layout.map((row) => {
-      const members = row.members.flatMap((id) =>
-        byCell.has(id) ? [byCell.get(id)!] : [],
-      );
-      const timing = executionSpan(members, end);
+      const execution = byCell.get(row.id);
+      const timing = executionSpan(execution, end);
       return [
         row.id,
         timing

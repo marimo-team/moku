@@ -66,22 +66,15 @@ export function newestRun(state: NotebookState) {
 }
 
 export function executionSpan(
-  executions: Pick<Protocol.ExecutionOutput, "started_at" | "completed_at">[],
+  execution: Pick<Protocol.ExecutionOutput, "started_at" | "completed_at"> | undefined,
   now: number,
 ) {
-  const started = executions.filter((execution) => execution.started_at !== null);
-  if (!started.length) return null;
-  const start = Math.min(
-    ...started.map((execution) => Date.parse(execution.started_at!)),
-  );
-  const end = Math.max(
-    ...started.map((execution) =>
-      execution.completed_at ? Date.parse(execution.completed_at) : now,
-    ),
-  );
+  if (!execution?.started_at) return null;
+  const start = Date.parse(execution.started_at);
+  const end = execution.completed_at ? Date.parse(execution.completed_at) : now;
   return {
     start,
     duration: Math.max(0, end - start),
-    open: started.some((execution) => execution.completed_at === null),
+    open: execution.completed_at === null,
   };
 }

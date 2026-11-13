@@ -1,0 +1,95 @@
+.moku-minimap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font: inherit;
+}
+.moku-minimap *,
+.moku-minimap *::before {
+  box-sizing: border-box;
+}
+.moku-minimap-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  scrollbar-width: none;
+  padding: 12px 16px 12px 12px;
+}
+.moku-minimap-rows {
+  position: relative;
+}
+.moku-minimap-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  /* Match the SVG gutter width in Minimap.tsx. */
+  padding: 0 0 0 51px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--minimap-muted, #a09b94);
+  text-align: left;
+  font: inherit;
+}
+.moku-minimap-row:hover {
+  color: var(--minimap-text-muted, #7c7770);
+}
+.moku-minimap-row:focus-visible {
+  outline: 2px solid var(--minimap-primary, #5e6f9c);
+  outline-offset: -2px;
+}
+.moku-minimap-label-background {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  padding: 0 2px;
+  border-radius: 4px;
+}
+.moku-minimap-row:hover .moku-minimap-label-background {
+  background: var(--minimap-hover, #f2f0ea);
+}
+.moku-minimap-row[aria-pressed="true"] .moku-minimap-label-background {
+  color: var(--minimap-primary, #5e6f9c);
+  background: var(--minimap-selected, #e9edf5);
+}
+.moku-minimap-row[data-column-start="true"]::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 0;
+  width: 36px;
+  height: 1px;
+  background: var(--minimap-border, #e7e3dc);
+}
+.moku-minimap-connections {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+  color: var(--minimap-muted, #a09b94);
+}
+.moku-minimap-connections path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.moku-minimap-connections circle {
+  fill: currentColor;
+}
+.moku-minimap-rows[data-selected="false"]
+  .moku-minimap-connections
+  [data-referenceable="true"]:not([data-error="true"]) {
+  color: var(--minimap-ink, #393632);
+}
+.moku-minimap-paths,
+.moku-minimap-connections [data-relation="selected"],
+.moku-minimap-connections [data-direct="true"] {
+  color: var(--minimap-primary, #5e6f9c);
+}
+.moku-minimap-connections [data-error="true"] {
+  color: var(--minimap-error, #a2544e);
+}

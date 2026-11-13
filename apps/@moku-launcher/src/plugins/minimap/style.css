@@ -1,0 +1,111 @@
+.view-page:has(.moku-minimap) {
+  background: #faf9f6;
+}
+.moku-minimap {
+  display: flex;
+  flex-direction: column;
+  width: min(440px, 100%);
+  max-height: calc(100dvh - var(--view-header-height) - 80px);
+  margin: 24px auto;
+  font:
+    13px/20px "Inter Variable",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.moku-minimap-label {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font:
+    13px/20px ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+}
+.moku-minimap-number-toggle {
+  display: flex;
+  align-items: center;
+  align-self: flex-end;
+  gap: 6px;
+  margin: 0 16px 0 12px;
+  color: var(--minimap-text-muted, #7c7770);
+  font-size: 12px;
+  cursor: pointer;
+}
+.moku-minimap-number-toggle input {
+  margin: 0;
+  accent-color: var(--minimap-primary, #5e6f9c);
+}
+.moku-minimap-with-numbers .moku-minimap-rows {
+  /* Match the extra space marimo added for numbers, including its spacing fix. */
+  margin-left: 14px;
+}
+.moku-minimap-with-numbers .moku-minimap-row::after {
+  content: attr(data-index);
+  position: absolute;
+  left: -14px;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  width: 20px;
+  height: 100%;
+  padding-right: 6px;
+  color: var(--minimap-text-muted, #7c7770);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  pointer-events: none;
+}
+.moku-minimap-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.moku-minimap-variable {
+  flex-shrink: 0;
+}
+.moku-minimap-rows[data-selected="false"] .moku-minimap-variable {
+  color: var(--minimap-ink, #393632);
+}
+.moku-minimap-row[aria-pressed="true"] .moku-minimap-variable {
+  font-weight: 600;
+}
+.moku-minimap-row:not([aria-pressed="true"])
+  .moku-minimap-variable[data-highlighted="true"] {
+  color: var(--minimap-primary, #5e6f9c);
+  font-weight: 500;
+}
+.moku-minimap-notice {
+  margin: 0;
+  padding: 12px;
+  color: #7c7770;
+  font-size: 12px;
+}
+.moku-minimap-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 4px 16px 0 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e7e3dc;
+  color: #7c7770;
+  font-size: 12px;
+}
+.moku-minimap-summary button {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--minimap-primary, #5e6f9c);
+  font: inherit;
+}
+.moku-minimap-summary button:hover {
+  text-decoration: underline;
+}

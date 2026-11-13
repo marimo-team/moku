@@ -21,6 +21,7 @@
     "@marimo-team/smart-cells": "file:../../vendor/smart-cells",
     "@moku/core": "workspace:*",
     "@moku/editor": "workspace:*",
+    "@moku/minimap": "workspace:*",
     "@moku/outputs": "workspace:*",
     "@moku/plugin": "workspace:*",
     "@moku/proxy": "workspace:*",

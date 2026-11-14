@@ -1,3 +1,4 @@
+import * as Observation from "../observation.ts";
 import { useAtom, useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
 import * as React from "react";
@@ -41,10 +42,18 @@ export function NotebookEditor({ notebook }: ViewProps) {
   );
 }
 
-function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interface }) {
+function NotebookContent({
+  notebook,
+  model,
+}: Pick<ViewProps, "notebook"> & { model: Model.Interface }) {
   const documentModel = useDocument();
   const { document, canEdit, dirty, status: sync } = useAtomValue(documentModel.state);
-  const { value: state, status, error } = useAtomValue(notebook.state);
+  const {
+    value: state,
+    status,
+    error,
+    ready,
+  } = Observation.read(useAtomValue(notebook.state));
   const selection = useAtomValue(model.outputs);
   const [saving, save] = useAtom(model.save);
   const [execution, run] = useAtom(model.run, { mode: "promise" });
@@ -52,7 +61,6 @@ function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interfa
   const [cancellation, cancel] = useAtom(model.cancel);
   const navigation = useCellNavigation();
   useNotebookNotifications({
-    target: notebook.target,
     sync,
     retry: documentModel.retry,
     saving,
@@ -60,7 +68,7 @@ function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interfa
     interruption,
     cancellation,
   });
-  const connected = status === "connected" && state.ready;
+  const connected = status === "connected" && ready;
   const kernel = state.runtime;
   const cancelling = cancellation.waiting || kernel?.status === "terminating";
   const starting =
@@ -86,17 +94,19 @@ function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interfa
   useDraftNavigationGuard(documentModel, unsaved);
   useNotebookShortcuts({ canSave, saveDisabled, save });
   const currentness = Currentness.forNotebook({
-    cells: new Map(Object.entries(state.cells)),
+    cells: new Map(state.document?.cells.map((cell) => [cell.id, cell]) ?? []),
     variables: new Map(Object.entries(state.variables)),
     executions: new Map(Object.entries(state.executions)),
     results: selection.results,
   });
   const insert = (anchor?: string, position: "before" | "after" = "after") => {
-    const id = crypto.randomUUID();
-    documentModel.edit((edit) =>
-      edit.createCell({ id, code: "" }, anchor ? { [position]: anchor } : undefined),
-    );
-    navigation.focus(id);
+    documentModel.edit((edit) => {
+      const id = edit.createCell(
+        { code: "" },
+        anchor ? { [position]: anchor } : undefined,
+      );
+      navigation.focus(id);
+    });
   };
   return (
     <div className="notebook-screen" data-starting={starting}>
@@ -107,7 +117,7 @@ function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interfa
         cancel={canCancel ? () => cancel() : undefined}
       />
       <NotebookToolbar
-        connection={{ status, error, ready: state.ready }}
+        connection={{ status, error, ready: ready }}
         save={
           canSave
             ? {
@@ -179,7 +189,7 @@ function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interfa
                       : undefined
                   }
                   hasResult={selection.results.has(cellId)}
-                  currentness={state.ready ? currentness(cellId) : null}
+                  currentness={ready ? currentness(cellId) : null}
                   execution={
                     canRun
                       ? {
@@ -207,7 +217,7 @@ function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interfa
         ) : (
           <section className="empty-state">
             <h2>
-              {!state.ready
+              {!ready
                 ? "Connecting…"
                 : state.notebook
                   ? "No cells yet."

@@ -3,7 +3,9 @@
  *
  * @module
  */
-import { Data, Schema } from "effect";
+import { Data, Schema, type Effect, type Stream } from "effect";
+import type { Atom } from "effect/reactivity";
+import type * as Protocol from "./Protocol.ts";
 
 export type Json = typeof Schema.Json.Type;
 const JsonObject = Schema.Record(Schema.String, Schema.Json);
@@ -131,4 +133,30 @@ export interface WidgetMessage extends Target {
   readonly modelId: string;
   readonly message: (typeof ModelValue.Type)["message"];
   readonly buffers: readonly string[];
+}
+
+/** Kernel identity and the availability of its output connection. */
+export interface State {
+  readonly runtime: Protocol.RuntimeOutput | null;
+  readonly connection: "idle" | "connecting" | "connected" | "error";
+  readonly canInteract: boolean;
+  readonly error: Error | null;
+}
+
+/** A scoped connection for native output notifications and requests. */
+export interface Interface {
+  /** Kernel identity and output connection availability. */
+  readonly state: Atom.Atom<State>;
+  /** Subscribing acquires a connection; the last subscriber releases it. */
+  readonly events: Stream.Stream<Event, Error>;
+  /** Updates controls without automatically retrying an uncertain write. */
+  readonly setUIValues: (options: UIValues) => Effect.Effect<void, Error>;
+  /** Waits for the matching kernel result, with a 30-second deadline. */
+  readonly invoke: (options: Invoke) => Effect.Effect<Json, Error>;
+  /** Sends an anywidget model update or custom message, including binary buffers. */
+  readonly sendWidgetMessage: (options: WidgetMessage) => Effect.Effect<void, Error>;
+  /** Resolves a kernel-authored ./@file/ reference to an authenticated asset URL. */
+  readonly assetUrl: (path: string) => string;
+  /** Reconnects output transport after credentials or host availability change. */
+  readonly retry: Effect.Effect<void>;
 }

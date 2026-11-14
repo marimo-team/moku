@@ -1,3 +1,4 @@
+import * as Observation from "../observation.ts";
 import { useAtom, useAtomValue } from "@effect/atom-react";
 import { AsyncResult, Atom } from "effect/reactivity";
 import * as React from "react";
@@ -34,9 +35,14 @@ export function Basic({ notebook }: ViewProps) {
 function CellPicker({
   notebook,
   document,
-}: ViewProps & { document: Document.Interface }) {
+}: Pick<ViewProps, "notebook"> & { document: Document.Interface }) {
   const draft = useAtomValue(document.state);
-  const { value: state, status, error: connectionError } = useAtomValue(notebook.state);
+  const {
+    value: state,
+    status,
+    error: connectionError,
+    ready,
+  } = Observation.read(useAtomValue(notebook.state));
   const [selected, setSelected] = React.useState("");
   const [actionKind, setActionKind] = React.useState<Action>("start");
   const command = React.useMemo(
@@ -75,7 +81,7 @@ function CellPicker({
     pending === "run" || (execution !== undefined && execution.status !== "completed");
 
   // The toolbar reflects host permissions and runtime state.
-  const available = status === "connected" && state.ready && pending === null;
+  const available = status === "connected" && ready && pending === null;
   const operations = state.notebook?.operations ?? [];
   const running = state.runtime?.status === "running";
   const starting = pending === "start" || state.runtime?.status === "starting";
@@ -102,12 +108,11 @@ function CellPicker({
     execute(action);
   }
 
-  const start = notebook.runtime.start({ requestId: crypto.randomUUID() });
+  const start = notebook.runtime.start();
   const save = document.flush.pipe(
     Effect.flatMap((confirmed) =>
       notebook.save({
-        requestId: crypto.randomUUID(),
-        etag: confirmed.revision.etag,
+        ...confirmed,
       }),
     ),
   );
@@ -166,7 +171,7 @@ function CellPicker({
       {cell ? (
         <CellEditor document={document} cellId={cell.id} />
       ) : (
-        <p>{state.ready ? "This notebook has no cells." : "Connecting…"}</p>
+        <p>{ready ? "This notebook has no cells." : "Connecting…"}</p>
       )}
       {execution && (
         <div className="basic-output" role="region" aria-label="Cell output">
@@ -184,8 +189,13 @@ function CellPicker({
           </button>
         </p>
       )}
-      {(error || connectionError) && (
-        <p role="alert">{error ?? connectionError?.message}</p>
+      {(error !== null || connectionError !== null) && (
+        <p role="alert">
+          {error ??
+            (connectionError instanceof Error
+              ? connectionError.message
+              : "Connection failed.")}
+        </p>
       )}
     </section>
   );

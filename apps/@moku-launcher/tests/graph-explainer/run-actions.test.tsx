@@ -1,12 +1,18 @@
+import {
+  result,
+  snapshot as toSnapshot,
+  type Observation,
+} from "../../../../packages/@moku-core/tests/state.ts";
+import { Schema } from "effect";
 // @vitest-environment happy-dom
 import * as React from "react";
 import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
-import { Effect, Stream } from "effect";
+import { Effect } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import type * as Notebook from "@moku/core/Notebook";
+import * as Notebook from "@moku/core/Notebook";
 import * as Protocol from "@moku/core/Protocol";
 import { emptyNotebook } from "../../../../packages/@moku-core/src/notebook/state.ts";
 import { useRunActions } from "../../src/plugins/graph-explainer/actions.ts";
@@ -18,7 +24,7 @@ async function fixture() {
   const initial = emptyNotebook();
   initial.ready = true;
   initial.phase = "live";
-  initial.notebook = Protocol.Notebook.parse({
+  initial.notebook = Schema.decodeUnknownSync(Protocol.Notebook)({
     id: "n",
     project_id: "p",
     name: "Pipeline",
@@ -26,7 +32,7 @@ async function fixture() {
     operations: ["runtime.start", "runtime.run"],
     updated_at: null,
   });
-  initial.cells.c = Protocol.Cell.parse({
+  initial.cells.c = Schema.decodeUnknownSync(Protocol.Cell)({
     id: "c",
     notebook_id: "n",
     name: "work",
@@ -36,7 +42,7 @@ async function fixture() {
     code_fingerprint: "v1",
     config: { column: null, disabled: false, hide_code: false, expand_output: false },
   });
-  initial.document = Protocol.Document.parse({
+  initial.document = Schema.decodeUnknownSync(Protocol.Document)({
     notebook_id: "n",
     order: ["c"],
     app_config: {},
@@ -46,13 +52,13 @@ async function fixture() {
     app_config_etag: "v1",
     version: 1,
   });
-  const state = Atom.make<Notebook.State>({
+  const state = Atom.make<Observation>({
     value: initial,
     status: "connected",
     error: null,
     source: { document: null, canEdit: false },
   });
-  const kernel = Protocol.Runtime.parse({
+  const kernel = Schema.decodeUnknownSync(Protocol.Runtime)({
     id: "rt",
     notebook_id: "n",
     status: "starting",
@@ -70,7 +76,7 @@ async function fixture() {
   );
   const run = vi.fn(() =>
     Effect.succeed(
-      Protocol.Run.parse({
+      Schema.decodeUnknownSync(Protocol.Run)({
         id: "run",
         notebook_id: "n",
         runtime_id: "rt",
@@ -84,33 +90,49 @@ async function fixture() {
   );
   const unused = () => Effect.die("Unexpected operation");
   const notebook: Notebook.Interface = {
-    target: { connectionId: "host", notebookId: "n" },
-    state,
+    id: initial.notebook.id,
+    state: Atom.map(state, result),
+    ensureRunning: Effect.gen(function* () {
+      const initial = registry.get(state).value.runtime;
+      if (initial?.status === "running") return;
+      yield* start();
+      yield* Effect.callback<void, Notebook.ModelError>((resume) => {
+        const stop = registry.subscribe(state, (state) => {
+          if (state.value.runtime?.status === "running") resume(Effect.void);
+          if (state.value.runtime?.status === "failed")
+            resume(
+              Effect.fail(
+                new Notebook.ModelError({
+                  reason: "runtime-stopped",
+                  message: state.value.runtime.message ?? "Failed",
+                }),
+              ),
+            );
+        });
+        return Effect.sync(stop);
+      });
+    }),
     edit: unused,
     save: unused,
     runtime: {
       start,
+      restart: unused,
+      execute: unused,
+      reply: unused,
       run,
       cancel: unused,
       interrupt: unused,
       stop: unused,
-      state: Atom.make({
-        runtime: null,
-        connection: "idle",
-        canInteract: false,
-        error: null,
-      }),
-      events: Stream.empty,
-      setUIValues: unused,
-      invoke: unused,
-      sendWidgetMessage: unused,
-      assetUrl: (path) => path,
-      retry: Effect.void,
     },
   };
   function View() {
     const snapshot = useAtomValue(state);
-    const actions = useRunActions(notebook, snapshot.value, undefined, true);
+    const actions = useRunActions(
+      notebook,
+      toSnapshot(snapshot.value),
+      undefined,
+      true,
+    );
     return (
       <>
         <button
@@ -177,7 +199,12 @@ Vitest.test(
         ...s,
         value: {
           ...s.value,
-          cells: { c: { ...s.value.cells.c, etag: "after-start" } },
+          cells: {
+            c: {
+              ...s.value.cells.c,
+              etag: Schema.decodeUnknownSync(Protocol.Etag)("after-start"),
+            },
+          },
         },
       })),
     );
@@ -185,8 +212,12 @@ Vitest.test(
     await vi.waitFor(() => Vitest.expect(f.run).toHaveBeenCalledTimes(1));
     Vitest.expect(f.run.mock.calls[0]).toEqual([
       {
-        request: { cells: [{ id: "c", etag: "after-start" }] },
-        requestId: Vitest.expect.any(String),
+        cells: [
+          Vitest.expect.objectContaining({
+            id: "c",
+            etag: Schema.decodeUnknownSync(Protocol.Etag)("after-start"),
+          }),
+        ],
       },
     ]);
     await f.click();
@@ -206,45 +237,7 @@ Vitest.test(
   },
 );
 
-Vitest.test(
-  "runs enabled cells in document order with their latest etags",
-  async () => {
-    const f = await fixture();
-    await f.click();
-    await React.act(async () =>
-      f.registry.update(f.state, (s) => ({
-        ...s,
-        value: {
-          ...s.value,
-          document: { ...s.value.document!, order: ["last", "disabled", "c"] },
-          cells: {
-            c: s.value.cells.c,
-            last: { ...s.value.cells.c, id: "last", etag: "latest" },
-            disabled: {
-              ...s.value.cells.c,
-              id: "disabled",
-              config: { ...s.value.cells.c.config, disabled: true },
-            },
-          },
-        },
-      })),
-    );
-    await f.ready();
-    Vitest.expect(f.run.mock.calls[0]).toEqual([
-      {
-        request: {
-          cells: [
-            { id: "last", etag: "latest" },
-            { id: "c", etag: "before-start" },
-          ],
-        },
-        requestId: Vitest.expect.any(String),
-      },
-    ]);
-  },
-);
-
-Vitest.test("a removed cell prevents submitting a partial run", async () => {
+Vitest.test("runs cells in document order with their latest etags", async () => {
   const f = await fixture();
   await f.click();
   await React.act(async () =>
@@ -252,7 +245,51 @@ Vitest.test("a removed cell prevents submitting a partial run", async () => {
       ...s,
       value: {
         ...s.value,
-        document: { ...s.value.document!, order: ["c", "removed"] },
+        document: Schema.decodeUnknownSync(Protocol.Document)({
+          ...s.value.document!,
+          order: ["last", "disabled", "c"],
+        }),
+        cells: {
+          c: s.value.cells.c,
+          last: Schema.decodeUnknownSync(Protocol.Cell)({
+            ...s.value.cells.c,
+            id: "last",
+            etag: "latest",
+          }),
+          disabled: Schema.decodeUnknownSync(Protocol.Cell)({
+            ...s.value.cells.c,
+            id: "disabled",
+            config: { ...s.value.cells.c.config, disabled: true },
+          }),
+        },
+      },
+    })),
+  );
+  await f.ready();
+  Vitest.expect(f.run.mock.calls[0]).toEqual([
+    {
+      cells: [
+        Vitest.expect.objectContaining({ id: "last", etag: "latest" }),
+        Vitest.expect.objectContaining({ id: "disabled" }),
+        Vitest.expect.objectContaining({ id: "c", etag: "before-start" }),
+      ],
+    },
+  ]);
+});
+
+Vitest.test("an empty document prevents submitting a run", async () => {
+  const f = await fixture();
+  await f.click();
+  await React.act(async () =>
+    f.registry.update(f.state, (s) => ({
+      ...s,
+      value: {
+        ...s.value,
+        document: Schema.decodeUnknownSync(Protocol.Document)({
+          ...s.value.document!,
+          order: [],
+        }),
+        cells: {},
       },
     })),
   );

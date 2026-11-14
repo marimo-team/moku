@@ -1,24 +1,22 @@
 # @moku/plugin
 
-Notebook views that a host can register, open, and unload together.
+Define notebook views with scoped setup and cleanup.
 
 ```tsx
-import { Plugin, type ViewProps } from "@moku/plugin";
+import * as React from "react";
+import { Atom } from "effect/reactivity";
+import { Plugin } from "@moku/plugin";
 
-function Identity({ notebook }: ViewProps) {
-  return <p>{notebook.target.notebookId}</p>;
-}
+const Inspector = React.lazy(() => import("./Inspector"));
+const tabs = Atom.make([{ id: "overview", title: "Overview" }]);
 
 export default Plugin.define({
-  id: "example",
+  id: "inspector",
   effect: (ctx) =>
     ctx.view.add({
-      id: "identity",
-      title: "Notebook identity",
-      render: (props) => <Identity {...props} />,
+      id: "inspect",
+      list: tabs,
+      render: ({ notebook, tab }) => <Inspector notebook={notebook} tab={tab} />,
     }),
 });
 ```
-
-The host supplies the selected notebook through `ViewProps`.
-Registrations and other scoped resources are released when the plugin unloads.

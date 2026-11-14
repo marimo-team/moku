@@ -1,5 +1,5 @@
 import { Option } from "effect";
-import { Atom } from "effect/reactivity";
+import { AsyncResult, Atom } from "effect/reactivity";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
 import { Graph, type Item, type Trace } from "./graph.ts";
@@ -43,28 +43,30 @@ export type Model = ReturnType<typeof make>;
 
 /** Each minimap owns its selection; all reads use the caller's atom registry. */
 export function make(state: Notebook.Interface["state"]) {
-  const cells = Atom.map(state, (state) => state.value.cells);
+  const value = Atom.map(state, (state) =>
+    AsyncResult.getOrElse(state, () => undefined),
+  );
+  const cells = Atom.map(value, (value) =>
+    Object.fromEntries(value?.document?.cells.map((cell) => [cell.id, cell]) ?? []),
+  );
   // Read related records together so a document revision cannot briefly be
   // compared with analysis from the previous snapshot during propagation.
   const structure = Atom.withEquality(
-    Atom.map(state, ({ value }) => ({
-      document: value.document,
-      cells: value.cells,
-      analysis: value.analysis,
+    Atom.map(value, (value) => ({
+      document: value?.document ?? null,
+
+      analysis: value?.analysis ?? null,
     })),
-    (a, b) =>
-      a.document === b.document && a.cells === b.cells && a.analysis === b.analysis,
+    (a, b) => a.document === b.document && a.analysis === b.analysis,
   );
-  const currentAnalysis = Atom.map(structure, ({ document, analysis }) =>
-    document !== null && analysis?.document_etag === document.etag ? analysis : null,
-  );
+  const currentAnalysis = Atom.map(structure, ({ analysis }) => analysis);
   // Errors and execution events are deliberately absent from graph identity.
-  const topology = Atom.map(structure, ({ document, cells, analysis }): Topology => {
-    const current = document !== null && analysis?.document_etag === document.etag;
+  const topology = Atom.map(structure, ({ document, analysis }): Topology => {
+    const current = analysis !== null;
     return {
       current,
-      items: (document?.order ?? [])
-        .filter((id) => cells[id] !== undefined)
+      items: (document?.cells.map((cell) => cell.id) ?? [])
+
         .map((id) => ({
           id,
           definitions: current ? (analysis?.cells[id]?.defs ?? []) : [],
@@ -109,8 +111,8 @@ export function make(state: Notebook.Interface["state"]) {
       ]),
     );
   });
-  const executions = Atom.map(state, (state) => state.value.executions);
-  const runtime = Atom.map(state, (state) => state.value.runtime?.id);
+  const executions = Atom.map(value, (state) => state?.executions ?? {});
+  const runtime = Atom.map(value, (state) => state?.runtime?.id);
   const latest = Atom.readable((get) =>
     latestExecutions(get(executions), get(runtime)),
   );

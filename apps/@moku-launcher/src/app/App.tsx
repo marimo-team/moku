@@ -1,12 +1,12 @@
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult, type Atom } from "effect/reactivity";
 import * as ReactRouter from "react-router";
-import type * as Workspace from "@moku/core/Workspace";
+import type * as Workspace from "./Workspace.ts";
 import { Launcher } from "./Launcher.tsx";
 import { ViewInstance, ViewErrorBoundary } from "./ViewInstance.tsx";
 import type { Runtime } from "./runtime.ts";
 import { parseRoute, type Route } from "./routes.ts";
-import type * as Host from "./Host.ts";
+import type * as Host from "./views.ts";
 import { ViewHeader } from "./ViewHeader.tsx";
 import { LauncherBar } from "./LauncherBar.tsx";
 

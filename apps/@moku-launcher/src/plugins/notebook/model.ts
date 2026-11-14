@@ -3,6 +3,7 @@
  *
  * @module
  */
+import * as Observation from "../observation.ts";
 import { Effect, Option } from "effect";
 import { Atom } from "effect/reactivity";
 import * as Document from "@moku/editor/Document";
@@ -16,7 +17,7 @@ function make(notebook: Notebook.Interface) {
     const document = yield* Document.make(notebook);
     const outputs = Atom.readable((get): Outputs.Selection =>
       Outputs.select(
-        get(notebook.state).value,
+        Observation.read(get(notebook.state)).value,
         Option.getOrUndefined(get.self<Outputs.Selection>()),
       ),
     );

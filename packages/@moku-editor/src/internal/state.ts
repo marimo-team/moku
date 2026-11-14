@@ -3,7 +3,8 @@
  *
  * @module
  */
-import type { Source } from "@moku/core/Notebook";
+import type { Source } from "./source.ts";
+import type * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
 import { Atom, type AtomRegistry } from "effect/reactivity";
 import * as Draft from "./draft.ts";
@@ -13,7 +14,7 @@ import { editDocument, type Edit } from "./edit.ts";
  * The captured draft and immutable request for one synchronization attempt.
  */
 export interface Submission {
-  readonly request: Protocol.EditRequest;
+  readonly edit: Notebook.Edit;
   readonly draft: Draft.Draft;
   readonly response: Protocol.DocumentOutput | null;
 }
@@ -120,16 +121,18 @@ export function makeState(
       const current = registry.get(state);
       if (!current.source.document || !current.source.canEdit || current.pending)
         return null;
-      const changes = Draft.toChanges(current.source.document, current.draft);
-      if (changes === null) return null;
-      if (changes.length === 0) {
+      const edits = Draft.toEdits(current.source.document, current.draft);
+      if (edits === null) return null;
+      if (edits.length === 0) {
         if (!Draft.isEmptyDraft(current.draft)) {
           registry.set(state, { ...current, draft: Draft.EMPTY_DRAFT });
         }
         return null;
       }
       const pending = {
-        request: { changes },
+        edit: (tx: Notebook.Transaction) => {
+          for (const edit of edits) edit(tx);
+        },
         draft: current.draft,
         response: null,
       };
@@ -138,7 +141,7 @@ export function makeState(
     },
     settle(submission: Submission, response: Protocol.DocumentOutput | null) {
       const current = registry.get(state);
-      if (closed || current.pending?.request !== submission.request) return;
+      if (closed || current.pending?.edit !== submission.edit) return;
       if (response && response.notebook_id !== notebookId) {
         throw new Error("Edit response belongs to another notebook");
       }

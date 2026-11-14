@@ -4,20 +4,11 @@
  * @module
  */
 import { Effect, Stream } from "effect";
-import type * as NotebookRuntime from "@moku/core/Runtime";
+import type * as Interaction from "@moku/core/Interaction";
 import type { Session } from "./session.ts";
 import { loadRenderer } from "./renderer.ts";
 
-export type Runtime = Pick<
-  NotebookRuntime.Interface,
-  | "state"
-  | "events"
-  | "invoke"
-  | "setUIValues"
-  | "sendWidgetMessage"
-  | "assetUrl"
-  | "retry"
->;
+export type Runtime = Interaction.Interface;
 export interface State {
   readonly session: Session | null;
   readonly error: Error | null;

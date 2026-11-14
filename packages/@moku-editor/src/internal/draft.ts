@@ -1,3 +1,4 @@
+import { Schema } from "effect";
 /* Copyright 2026 Marimo. All rights reserved. */
 
 /**
@@ -6,14 +7,14 @@
  * @module
  */
 import { Equivalence } from "effect";
-import type { Confirmed as Document } from "@moku/core/Notebook";
+import type { Confirmed as Document } from "./source.ts";
 import * as Protocol from "@moku/core/Protocol";
 
 type Cell = Protocol.CellOutput;
-type CellId = Protocol.CellId;
+type CellId = string;
 type CellConfig = Protocol.CellConfigOutput;
 type CellInput = Protocol.CellInput;
-type Change = Protocol.Change;
+import type * as Notebook from "@moku/core/Notebook";
 
 /** The fields a client edits. Null code means the host withheld source. */
 export type EditableCell = Readonly<Pick<Cell, "id" | "code" | "name">> & {
@@ -25,7 +26,7 @@ type CellWithSource = EditableCell & { readonly code: string };
 /** A confirmed document with a draft applied. */
 export interface EditableDocument {
   readonly order: readonly CellId[];
-  readonly cells: ReadonlyMap<CellId, EditableCell>;
+  readonly cells: ReadonlyMap<string, EditableCell>;
 }
 
 /** Fields to change on a cell. A field left out keeps its value, including within config. */
@@ -61,7 +62,7 @@ type CellDraft =
  * a person edits and the request that synchronizes it both derive from it.
  */
 export interface Draft {
-  readonly cells: ReadonlyMap<CellId, CellDraft>;
+  readonly cells: ReadonlyMap<string, CellDraft>;
 
   /** The full order to apply, or null to follow the host's. */
   readonly order: readonly CellId[] | null;
@@ -282,7 +283,7 @@ export function restoreCell(
 
 /** A cell input with the protocol's defaults filled in. */
 function parseCell(input: CellInput): CellWithSource {
-  const parsed = Protocol.CellInput.parse(input);
+  const parsed = Schema.decodeUnknownSync(Protocol.CellInput)(input);
   return {
     id: parsed.id,
     code: parsed.code,
@@ -328,7 +329,7 @@ export function prune(
   draft: Draft,
   sent: Draft = EMPTY_DRAFT,
 ): Draft {
-  let cells: Map<CellId, CellDraft> | undefined;
+  let cells: Map<string, CellDraft> | undefined;
   for (const [id, cell] of draft.cells) {
     if (
       cell.kind === "delete" &&
@@ -387,7 +388,7 @@ function editOf(local: Exclude<CellDraft, { kind: "delete" }>): CellEdit {
  * was set go at the end; cells it removed leave the order.
  */
 export function viewDocument(confirmed: Document, draft: Draft): EditableDocument {
-  const cells = new Map<CellId, EditableCell>();
+  const cells = new Map<string, EditableCell>();
   for (const [id, cell] of confirmed.cells) {
     const local = draft.cells.get(id);
     if (local?.kind === "delete") {
@@ -416,22 +417,25 @@ export function viewDocument(confirmed: Document, draft: Draft): EditableDocumen
 }
 
 /**
- * The edit request that would make the host match the view.
+ * The edits that would make the host match the view.
  *
- * Preconditions are the confirmed etags. A put with no effect is left out.
+ * Edits retain the confirmed records they were prepared against. A no-op is left out.
  * Cells come before the order, so one request can create a cell and then
  * place it. Returns null if a put lacks source or its edited cell was removed,
  * keeping the draft atomic and retaining local intent for recovery.
  */
-export function toChanges(confirmed: Document, draft: Draft): Change[] | null {
-  const changes: Change[] = [];
-  let stagedOrder = confirmed.revision.order;
+export function toEdits(
+  confirmed: Document,
+  draft: Draft,
+): readonly Notebook.Edit[] | null {
+  const edits: Notebook.Edit[] = [];
+  let stagedOrder: readonly string[] = confirmed.revision.order;
   const stagedIds = new Set(stagedOrder);
   for (const [id, local] of draft.cells) {
     const base = confirmed.cells.get(id);
     if (local.kind === "delete") {
       if (base !== undefined) {
-        changes.push({ kind: "delete_cell", id, base_etag: base.etag });
+        edits.push((tx) => tx.deleteCell(base));
         stagedOrder = stagedOrder.filter((other) => other !== id);
         stagedIds.delete(id);
       }
@@ -439,11 +443,16 @@ export function toChanges(confirmed: Document, draft: Draft): Change[] | null {
       const anchor = local.placement.after ?? local.placement.before;
       const placement =
         anchor === undefined || stagedIds.has(anchor) ? local.placement : {};
-      changes.push({
-        kind: "put_cell",
-        base_etag: null,
-        cell: local.cell,
-        ...placement,
+      const before =
+        placement.before === undefined
+          ? undefined
+          : Schema.decodeUnknownSync(Protocol.CellId)(placement.before);
+      const after =
+        placement.after === undefined
+          ? undefined
+          : Schema.decodeUnknownSync(Protocol.CellId)(placement.after);
+      edits.push((tx) => {
+        tx.createCell(local.cell, { before, after });
       });
       if (base === undefined) {
         stagedOrder = insertAt(stagedOrder, id, placement);
@@ -456,11 +465,7 @@ export function toChanges(confirmed: Document, draft: Draft): Change[] | null {
         if (code === null) {
           return null;
         }
-        changes.push({
-          kind: "put_cell",
-          base_etag: base.etag,
-          cell: { ...cell, code },
-        });
+        edits.push((tx) => tx.updateCell(base, { ...cell, code }));
       }
     } else {
       return null;
@@ -471,11 +476,8 @@ export function toChanges(confirmed: Document, draft: Draft): Change[] | null {
     (draft.order !== null && !sameOrder(order, confirmed.revision.order)) ||
     !sameOrder(order, stagedOrder)
   ) {
-    changes.push({
-      kind: "set_order",
-      base_etag: confirmed.revision.order_etag,
-      order: [...order],
-    });
+    const ids = Schema.decodeUnknownSync(Schema.Array(Protocol.CellId))(order);
+    edits.push((tx) => tx.setOrder(confirmed.revision, ids));
   }
-  return changes;
+  return edits;
 }

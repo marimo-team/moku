@@ -1,9 +1,9 @@
+import { Schema } from "effect";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import { Effect } from "effect";
 import { Atom } from "effect/reactivity";
 import * as Protocol from "@moku/core/Protocol";
-import { RequestError } from "@moku/core";
 import * as Document from "../src/Document.ts";
 import { setup, confirmed } from "./fixture.ts";
 import { cell, document } from "./fixture.ts";
@@ -34,7 +34,9 @@ for (const ordering of ["response-first", "stream-first"]) {
     });
     h.calls[1].respond(3);
     h.publish("second", 3);
-    Vitest.expect((await flushed).cells.get(cell.id)?.etag).toBe("cell-v3");
+    Vitest.expect(
+      (await flushed).cells.find((value) => value.id === cell.id)?.etag,
+    ).toBe("cell-v3");
     Vitest.expect(h.registry.get(h.model.state).dirty).toBe(false);
     h.publish("external", 4);
     Vitest.expect(h.code()).toBe("external");
@@ -96,7 +98,7 @@ for (const newerTyping of [false, true]) {
       );
       Vitest.expect(h.registry.get(h.model.state).dirty).toBe(false);
       const confirmed = await Effect.runPromise(h.model.flush);
-      Vitest.expect(confirmed.revision.version).toBe(newerTyping ? 3 : 2);
+      Vitest.expect(confirmed.version).toBe(newerTyping ? 3 : 2);
       Vitest.expect(h.calls).toHaveLength(newerTyping ? 2 : 1);
       await h.close();
     },
@@ -126,7 +128,7 @@ Vitest.test(
       Vitest.expect(h.registry.get(h.model.state).status.status).toBe("confirming"),
     );
     h.publish("accepted", 2);
-    Vitest.expect((await retried).revision.version).toBe(2);
+    Vitest.expect((await retried).version).toBe(2);
     Vitest.expect(h.calls).toHaveLength(1);
     await h.close();
   },
@@ -195,7 +197,7 @@ Vitest.test(
   "a host rejection preserves typing; explicit retry uses fresh preconditions",
   async () => {
     const attempts: { request: Protocol.EditRequest; key: string }[] = [];
-    const rejection = Protocol.PreconditionFailedProblem.parse({
+    const rejection = Schema.decodeUnknownSync(Protocol.PreconditionFailedProblem)({
       type: "urn:marimo:problem:precondition-failed",
       index: 0,
       cell,
@@ -204,13 +206,7 @@ Vitest.test(
     const h = await setup(({ request, requestId: key }) => {
       attempts.push({ request, key });
       return attempts.length === 1
-        ? Effect.fail(
-            new RequestError({
-              message: rejection.title,
-              status: 412,
-              problem: rejection,
-            }),
-          )
+        ? Effect.fail(rejection)
         : Effect.succeed({ document: { ...document, version: 3 }, cells: {} });
     });
     h.change("local");
@@ -240,7 +236,7 @@ Vitest.test(
     const h = await setup(({ request, requestId: key }) => {
       attempts.push({ request, key });
       return attempts.length === 1
-        ? Effect.fail(new RequestError({ message: "Connection lost" }))
+        ? Effect.fail(new Error("Connection lost"))
         : Effect.succeed({
             document: { ...document, version: attempts.length === 2 ? 2 : 3 },
             cells: {},
@@ -275,7 +271,7 @@ for (const expired of [false, true]) {
       const h = await setup(({ request, requestId: key }) => {
         attempts.push({ request, key });
         return attempts.length <= 3
-          ? Effect.fail(new RequestError({ message: "Connection lost" }))
+          ? Effect.fail(new Error("Connection lost"))
           : Effect.succeed({ document: { ...document, version: 2 }, cells: {} });
       });
       h.change("accepted");
@@ -299,9 +295,7 @@ for (const expired of [false, true]) {
         );
         Vitest.expect(attempts).toHaveLength(3);
       } else {
-        Vitest.expect((await Effect.runPromise(h.model.retry)).revision.version).toBe(
-          2,
-        );
+        Vitest.expect((await Effect.runPromise(h.model.retry)).version).toBe(2);
         Vitest.expect(attempts).toHaveLength(4);
         for (const attempt of attempts) {
           Vitest.expect(attempt.key).toBe(attempts[0].key);
@@ -424,7 +418,7 @@ Vitest.test(
     const flushing = Effect.runPromise(h.model.flush);
     await vi.waitFor(() => Vitest.expect(h.calls).toHaveLength(1));
     const request = h.calls[0].request;
-    Vitest.expect(Protocol.EditRequest.safeParse(request).success).toBe(true);
+    Vitest.expect(Schema.is(Protocol.EditRequest)(request)).toBe(true);
     Vitest.expect(request.changes.map((change) => change.kind)).toEqual([
       "put_cell",
       "put_cell",
@@ -440,17 +434,21 @@ Vitest.test(
     h.registry.set(h.source, {
       canEdit: true,
       document: {
-        revision: { ...document, version: 2, order: ["c", "b"] },
+        revision: Schema.decodeUnknownSync(Protocol.Document)({
+          ...document,
+          version: 2,
+          order: ["c", "b"],
+        }),
         cells: new Map(
           ["b", "c"].map((id) => [
             id,
-            {
+            Schema.decodeUnknownSync(Protocol.Cell)({
               ...cell,
               id,
               code: `${id} = ${id === "b" ? 2 : 3}`,
               version: 2,
               etag: `${id}-2`,
-            },
+            }),
           ]),
         ),
       },
@@ -471,10 +469,23 @@ Vitest.test(
     h.registry.set(h.source, {
       canEdit: true,
       document: {
-        revision: { ...document, version: 2, order: ["a", "b"] },
+        revision: Schema.decodeUnknownSync(Protocol.Document)({
+          ...document,
+          version: 2,
+          order: ["a", "b"],
+        }),
         cells: new Map([
           ["a", cell],
-          ["b", { ...cell, id: "b", code: "b = 2", version: 2, etag: "b-2" }],
+          [
+            "b",
+            Schema.decodeUnknownSync(Protocol.Cell)({
+              ...cell,
+              id: "b",
+              code: "b = 2",
+              version: 2,
+              etag: "b-2",
+            }),
+          ],
         ]),
       },
     });

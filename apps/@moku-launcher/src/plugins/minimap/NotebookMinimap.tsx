@@ -1,3 +1,5 @@
+import * as Observation from "../observation.ts";
+import type { AsyncResult } from "effect/reactivity";
 import * as React from "react";
 import { useAtomValue } from "@effect/atom-react";
 import * as Minimap from "@moku/minimap";
@@ -50,14 +52,16 @@ function Notice({ notebook }: Pick<Minimap.Props, "notebook">) {
   );
 }
 
-function notice({ value: state, status, error }: Notebook.State): string | null {
-  if (error) return error.message;
-  if (status === "closed" || status === "error" || status === "reconnecting")
+function notice(
+  result: AsyncResult.AsyncResult<Notebook.State, Notebook.Error>,
+): string | null {
+  const { value: state, status, error, ready } = Observation.read(result);
+  if (error) return error instanceof Error ? error.message : "Connection failed.";
+  if (status === "error" || status === "reconnecting")
     return "Disconnected. Showing the last available notebook.";
-  if (status !== "connected" || !state.ready) return "Connecting…";
+  if (status !== "connected" || !ready) return "Connecting…";
   if (state.document?.order.length === 0) return "This notebook has no cells.";
-  if (!state.document || state.analysis?.document_etag !== state.document.etag)
-    return "Waiting for dependency analysis…";
+  if (!state.analysis) return "Waiting for dependency analysis…";
   return null;
 }
 

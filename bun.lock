@@ -25,6 +25,7 @@
         "@effect/atom-react": "4.1.0",
         "@fontsource-variable/inter": "^5.3.0",
         "@lezer/highlight": "^1.2.5",
+        "@marimo-team/client": "file:../../vendor/client",
         "@marimo-team/smart-cells": "file:../../vendor/smart-cells",
         "@moku/core": "workspace:*",
         "@moku/editor": "workspace:*",
@@ -45,7 +46,7 @@
     "packages/@moku-core": {
       "name": "@moku/core",
       "dependencies": {
-        "@marimo-team/client": "file:../../vendor/client",
+        "@marimo-team/host-protocol": "file:../../vendor/host-protocol",
         "effect": "4.1.0",
       },
     },
@@ -558,7 +559,9 @@
 
     "@babel/code-frame/js-tokens": ["js-tokens@4.0.0", "", {}, "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="],
 
-    "@moku/core/@marimo-team/client": ["@marimo-team/client@file:vendor/client", { "dependencies": { "zod": "^4.6.7" } }],
+    "@moku/core/@marimo-team/host-protocol": ["@marimo-team/host-protocol@file:vendor/host-protocol", { "dependencies": { "effect": "4.1.0" } }],
+
+    "@moku/launcher/@marimo-team/client": ["@marimo-team/client@file:vendor/client", { "dependencies": { "zod": "^4.6.7" } }],
 
     "@moku/launcher/@marimo-team/smart-cells": ["@marimo-team/smart-cells@file:vendor/smart-cells", { "dependencies": { "@codemirror/lang-python": "^6.2.1", "@lezer/common": "^1.5.2", "@lezer/python": "^1.1.19", "string-dedent": "^3.0.2" } }],
 

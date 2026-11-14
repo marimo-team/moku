@@ -1,23 +1,27 @@
+import { Schema } from "effect";
+import * as Protocol from "@moku/core/Protocol";
+import { result, type Observation } from "../../@moku-core/tests/state.ts";
+import type { NotebookState } from "../../@moku-core/src/notebook/state.ts";
 import * as Vitest from "vite-plus/test";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import type * as Notebook from "@moku/core/Notebook";
+
 import * as Model from "../src/model.ts";
 import { fixture } from "./fixture.ts";
 
 function observe(initial = fixture()) {
   const registry = AtomRegistry.make();
-  const state = Atom.make<Notebook.State>({
+  const state = Atom.make<Observation>({
     value: initial,
     status: "connected",
     error: null,
     source: { document: null, canEdit: false },
   });
-  const model = Model.make(state);
+  const model = Model.make(Atom.map(state, result));
   registry.mount(model.graph);
   Vitest.onTestFinished(() => registry.dispose());
   return {
     graph: () => registry.get(model.graph),
-    update: (value: Notebook.Snapshot) =>
+    update: (value: NotebookState) =>
       registry.update(state, (state) => ({ ...state, value })),
   };
 }
@@ -50,7 +54,13 @@ Vitest.test(
   "cycles terminate and exclude the origin; missing references and cells are tolerated",
   () => {
     const state = fixture();
-    state.analysis.cells.source.refs = ["z", "x"];
+    state.analysis = {
+      ...state.analysis,
+      cells: {
+        ...state.analysis.cells,
+        source: { ...state.analysis.cells.source, refs: ["z", "x"] },
+      },
+    };
     const view = observe(state);
     const graph = view.graph();
     Vitest.expect(graph.dependencies("source")).toEqual(new Set(["result"]));
@@ -78,7 +88,14 @@ Vitest.test("stale analysis keeps rows while withdrawing dependency claims", () 
   const state = fixture();
   const view = observe(state);
   for (const analysis of [state.analysis, null]) {
-    view.update({ ...state, document: { ...state.document, etag: "v2" }, analysis });
+    view.update({
+      ...state,
+      document: Schema.decodeUnknownSync(Protocol.Document)({
+        ...state.document,
+        etag: "v2",
+      }),
+      analysis,
+    });
     const graph = view.graph();
     Vitest.expect(graph.current).toBe(false);
     Vitest.expect(graph.items).toHaveLength(4);

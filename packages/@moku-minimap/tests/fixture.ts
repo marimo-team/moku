@@ -1,3 +1,4 @@
+import { Schema } from "effect";
 import * as Protocol from "@moku/core/Protocol";
 import { emptyNotebook } from "../../@moku-core/src/notebook/state.ts";
 
@@ -10,7 +11,7 @@ export function fixture() {
   state.cells = Object.fromEntries(
     ids.map((id) => [
       id,
-      Protocol.Cell.parse({
+      Schema.decodeUnknownSync(Protocol.Cell)({
         id,
         notebook_id: "n",
         name: "_",
@@ -27,7 +28,7 @@ export function fixture() {
       }),
     ]),
   );
-  state.document = Protocol.Document.parse({
+  state.document = Schema.decodeUnknownSync(Protocol.Document)({
     notebook_id: "n",
     order: ids,
     app_config: {},
@@ -37,7 +38,7 @@ export function fixture() {
     app_config_etag: "app",
     version: 1,
   });
-  state.analysis = Protocol.Analysis.parse({
+  state.analysis = Schema.decodeUnknownSync(Protocol.Analysis)({
     notebook_id: "n",
     document_etag: "v1",
     cells: {

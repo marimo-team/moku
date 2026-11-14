@@ -1,10 +1,11 @@
+import { AsyncResult } from "effect/reactivity";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import { Effect, Exit, Scope, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import * as Model from "../src/index.ts";
-import * as Notebook from "../src/Notebook.ts";
-import type * as Interaction from "../src/Interaction.ts";
+import * as Proxy from "../src/app/Proxy.ts";
+import * as Notebook from "../src/app/Notebook.ts";
+import type * as Interaction from "@moku/core/Interaction";
 
 const notebook = {
   id: "n",
@@ -106,8 +107,10 @@ async function fixture() {
   const registry = AtomRegistry.make();
   const scope = Effect.runSync(Scope.make());
   const model = await Effect.runPromise(
-    Notebook.make({ connectionId: "host", notebookId: "n" }).pipe(
-      Effect.provide(Model.layer("http://moku.test", { fetch })),
+    Notebook.make(Proxy.make("http://moku.test", { fetch }), {
+      connectionId: "host",
+      notebookId: "n",
+    }).pipe(
       Effect.provideService(AtomRegistry.AtomRegistry, registry),
       Effect.provideService(Scope.Scope, scope),
     ),
@@ -118,7 +121,7 @@ async function fixture() {
     registry.dispose();
   });
   await vi.waitFor(() =>
-    Vitest.expect(registry.get(model.state).value.ready).toBe(true),
+    Vitest.expect(AsyncResult.isSuccess(registry.get(model.state))).toBe(true),
   );
   const subscribe = () => {
     const events: Interaction.Event[] = [];

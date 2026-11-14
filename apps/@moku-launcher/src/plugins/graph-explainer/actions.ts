@@ -4,15 +4,12 @@ import { Cause, Effect } from "effect";
 import { AsyncResult, Atom } from "effect/reactivity";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
-import * as Runtime from "@moku/core/Runtime";
-import * as Run from "../../app/Run.ts";
 import type { NotebookState } from "./execution.ts";
 
 type RunAction = "run" | "cancel";
 
 function unavailableReason(state: NotebookState, kind: RunAction, busy: boolean) {
   if (busy) return "Waiting for the host to acknowledge the previous action";
-  if (!state.ready) return "Waiting for the notebook snapshot";
   const operations = state.notebook?.operations ?? [];
   if (kind === "cancel")
     return operations.includes("runtime.run") || operations.includes("runtime.execute")
@@ -24,7 +21,7 @@ function unavailableReason(state: NotebookState, kind: RunAction, busy: boolean)
     return "The host does not support runtime.start";
   if (state.runtime && state.runtime.status !== "running")
     return `Runtime is ${state.runtime.status}`;
-  if (!Object.values(state.cells).some((cell) => !cell.config.disabled))
+  if (!(state.document?.cells ?? []).some((cell) => !cell.config.disabled))
     return "No enabled cells to run";
   return "";
 }
@@ -42,22 +39,27 @@ export function useRunActions(
         Effect.gen(function* () {
           if (input.kind === "cancel" && input.runId) {
             yield* notebook.runtime
-              .cancel({ runId: input.runId, requestId: crypto.randomUUID() })
+              .cancel({ runId: input.runId })
               .pipe(Effect.timeout("10 seconds"));
             return;
           }
-          if (!(yield* Runtime.ensureRunning(notebook))) return;
+          yield* notebook.ensureRunning;
           const latest = get(notebook.state);
-          if (latest.status !== "connected" || !latest.value.ready)
+          if (!AsyncResult.isSuccess(latest) || latest.waiting)
             return yield* Effect.fail(
               new Error("Waiting for the notebook connection."),
             );
-          const ids = input.cellId
-            ? [input.cellId]
-            : (latest.value.document?.order ?? []);
-          yield* Run.cells(notebook, ids, (id) => latest.value.cells[id]).pipe(
-            Effect.timeout("10 seconds"),
-          );
+          const cells = latest.value.document?.cells ?? [];
+          const selected = input.cellId
+            ? cells.filter((cell) => cell.id === input.cellId)
+            : cells;
+          if (selected.length === 0)
+            return yield* Effect.fail(
+              new Error("The cell was removed before it could run."),
+            );
+          yield* notebook.runtime
+            .run({ cells: selected })
+            .pipe(Effect.timeout("10 seconds"));
         }),
       ).pipe(Atom.setIdleTTL(0)),
     [notebook],

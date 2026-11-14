@@ -1,9 +1,9 @@
-import type * as Notebook from "@moku/core/Notebook";
+import type * as Observation from "../observation.ts";
 import { ConnectionStatus } from "./ConnectionStatus.tsx";
 import { ThemeSelect } from "./appearance/ThemeSelect.tsx";
 
 interface Props {
-  connection: Pick<Notebook.State, "status" | "error"> & { ready: boolean };
+  connection: Pick<ReturnType<typeof Observation.read>, "status" | "error" | "ready">;
   save?: { pending: boolean; disabled: boolean; onClick: () => void };
   execution?: {
     starting: boolean;

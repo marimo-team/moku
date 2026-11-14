@@ -3,7 +3,7 @@
  *
  * @module
  */
-import type * as Interaction from "../Interaction.ts";
+import type * as Interaction from "@moku/core/Interaction";
 
 type ModelEvent = Extract<Interaction.Notification, { op: "model-lifecycle" }>;
 type ModelOpen = Extract<ModelEvent["message"], { method: "open" }>;

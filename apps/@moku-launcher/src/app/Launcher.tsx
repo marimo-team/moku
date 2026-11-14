@@ -1,9 +1,8 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
-import type { Effect } from "effect";
 import { Atom } from "effect/reactivity";
 import * as React from "react";
-import type * as Workspace from "@moku/core/Workspace";
-import type * as Host from "./Host.ts";
+import type * as Workspace from "./Workspace.ts";
+import type * as Host from "./views.ts";
 import { HostNotebooks } from "./HostNotebooks.tsx";
 import {
   LauncherBar,
@@ -18,7 +17,7 @@ export function Launcher({
   host,
 }: {
   workspace: Workspace.Workspace;
-  host: Effect.Success<ReturnType<typeof Host.make>>;
+  host: Host.Interface;
 }) {
   const connections = useAtomValue(workspace.state, (state) => state.connections);
   const discovery = useAtomValue(workspace.state, (state) => state.status);

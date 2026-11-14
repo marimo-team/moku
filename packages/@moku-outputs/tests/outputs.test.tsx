@@ -1,3 +1,4 @@
+import { Schema } from "effect";
 import * as Vitest from "vite-plus/test";
 import * as ReactDOMServer from "react-dom/server";
 import * as Protocol from "@moku/core/Protocol";
@@ -11,14 +12,22 @@ const consoleChunk = (
   seq: number,
   text: string,
   name: "stdout" | "stderr" = "stdout",
-): Protocol.ConsoleOutput => ({ id, seq, text, name, execution_id: "e" });
-const display = (id: string, seq: number, text: string): Protocol.DisplayOutput => ({
-  id,
-  seq,
-  execution_id: "e",
-  content: { mimetype: "text/plain", data: text },
-});
-const error = Protocol.Error.parse({
+): Protocol.ConsoleOutput =>
+  Schema.decodeUnknownSync(Protocol.Console)({
+    id,
+    seq,
+    text,
+    name,
+    execution_id: "e",
+  });
+const display = (id: string, seq: number, text: string): Protocol.DisplayOutput =>
+  Schema.decodeUnknownSync(Protocol.Display)({
+    id,
+    seq,
+    execution_id: "e",
+    content: { mimetype: "text/plain", data: text },
+  });
+const error = Schema.decodeUnknownSync(Protocol.Error)({
   kind: "exception",
   name: "ValueError",
   message: "bad value",
@@ -38,7 +47,10 @@ Vitest.test.each([false, true])(
       executions: {},
       consoles: {
         a: consoleChunk("a", 1, "one"),
-        b: { ...consoleChunk("b", 0, "other"), execution_id: "other" },
+        b: {
+          ...consoleChunk("b", 0, "other"),
+          execution_id: Schema.decodeUnknownSync(Protocol.ExecutionId)("other"),
+        },
       },
       displays: { d: newer },
     };

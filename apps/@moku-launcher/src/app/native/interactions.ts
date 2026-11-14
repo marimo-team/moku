@@ -1,5 +1,12 @@
 /**
- * Share one native output connection across a notebook's readers and requests.
+ * Adapt legacy marimo messages to a shared notebook output connection.
+ *
+ * Owns native authentication, runtime identity checks, retained widget state,
+ * and function-call correlation. Readers and commands share the attachment.
+ *
+ * NB: Host-protocol support for these interactions is in progress. This legacy
+ * adapter should be deprecated when the protocol client can provide them through
+ * the notebook's injected Effect HttpClient.
  *
  * @module
  */
@@ -63,11 +70,22 @@ async function until<A>(promise: Promise<A>, signal: AbortSignal): Promise<A> {
   }
 }
 
+/**
+ * Acquires the legacy adapter in the notebook's registry and owner scope.
+ *
+ * Native attachment is deferred until a reader or command needs it. The observed
+ * notebook determines which runtime may receive messages; replacement or loss of
+ * that runtime aborts outstanding work and resets renderer state.
+ */
 export const make = Effect.fnUntraced(function* (
   options: {
+    /** Supplies project roots used to resolve relative notebook paths. */
     readonly host: Host.Interface;
+    /** The notebook whose identity must be confirmed by the native stream. */
     readonly notebookId: string;
+    /** The proxy's native output route, including its /marimo path. */
     readonly baseUrl: URL;
+    /** The authenticated proxy transport, also used for the native event stream. */
     readonly fetch: typeof globalThis.fetch;
   },
   observed: Notebook.Interface["state"],

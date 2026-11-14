@@ -1,6 +1,10 @@
 /**
  * Share and release the renderer's page-wide native registries.
  *
+ * Replays output notifications into a renderer session and binds its Promise
+ * callbacks to runtime-targeted Effects. Resets discard the old session before
+ * another runtime's widgets are installed.
+ *
  * @module
  */
 import { Effect, Stream } from "effect";
@@ -8,9 +12,13 @@ import type * as Interaction from "@moku/core/Interaction";
 import type { Session } from "./session.ts";
 import { loadRenderer } from "./renderer.ts";
 
+/** The messaging capabilities required by the native renderer. */
 export type Runtime = Interaction.Interface;
+/** Renderer availability after applying native output notifications. */
 export interface State {
+  /** Null before kernel initialization, after a reset, or after release. */
   readonly session: Session | null;
+  /** A renderer loading or notification-handling failure, otherwise null. */
   readonly error: Error | null;
 }
 interface Entry {
@@ -21,6 +29,13 @@ interface Entry {
 }
 let active: Entry | undefined;
 
+/**
+ * Shares the renderer session and publishes its current state immediately.
+ *
+ * The returned release function ends this reader's ownership. The last release
+ * aborts observation and disposes the session. A different notebook cannot acquire
+ * the page-wide registries while this one still has readers.
+ */
 export function acquire(
   runtime: Runtime,
   listener: (state: State) => void,

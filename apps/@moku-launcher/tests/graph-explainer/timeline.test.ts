@@ -1,3 +1,5 @@
+import { Schema } from "effect";
+import * as Protocol from "@moku/core/Protocol";
 import * as NodeAssert from "node:assert/strict";
 import * as Vitest from "vite-plus/test";
 import { executionSpan } from "../../src/plugins/graph-explainer/execution.ts";
@@ -16,8 +18,8 @@ import {
 
 Vitest.test("completed timings stay fixed and queued executions have no span", () => {
   const execution = {
-    started_at: "2026-11-05T12:00:00Z",
-    completed_at: "2026-11-05T12:00:01Z",
+    started_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T12:00:00Z"),
+    completed_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T12:00:01Z"),
   };
   NodeAssert.equal(
     executionSpan(execution, Date.parse("2026-11-05T13:00:00Z"))?.duration,

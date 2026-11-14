@@ -2,10 +2,10 @@ import * as React from "react";
 import { useAtom } from "@effect/atom-react";
 import { Cause } from "effect";
 import { AsyncResult, Atom } from "effect/reactivity";
-import type * as Workspace from "@moku/core/Workspace";
-import type { Target } from "@moku/core/Notebook";
+import type * as Workspace from "./Workspace.ts";
+import type { Target } from "./Notebook.ts";
 
-export function useOpenHost(workspace: Workspace.Workspace, target: Target) {
+export function useOpenHost(workspace: Workspace.Interface, target: Target) {
   const { connectionId, notebookId } = target;
   const action = React.useMemo(
     () =>

@@ -1,3 +1,6 @@
+import { result, type Observation } from "../../@moku-core/tests/state.ts";
+import type { NotebookState } from "../../@moku-core/src/notebook/state.ts";
+import { Schema } from "effect";
 // @vitest-environment happy-dom
 import * as React from "react";
 import * as ReactDOMClient from "react-dom/client";
@@ -5,7 +8,7 @@ import { RegistryContext } from "@effect/atom-react";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import * as Notebook from "@moku/core/Notebook";
+
 import * as Protocol from "@moku/core/Protocol";
 import * as Minimap from "../src/index.ts";
 import { fixture } from "./fixture.ts";
@@ -19,13 +22,13 @@ async function mount(
   copies = 1,
 ) {
   const registry = AtomRegistry.make();
-  const state = Atom.make<Notebook.State>({
+  const state = Atom.make<Observation>({
     value: initial,
     status: "connected",
     error: null,
     source: { document: null, canEdit: false },
   });
-  const notebook = { state };
+  const notebook = { state: Atom.map(state, result) };
   const element = document.createElement("div");
   document.body.append(element);
   const root = ReactDOMClient.createRoot(element);
@@ -58,7 +61,7 @@ async function mount(
   return {
     element,
     rows: () => [...element.querySelectorAll<HTMLButtonElement>(".moku-minimap-row")],
-    update: async (value: Notebook.Snapshot) => {
+    update: async (value: NotebookState) => {
       await React.act(async () =>
         registry.update(state, (previous) => ({ ...previous, value })),
       );
@@ -101,7 +104,10 @@ Vitest.test(
     await clickSource();
     await view.update({
       ...initial,
-      document: { ...initial.document, order: ["result", "middle", "isolated"] },
+      document: Schema.decodeUnknownSync(Protocol.Document)({
+        ...initial.document,
+        order: ["result", "middle", "isolated"],
+      }),
     });
     await view.update(initial);
     Vitest.expect(view.element.querySelector('[aria-pressed="true"]')).toBeNull();
@@ -114,7 +120,13 @@ Vitest.test(
     const initial = fixture();
     const view = await mount(initial);
     await React.act(async () => view.rows()[1].click());
-    await view.update({ ...initial, document: { ...initial.document, etag: "v2" } });
+    await view.update({
+      ...initial,
+      document: Schema.decodeUnknownSync(Protocol.Document)({
+        ...initial.document,
+        etag: "v2",
+      }),
+    });
     Vitest.expect(view.rows()).toHaveLength(4);
     Vitest.expect(view.element.textContent).toContain("Dependencies unavailable");
     Vitest.expect(
@@ -154,7 +166,7 @@ Vitest.test(
   "active work supersedes old errors and prior runtimes do not supply status",
   async () => {
     const initial = fixture();
-    initial.runtime = Protocol.Runtime.parse({
+    initial.runtime = Schema.decodeUnknownSync(Protocol.Runtime)({
       id: "rt",
       notebook_id: "n",
       status: "running",
@@ -162,7 +174,7 @@ Vitest.test(
       marimo_version: null,
       message: null,
     });
-    const failed = Protocol.Execution.parse({
+    const failed = Schema.decodeUnknownSync(Protocol.Execution)({
       id: "failed",
       cell_id: "source",
       runtime_id: "rt",
@@ -200,7 +212,7 @@ Vitest.test(
       executions: {
         queued: {
           ...failed,
-          id: "queued",
+          id: Schema.decodeUnknownSync(Protocol.ExecutionId)("queued"),
           status: "queued",
           outcome: null,
           started_at: null,
@@ -215,7 +227,10 @@ Vitest.test(
     label.mockClear();
     await view.update({
       ...initial,
-      runtime: { ...initial.runtime, id: "replacement" },
+      runtime: Schema.decodeUnknownSync(Protocol.Runtime)({
+        ...initial.runtime,
+        id: "replacement",
+      }),
     });
     Vitest.expect(view.rows()[1].getAttribute("aria-label")).not.toContain("bad input");
     Vitest.expect(label.mock.calls.map(([cell]) => cell.id)).toEqual(["source"]);
@@ -234,7 +249,7 @@ Vitest.test(
     label.mockClear();
     await view.update({
       ...initial,
-      analysis: Protocol.Analysis.parse({
+      analysis: Schema.decodeUnknownSync(Protocol.Analysis)({
         ...initial.analysis,
         cells: {
           ...initial.analysis.cells,
@@ -280,13 +295,22 @@ Vitest.test(
     label.mockClear();
     const added = {
       ...initial,
-      cells: { ...initial.cells, added: { ...initial.cells.isolated, id: "added" } },
-      document: {
+      cells: {
+        ...initial.cells,
+        added: Schema.decodeUnknownSync(Protocol.Cell)({
+          ...initial.cells.isolated,
+          id: "added",
+        }),
+      },
+      document: Schema.decodeUnknownSync(Protocol.Document)({
         ...initial.document,
         order: [...initial.document.order, "added"],
         etag: "v2",
+      }),
+      analysis: {
+        ...initial.analysis,
+        document_etag: Schema.decodeUnknownSync(Protocol.Etag)("v2"),
       },
-      analysis: { ...initial.analysis, document_etag: "v2" },
     };
     await view.update(added);
     Vitest.expect(label.mock.calls.map(([cell]) => [cell.id, cell.relation])).toEqual([

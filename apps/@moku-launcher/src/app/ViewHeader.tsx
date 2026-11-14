@@ -1,11 +1,12 @@
+import * as Observation from "../plugins/observation.ts";
 import * as React from "react";
 import * as ReactRouter from "react-router";
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
-import type * as Notebook from "@moku/core/Notebook";
-import type * as Workspace from "@moku/core/Workspace";
-import type { RegisteredView } from "./Host.ts";
-import type { Runtime } from "./runtime.ts";
+import type * as Notebook from "./Notebook.ts";
+import type * as Workspace from "./Workspace.ts";
+import type { RegisteredView } from "./views.ts";
+import type * as Runtime from "./runtime.ts";
 import { viewHref } from "./routes.ts";
 import { LauncherBar, ViewPicker, rememberView } from "./LauncherBar.tsx";
 
@@ -19,8 +20,8 @@ export function ViewHeader({
   target: Notebook.Target;
   viewKey: string;
   views: readonly RegisteredView[];
-  runtime: Runtime;
-  workspace: Workspace.Workspace;
+  runtime: Runtime.Interface;
+  workspace: Workspace.Interface;
 }) {
   const navigate = ReactRouter.useNavigate();
   React.useEffect(() => rememberView(viewKey), [viewKey]);
@@ -59,7 +60,7 @@ export function ViewHeader({
 }
 
 function NotebookName({ notebook }: { notebook: Notebook.Interface }) {
-  const { value } = useAtomValue(notebook.state);
+  const { value } = Observation.read(useAtomValue(notebook.state));
   return (
     <span
       className="view-notebook"

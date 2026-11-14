@@ -41,9 +41,10 @@ jobs:
         with:
           path: |
             vendor/client
+            vendor/host-protocol
             vendor/smart-cells
             packages/@moku-outputs/dist
-          key: marimo-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package.json', 'bun.lock', 'apps/*/package.json', 'packages/*/package.json', 'scripts/setup.ts', 'scripts/marimo.ts', 'packages/@moku-outputs/scripts/**', 'packages/@moku-outputs/bundle/**', 'packages/@moku-outputs/src/**') }}
+          key: marimo-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package.json', 'bun.lock', 'apps/*/package.json', 'packages/*/package.json', 'scripts/setup.ts', 'scripts/marimo.ts', 'packages/@moku-outputs/scripts/**', 'packages/@moku-outputs/bundle/**', 'packages/@moku-outputs/src/**') }}
 
       - name: Prepare marimo dependencies
         if: steps.marimo.outputs.cache-hit != 'true'
@@ -82,9 +83,10 @@ jobs:
         with:
           path: |
             vendor/client
+            vendor/host-protocol
             vendor/smart-cells
             packages/@moku-outputs/dist
-          key: marimo-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package.json', 'bun.lock', 'apps/*/package.json', 'packages/*/package.json', 'scripts/setup.ts', 'scripts/marimo.ts', 'packages/@moku-outputs/scripts/**', 'packages/@moku-outputs/bundle/**', 'packages/@moku-outputs/src/**') }}
+          key: marimo-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package.json', 'bun.lock', 'apps/*/package.json', 'packages/*/package.json', 'scripts/setup.ts', 'scripts/marimo.ts', 'packages/@moku-outputs/scripts/**', 'packages/@moku-outputs/bundle/**', 'packages/@moku-outputs/src/**') }}
 
       - name: Prepare marimo dependencies
         if: steps.marimo.outputs.cache-hit != 'true'

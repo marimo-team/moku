@@ -1,3 +1,4 @@
+import { Schema } from "effect";
 // @vitest-environment happy-dom
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
@@ -41,7 +42,7 @@ async function mount(node: React.ReactNode) {
 }
 
 function fixture() {
-  const run = Protocol.Run.parse({
+  const run = Schema.decodeUnknownSync(Protocol.Run)({
     id: "current",
     notebook_id: "n",
     runtime_id: "rt",
@@ -52,7 +53,7 @@ function fixture() {
     completed_at: "2026-11-05T12:00:00Z",
   });
   const execution = (id: string, runId: string) =>
-    Protocol.Execution.parse({
+    Schema.decodeUnknownSync(Protocol.Execution)({
       id,
       run_id: runId,
       runtime_id: "rt",
@@ -70,15 +71,21 @@ function fixture() {
       },
     });
   const chunk = (id: string, executionId: string, seq: number, name = "stdout") =>
-    Protocol.Console.parse({ id, execution_id: executionId, seq, name, text: id });
+    Schema.decodeUnknownSync(Protocol.Console)({
+      id,
+      execution_id: executionId,
+      seq,
+      name,
+      text: id,
+    });
   const display = (id: string, executionId: string, seq: number) =>
-    Protocol.Display.parse({
+    Schema.decodeUnknownSync(Protocol.Display)({
       id,
       execution_id: executionId,
       seq,
       content: { mimetype: "text/plain", data: id },
     });
-  const state: NotebookState = {
+  const state = {
     ready: true,
     phase: "live",
     notebook: null,
@@ -87,9 +94,9 @@ function fixture() {
     runtime: null,
     variables: {},
     inputs: {},
-    runs: { current: run },
+    runs: { current: run } as Record<string, Protocol.RunOutput>,
     cells: {
-      c: Protocol.Cell.parse({
+      c: Schema.decodeUnknownSync(Protocol.Cell)({
         id: "c",
         notebook_id: "n",
         code: "x = 1",
@@ -120,7 +127,25 @@ function fixture() {
       earlier: display("earlier", "selected", 2),
     },
   };
-  return { state, run };
+  return {
+    state: {
+      ...state,
+      document: {
+        ...Schema.decodeUnknownSync(Protocol.Document)({
+          notebook_id: "n",
+          order: ["c"],
+          app_config: {},
+          etag: "v1",
+          saved_etag: "v1",
+          order_etag: "v1",
+          app_config_etag: "v1",
+          version: 1,
+        }),
+        cells: Object.values(state.cells),
+      },
+    } satisfies NotebookState,
+    run,
+  };
 }
 
 Vitest.test(
@@ -163,7 +188,7 @@ Vitest.test(
           ...initial.state.executions.selected,
           outcome: {
             kind: "error",
-            error: Protocol.Error.parse({
+            error: Schema.decodeUnknownSync(Protocol.Error)({
               kind: "exception",
               name: "ValueError",
               message: "bad value",
@@ -178,8 +203,8 @@ Vitest.test(
       },
       displays: {
         duplicate: {
-          id: "duplicate",
-          execution_id: "selected",
+          id: Schema.decodeUnknownSync(Protocol.ItemId)("duplicate"),
+          execution_id: Schema.decodeUnknownSync(Protocol.ExecutionId)("selected"),
           seq: 0,
           content: traceback,
         },
@@ -221,34 +246,42 @@ Vitest.test(
   "live cell details retain outputs across downstream runs and discard prior runtimes",
   async () => {
     const { state: initial, run } = fixture();
-    const runtime = Protocol.Runtime.parse({
+    const runtime = Schema.decodeUnknownSync(Protocol.Runtime)({
       id: "rt",
       notebook_id: "n",
       status: "running",
       message: null,
       marimo_version: null,
-      started_at: "2026-11-05T11:00:00Z",
+      started_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T11:00:00Z"),
     });
-    let state: NotebookState = { ...initial, runtime };
+    let state = { ...initial, runtime };
     state.executions.old = {
       ...state.executions.old,
-      started_at: "2026-11-05T11:00:00Z",
+      started_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T11:00:00Z"),
     };
     state.executions.selected = {
       ...state.executions.selected,
-      started_at: "2026-11-05T12:00:00Z",
+      started_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T12:00:00Z"),
     };
     state.runs.downstream = {
       ...run,
-      id: "downstream",
-      cells: ["other"],
-      completed_at: "2026-11-05T13:00:00Z",
+      id: Schema.decodeUnknownSync(Protocol.RunId)("downstream"),
+      cells: [Schema.decodeUnknownSync(Protocol.CellId)("other")],
+      completed_at: Schema.decodeUnknownSync(Protocol.Timestamp)(
+        "2026-11-05T13:00:00Z",
+      ),
     };
     const render = () => <CellDetails state={state} cellId="c" onClose={() => {}} />;
     const view = await mount(render());
     await view.click("Output");
     Vitest.expect(view.panel().textContent).toBe("earlierlaterselected result");
-    state = { ...state, runtime: { ...runtime, id: "replacement" } };
+    state = {
+      ...state,
+      runtime: {
+        ...runtime,
+        id: Schema.decodeUnknownSync(Protocol.RuntimeId)("replacement"),
+      },
+    };
     await view.render(render());
     Vitest.expect(view.panel().textContent).toBe(
       "No rendered output for this execution.",

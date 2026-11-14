@@ -1,3 +1,4 @@
+import { Schema } from "effect";
 /* Copyright 2026 Marimo. All rights reserved. */
 
 /**
@@ -6,7 +7,7 @@
  * @module
  */
 import * as Protocol from "@moku/core/Protocol";
-import type { Confirmed as Document } from "@moku/core/Notebook";
+import type { Confirmed as Document } from "./source.ts";
 import {
   type CellEdit,
   type Draft,
@@ -27,24 +28,27 @@ import {
  * returns throws.
  */
 export interface Editor {
-  setCode(id: Protocol.CellId, code: string): void;
-  setName(id: Protocol.CellId, name: string): void;
+  setCode(id: string, code: string): void;
+  setName(id: string, name: string): void;
 
   /**
    * Updates the supplied configuration fields, preserving all others.
    */
-  updateConfig(id: Protocol.CellId, patch: Partial<Protocol.CellConfigOutput>): void;
+  updateConfig(id: string, patch: Partial<Protocol.CellConfigOutput>): void;
 
   /**
    * Creates a cell before or after an existing cell, or at the end by default.
    */
-  createCell(cell: Protocol.CellInput, placement?: Placement): void;
-  deleteCell(id: Protocol.CellId): void;
+  createCell(
+    cell: Omit<Protocol.CellInput, "id"> & { readonly id?: string },
+    placement?: Placement,
+  ): Protocol.CellId;
+  deleteCell(id: string): void;
 
   /**
    * Reorders cells. The order must contain every current cell exactly once.
    */
-  setOrder(order: readonly Protocol.CellId[]): void;
+  setOrder(order: readonly string[]): void;
 }
 
 /**
@@ -70,21 +74,21 @@ export function editDocument(
     }
   }
 
-  function hasCell(id: Protocol.CellId): boolean {
+  function hasCell(id: string): boolean {
     const local = next.cells.get(id);
     return (
       local?.kind === "create" || (local?.kind !== "delete" && confirmed.cells.has(id))
     );
   }
 
-  function requireCell(id: Protocol.CellId) {
+  function requireCell(id: string) {
     assertActive();
     if (!hasCell(id)) {
       throw new Error(`Cell ${id} does not exist`);
     }
   }
 
-  function updateCell(id: Protocol.CellId, patch: CellEdit) {
+  function updateCell(id: string, patch: CellEdit) {
     requireCell(id);
     next = editCell(confirmed, next, id, patch);
   }
@@ -94,9 +98,20 @@ export function editDocument(
     setName: (id, name) => updateCell(id, { name }),
     updateConfig: (id, patch) =>
       updateCell(id, {
-        config: Protocol.CellConfig.strict().partial().parse(patch),
+        config: Schema.decodeUnknownSync(Protocol.CellConfigInput)(patch),
       }),
-    createCell: (cell, placement = {}) => {
+    createCell: (input, placement = {}) => {
+      let id = input.id;
+      for (let attempt = 0; id === undefined && attempt < 100; attempt++) {
+        const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        const candidate = Array.from(
+          crypto.getRandomValues(new Uint8Array(4)),
+          (byte) => alphabet[byte % 52],
+        ).join("");
+        if (!hasCell(candidate)) id = candidate;
+      }
+      if (id === undefined) throw new Error("Could not generate a unique cell ID.");
+      const cell = Schema.decodeUnknownSync(Protocol.CellInput)({ ...input, id });
       assertActive();
       if (hasCell(cell.id)) {
         throw new Error(`Cell ${cell.id} already exists`);
@@ -111,6 +126,7 @@ export function editDocument(
       next = confirmed.cells.has(cell.id)
         ? restoreCell(confirmed, next, cell, { ...placement }, sent)
         : createCell(next, cell, { ...placement });
+      return cell.id;
     },
     deleteCell: (id) => {
       requireCell(id);

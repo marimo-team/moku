@@ -1,6 +1,6 @@
 import type * as React from "react";
 import * as ReactRouter from "react-router";
-import type { RegisteredView } from "./Host.ts";
+import type { RegisteredView } from "./views.ts";
 
 export const HOST_VIEW = "host";
 const preferenceKey = "moku:open-with";

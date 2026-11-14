@@ -1,3 +1,4 @@
+import * as Observation from "../observation.ts";
 import * as React from "react";
 import { useAtomValue } from "@effect/atom-react";
 import type { ViewProps } from "@moku/plugin";
@@ -9,7 +10,12 @@ import { CellDetails } from "./CellDetails.tsx";
 import { DependencyGraph } from "./diagram/DependencyGraph.tsx";
 
 export function GraphExplainer({ notebook }: ViewProps) {
-  const { value: state, status, error } = useAtomValue(notebook.state);
+  const {
+    value: state,
+    status,
+    error,
+    ready,
+  } = Observation.read(useAtomValue(notebook.state));
   const [selected, setSelected] = React.useState("");
   const [expanded, setExpanded] = React.useState(false);
   const run = newestRun(state);
@@ -22,13 +28,17 @@ export function GraphExplainer({ notebook }: ViewProps) {
     disabledReason,
     actionError,
     action,
+    runCell,
     cellRunDisabled,
   } = actions;
   let statusLabel: string = run?.outcome ?? run?.status ?? "Ready";
   if (starting) statusLabel = "Starting kernel";
   if (status !== "connected")
     statusLabel = status === "connecting" ? "Connecting" : "Disconnected";
-  const message = error?.message || actionError || state.runtime?.message;
+  const message =
+    (error instanceof Error ? error.message : "") ||
+    actionError ||
+    state.runtime?.message;
   return (
     <div className="dag">
       <section className={`run-view ${expanded ? "expanded" : ""}`}>
@@ -40,7 +50,7 @@ export function GraphExplainer({ notebook }: ViewProps) {
           actionKind={actionKind}
           actionLabel={actionLabel}
           disabledReason={disabledReason}
-          onAction={() => action(actionKind)}
+          onAction={action}
           expanded={expanded}
           onToggleExpanded={() => setExpanded(!expanded)}
         />
@@ -49,11 +59,11 @@ export function GraphExplainer({ notebook }: ViewProps) {
             {message}
           </div>
         )}
-        {state.ready && !state.document?.order.length ? (
+        {ready && !state.document?.order.length ? (
           <div className="empty-state">This notebook has no cells.</div>
         ) : (
           <DependencyGraph
-            onRunCell={(cellId) => action("run", cellId)}
+            onRunCell={runCell}
             runDisabled={cellRunDisabled}
             state={state}
             run={run}

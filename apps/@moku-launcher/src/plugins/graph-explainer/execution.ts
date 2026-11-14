@@ -1,5 +1,5 @@
 import type * as Protocol from "@moku/core/Protocol";
-import type { Snapshot as NotebookState } from "@moku/core/Notebook";
+import type { State as NotebookState } from "@moku/core/Notebook";
 export type { NotebookState };
 
 export type CellStatus =

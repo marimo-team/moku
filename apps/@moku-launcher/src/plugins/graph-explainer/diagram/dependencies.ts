@@ -11,13 +11,11 @@ export function dependencyGraph(state: NotebookState): {
   edges: Edge[];
   current: boolean;
 } {
-  const order = (state.document?.order ?? Object.keys(state.cells)).filter(
-    (id) => state.cells[id],
-  );
-  const current =
-    state.analysis !== null && state.analysis.document_etag === state.document?.etag;
-  if (!current) return { order, edges: [], current };
-  const analyses = state.analysis!.cells;
+  const order = state.document?.cells.map((cell) => cell.id) ?? [];
+  const { analysis } = state;
+  if (!analysis) return { order, edges: [], current: false };
+  const current = true;
+  const analyses = analysis.cells;
   const definitions = new Map<string, string[]>();
   for (const id of order)
     for (const name of analyses[id]?.defs ?? []) {
@@ -35,9 +33,9 @@ export function dependencyGraph(state: NotebookState): {
       }
     }
   const edges = [...byPair.values()];
-  const incoming = new Map(order.map((id) => [id, 0]));
-  for (const edge of edges) incoming.set(edge.to, incoming.get(edge.to)! + 1);
-  const remaining = new Set(order);
+  const incoming = new Map<string, number>(order.map((id) => [id, 0]));
+  for (const edge of edges) incoming.set(edge.to, (incoming.get(edge.to) ?? 0) + 1);
+  const remaining = new Set<string>(order);
   const sorted: string[] = [];
   while (remaining.size) {
     const id = order.find((id) => remaining.has(id) && incoming.get(id) === 0);
@@ -45,7 +43,7 @@ export function dependencyGraph(state: NotebookState): {
     remaining.delete(id);
     sorted.push(id);
     for (const edge of edges)
-      if (edge.from === id) incoming.set(edge.to, incoming.get(edge.to)! - 1);
+      if (edge.from === id) incoming.set(edge.to, (incoming.get(edge.to) ?? 0) - 1);
   }
   return { order: [...sorted, ...remaining], edges, current };
 }

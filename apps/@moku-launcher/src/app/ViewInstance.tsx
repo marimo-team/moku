@@ -1,9 +1,9 @@
 import * as React from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
-import type { Target } from "@moku/core/Notebook";
-import type { RegisteredView } from "./Host.ts";
-import type { Runtime } from "./runtime.ts";
+import type { Target } from "./Notebook.ts";
+import type { RegisteredView } from "./views.ts";
+import type * as Runtime from "./runtime.ts";
 import { Provider } from "@moku/outputs";
 
 export function ViewInstance({
@@ -13,7 +13,7 @@ export function ViewInstance({
 }: {
   target: Target;
   view: RegisteredView;
-  runtime: Runtime;
+  runtime: Runtime.Interface;
 }) {
   const attachment = useAtomValue(runtime.notebook(target));
   if (!AsyncResult.isSuccess(attachment))
@@ -28,7 +28,9 @@ export function ViewInstance({
   return (
     <Provider notebook={attachment.value}>
       <ViewErrorBoundary key={view.key}>
-        <Render notebook={attachment.value} />
+        <React.Suspense fallback={<div className="empty-state">Loading view…</div>}>
+          <Render notebook={attachment.value} tab={view.tab} />
+        </React.Suspense>
       </ViewErrorBoundary>
     </Provider>
   );

@@ -1,5 +1,4 @@
-import type * as Notebook from "@moku/core/Notebook";
-type Status = Notebook.State["status"];
+type Status = "connecting" | "connected" | "reconnecting" | "closed" | "error";
 import * as Problems from "./feedback/problems.ts";
 import * as React from "react";
 

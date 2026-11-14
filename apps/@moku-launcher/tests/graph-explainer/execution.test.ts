@@ -1,20 +1,18 @@
+import { Schema } from "effect";
 import { dependencyGraph } from "../../src/plugins/graph-explainer/diagram/dependencies.ts";
 import * as NodeAssert from "node:assert/strict";
 import * as Vitest from "vite-plus/test";
 import * as Protocol from "@moku/core/Protocol";
-import {
-  cellStatus,
-  type NotebookState,
-} from "../../src/plugins/graph-explainer/execution.ts";
+import { cellStatus } from "../../src/plugins/graph-explainer/execution.ts";
 
-function example(): NotebookState {
+function example() {
   const cells = Object.fromEntries(
     [
       ["consumer", "y = x + 1"],
       ["source", "x = 1"],
     ].map(([id, code]) => [
       id,
-      Protocol.Cell.parse({
+      Schema.decodeUnknownSync(Protocol.Cell)({
         id,
         notebook_id: "n",
         code,
@@ -37,17 +35,20 @@ function example(): NotebookState {
     notebook: null,
     runtime: null,
     cells,
-    document: Protocol.Document.parse({
-      notebook_id: "n",
-      order: ["consumer", "source"],
-      app_config: {},
-      etag: "v1",
-      saved_etag: "v1",
-      order_etag: "order",
-      app_config_etag: "app",
-      version: 1,
-    }),
-    analysis: Protocol.Analysis.parse({
+    document: {
+      ...Schema.decodeUnknownSync(Protocol.Document)({
+        notebook_id: "n",
+        order: ["consumer", "source"],
+        app_config: {},
+        etag: "v1",
+        saved_etag: "v1",
+        order_etag: "order",
+        app_config_etag: "app",
+        version: 1,
+      }),
+      cells: Object.values(cells),
+    },
+    analysis: Schema.decodeUnknownSync(Protocol.Analysis)({
       notebook_id: "n",
       document_etag: "v1",
       cells: {
@@ -73,7 +74,14 @@ Vitest.test(
       order: ["source", "consumer"],
       edges: [{ from: "source", to: "consumer", names: ["x"] }],
     });
-    const edited = { ...state, document: { ...state.document!, etag: "v2" } };
+    const edited = {
+      ...state,
+      analysis: null,
+      document: {
+        ...state.document!,
+        etag: Schema.decodeUnknownSync(Protocol.Etag)("v2"),
+      },
+    };
     NodeAssert.deepEqual(dependencyGraph(edited), {
       current: false,
       order: ["consumer", "source"],
@@ -84,7 +92,13 @@ Vitest.test(
 
 Vitest.test("cycles remain inspectable without losing or duplicating cells", () => {
   const state = example();
-  state.analysis!.cells.source.refs = ["y"];
+  state.analysis = {
+    ...state.analysis,
+    cells: {
+      ...state.analysis.cells,
+      source: { ...state.analysis.cells.source, refs: ["y"] },
+    },
+  };
   const graph = dependencyGraph(state);
   NodeAssert.equal(graph.edges.length, 2);
   NodeAssert.deepEqual(new Set(graph.order), new Set(["source", "consumer"]));
@@ -93,7 +107,7 @@ Vitest.test("cycles remain inspectable without losing or duplicating cells", () 
 Vitest.test("not executed does not mean skipped, and explicit skip is retained", () => {
   const cell = example().cells.consumer;
   NodeAssert.equal(cellStatus(cell, undefined, []), "pending");
-  const execution = Protocol.Execution.parse({
+  const execution = Schema.decodeUnknownSync(Protocol.Execution)({
     id: "e",
     run_id: "r",
     runtime_id: "rt",

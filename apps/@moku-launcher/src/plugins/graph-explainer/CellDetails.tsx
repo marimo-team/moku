@@ -16,7 +16,7 @@ export function CellDetails({
   onClose: () => void;
 }) {
   const [tab, setTab] = React.useState("Source");
-  const cell = state.cells[cellId];
+  const cell = state.document?.cells.find((cell) => cell.id === cellId);
   if (!cell) return null;
   const execution = Object.values(state.executions)
     .filter(
@@ -41,10 +41,7 @@ export function CellDetails({
   const variables = Object.values(state.variables).filter(
     (v) => v.execution_id === execution?.id,
   );
-  const analysis =
-    state.analysis?.document_etag === state.document?.etag
-      ? state.analysis?.cells[cellId]
-      : undefined;
+  const analysis = state.analysis?.cells[cellId];
   const pending = Object.values(state.inputs).filter(
     (i) => i.execution_id === execution?.id && i.status === "pending",
   );

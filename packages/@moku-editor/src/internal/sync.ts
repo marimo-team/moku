@@ -4,11 +4,21 @@
  * @module
  */
 import * as Protocol from "@moku/core/Protocol";
-import { Clock, Data, Deferred, Effect, Exit, Option, Queue, type Scope } from "effect";
+import {
+  Clock,
+  Data,
+  Deferred,
+  Effect,
+  Exit,
+  Option,
+  Queue,
+  Schema,
+  type Scope,
+} from "effect";
 import { Atom, type AtomRegistry } from "effect/reactivity";
 import type * as Notebook from "@moku/core/Notebook";
-import { RequestError } from "@moku/core";
-import type { Confirmed } from "@moku/core/Notebook";
+
+import type { Confirmed } from "./source.ts";
 import * as Draft from "./draft.ts";
 import type * as State from "./state.ts";
 
@@ -43,7 +53,7 @@ export interface Interface {
 
 interface Request {
   readonly submission: State.Submission;
-  readonly key: string;
+  readonly operation: ReturnType<Notebook.Interface["edit"]>;
   readonly startedAt: number;
 }
 
@@ -170,7 +180,7 @@ export function synchronize(
             Progress.Sending({
               request: {
                 submission,
-                key: crypto.randomUUID(),
+                operation: notebook.edit(submission.edit),
                 startedAt: yield* Clock.currentTimeMillis,
               },
             }),
@@ -189,11 +199,12 @@ export function synchronize(
                 }),
               );
             }
-            const result = yield* notebook
-              .edit({ request: request.submission.request, requestId: request.key })
-              .pipe(Effect.timeout("10 seconds"), Effect.result);
+            const result = yield* request.operation.pipe(
+              Effect.timeout("10 seconds"),
+              Effect.result,
+            );
             if (result._tag === "Success") {
-              if (result.success.document.notebook_id !== notebook.target.notebookId) {
+              if (result.success.document.notebook_id !== notebook.id) {
                 return yield* Effect.fail(
                   new SyncError({
                     message: "The host returned a document for another notebook.",
@@ -207,27 +218,25 @@ export function synchronize(
             }
             const cause = result.failure;
             if (
-              cause instanceof RequestError &&
+              Schema.is(Protocol.Problem)(cause) &&
               cause.status !== undefined &&
               cause.status >= 400 &&
               cause.status < 500
             ) {
-              const problem = Protocol.Problem.safeParse(cause.problem);
-              if (problem.success) {
-                const error = new SyncError({
-                  message: `${problem.data.detail ?? problem.data.title} Your draft is retained.`,
-                  retryable: true,
-                  cause,
-                });
-                setProgress(
-                  Progress.Rejected({
-                    request,
-                    problem: problem.data,
-                    error,
-                  }),
-                );
-                return yield* Effect.fail(error);
-              }
+              const problem = cause;
+              const error = new SyncError({
+                message: `${problem.detail ?? problem.title} Your draft is retained.`,
+                retryable: true,
+                cause,
+              });
+              setProgress(
+                Progress.Rejected({
+                  request,
+                  problem,
+                  error,
+                }),
+              );
+              return yield* Effect.fail(error);
             }
             if (attempt === 2) {
               return yield* Effect.fail(

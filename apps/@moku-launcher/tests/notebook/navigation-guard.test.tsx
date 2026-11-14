@@ -6,16 +6,13 @@ import * as ReactRouterDOM from "react-router/dom";
 import * as Vitest from "vite-plus/test";
 import { RegistryContext } from "@effect/atom-react";
 import { Effect } from "effect";
-import { RequestError } from "@moku/core";
 import { setup } from "../../../../packages/@moku-editor/tests/fixture.ts";
 import { useDraftNavigationGuard } from "../../src/plugins/notebook/useDraftNavigationGuard.ts";
 
 Vitest.vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 
 async function mount(fail = false) {
-  const h = await setup(
-    fail ? () => Effect.fail(new RequestError({ message: "offline" })) : undefined,
-  );
+  const h = await setup(fail ? () => Effect.fail(new Error("offline")) : undefined);
   function Editor() {
     useDraftNavigationGuard(h.model, false);
     return <ReactRouter.Link to="/graph">Graph</ReactRouter.Link>;

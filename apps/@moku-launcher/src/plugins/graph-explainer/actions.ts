@@ -1,18 +1,21 @@
 import * as React from "react";
 import { RegistryContext, useAtom } from "@effect/atom-react";
-import { Cause, Effect } from "effect";
+import { Cause, Data, Effect } from "effect";
 import { AsyncResult, Atom } from "effect/reactivity";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
-import * as Runtime from "@moku/core/Runtime";
-import * as Run from "../../app/Run.ts";
 import type { NotebookState } from "./execution.ts";
 
 type RunAction = "run" | "cancel";
+type Command = Data.TaggedEnum<{
+  RunAll: {};
+  RunCell: { readonly cellId: string };
+  Cancel: { readonly runId: string };
+}>;
+const Command = Data.taggedEnum<Command>();
 
 function unavailableReason(state: NotebookState, kind: RunAction, busy: boolean) {
   if (busy) return "Waiting for the host to acknowledge the previous action";
-  if (!state.ready) return "Waiting for the notebook snapshot";
   const operations = state.notebook?.operations ?? [];
   if (kind === "cancel")
     return operations.includes("runtime.run") || operations.includes("runtime.execute")
@@ -24,7 +27,7 @@ function unavailableReason(state: NotebookState, kind: RunAction, busy: boolean)
     return "The host does not support runtime.start";
   if (state.runtime && state.runtime.status !== "running")
     return `Runtime is ${state.runtime.status}`;
-  if (!Object.values(state.cells).some((cell) => !cell.config.disabled))
+  if (!(state.document?.cells ?? []).some((cell) => !cell.config.disabled))
     return "No enabled cells to run";
   return "";
 }
@@ -38,26 +41,32 @@ export function useRunActions(
   const registry = React.useContext(RegistryContext);
   const command = React.useMemo(
     () =>
-      Atom.fn((input: { kind: RunAction; runId?: string; cellId?: string }, get) =>
+      Atom.fn((input: Command, get) =>
         Effect.gen(function* () {
-          if (input.kind === "cancel" && input.runId) {
+          if (input._tag === "Cancel") {
             yield* notebook.runtime
-              .cancel({ runId: input.runId, requestId: crypto.randomUUID() })
+              .cancel({ runId: input.runId })
               .pipe(Effect.timeout("10 seconds"));
             return;
           }
-          if (!(yield* Runtime.ensureRunning(notebook))) return;
+          yield* notebook.ensureRunning;
           const latest = get(notebook.state);
-          if (latest.status !== "connected" || !latest.value.ready)
+          if (!AsyncResult.isSuccess(latest) || latest.waiting)
             return yield* Effect.fail(
               new Error("Waiting for the notebook connection."),
             );
-          const ids = input.cellId
-            ? [input.cellId]
-            : (latest.value.document?.order ?? []);
-          yield* Run.cells(notebook, ids, (id) => latest.value.cells[id]).pipe(
-            Effect.timeout("10 seconds"),
-          );
+          const cells = latest.value.document?.cells ?? [];
+          const selected =
+            input._tag === "RunCell"
+              ? cells.filter((cell) => cell.id === input.cellId)
+              : cells;
+          if (selected.length === 0)
+            return yield* Effect.fail(
+              new Error("The cell was removed before it could run."),
+            );
+          yield* notebook.runtime
+            .run({ cells: selected })
+            .pipe(Effect.timeout("10 seconds"));
         }),
       ).pipe(Atom.setIdleTTL(0)),
     [notebook],
@@ -72,7 +81,11 @@ export function useRunActions(
         ? "The host did not become ready or acknowledge the action in time. Check the runtime before retrying."
         : Cause.pretty(result.cause)
       : "";
-  const actionKind: RunAction = run && run.status !== "completed" ? "cancel" : "run";
+  const primary =
+    run && run.status !== "completed"
+      ? Command.Cancel({ runId: run.id })
+      : Command.RunAll();
+  const actionKind: RunAction = primary._tag === "Cancel" ? "cancel" : "run";
   const starting = state.runtime?.status === "starting" || (busy && !state.runtime);
   const actionLabel = starting
     ? "Starting kernel"
@@ -85,9 +98,9 @@ export function useRunActions(
   const cellRunDisabled =
     actionKind === "cancel" ? "Wait for the current run to finish" : disabledReason;
 
-  function action(kind: RunAction, cellId?: string) {
+  function submit(input: Command) {
     if (registry.get(command).waiting) return;
-    execute({ kind, cellId, runId: run?.id });
+    execute(input);
   }
   return {
     actionKind,
@@ -96,6 +109,7 @@ export function useRunActions(
     disabledReason,
     cellRunDisabled,
     actionError,
-    action,
+    action: () => submit(primary),
+    runCell: (cellId: string) => submit(Command.RunCell({ cellId })),
   };
 }

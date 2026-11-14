@@ -1,3 +1,4 @@
+import { Atom } from "effect/reactivity";
 import { Plugin } from "@moku/plugin";
 import { NotebookMinimap } from "./NotebookMinimap.tsx";
 import "./style.css";
@@ -7,7 +8,7 @@ export default Plugin.define({
   effect: (ctx) =>
     ctx.view.add({
       id: "minimap",
-      title: "Minimap",
+      list: Atom.make([{ id: "main", title: "Minimap" }]),
       render: NotebookMinimap,
     }),
 });

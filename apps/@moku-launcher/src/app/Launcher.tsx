@@ -16,7 +16,7 @@ export function Launcher({
   workspace,
   host,
 }: {
-  workspace: Workspace.Workspace;
+  workspace: Workspace.Interface;
   host: Host.Interface;
 }) {
   const connections = useAtomValue(workspace.state, (state) => state.connections);

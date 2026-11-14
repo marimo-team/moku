@@ -5,7 +5,7 @@ import { AsyncResult, Atom } from "effect/reactivity";
 import type * as Workspace from "./Workspace.ts";
 import type { Target } from "./Notebook.ts";
 
-export function useOpenHost(workspace: Workspace.Workspace, target: Target) {
+export function useOpenHost(workspace: Workspace.Interface, target: Target) {
   const { connectionId, notebookId } = target;
   const action = React.useMemo(
     () =>

@@ -11,7 +11,7 @@ import { AtomRegistry } from "effect/reactivity";
 import { Plugin, type ViewProps } from "@moku/plugin";
 import { Effect } from "effect";
 import { App } from "../src/app/App.tsx";
-import { makeRuntime } from "../src/app/runtime.ts";
+import * as Runtime from "../src/app/runtime.ts";
 import { parseRoute, viewHref, type Route } from "../src/app/routes.ts";
 
 vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -80,7 +80,7 @@ async function mount(route: Route) {
       { headers: { "Content-Type": "text/event-stream" } },
     );
   };
-  const runtime = makeRuntime({
+  const runtime = Runtime.make({
     baseUrl: "http://moku.test",
     fetch,
     plugins: [

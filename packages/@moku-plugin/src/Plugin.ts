@@ -57,7 +57,7 @@ export interface Context {
 /**
  * A plugin identifier and its scoped setup Effect.
  */
-export interface Plugin<R = never> {
+export interface Interface<R = never> {
   /** Stable identity across all plugins in one load. */
   readonly id: string;
   /** Acquires registrations and resources released with this plugin. */
@@ -88,7 +88,7 @@ export interface Plugin<R = never> {
  * });
  * ```
  */
-export const define = <P extends Plugin<unknown>>(plugin: P): P => plugin;
+export const define = <P extends Interface<unknown>>(plugin: P): P => plugin;
 
 export { load } from "./internal/load.ts";
 export type {

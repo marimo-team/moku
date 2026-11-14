@@ -34,4 +34,5 @@ export function make(
     http,
   };
 }
-export type Proxy = ReturnType<typeof make>;
+/** Routing and HTTP transport configured for one launcher proxy. */
+export type Interface = ReturnType<typeof make>;

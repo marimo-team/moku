@@ -14,7 +14,7 @@ export function NotebookRow({
   notebook: Protocol.NotebookOutput;
   connectionId: string;
   selectedView: string;
-  workspace: Workspace.Workspace;
+  workspace: Workspace.Interface;
 }) {
   const target = { connectionId, notebookId: notebook.id };
   const host = useOpenHost(workspace, target);

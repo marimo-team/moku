@@ -1,3 +1,4 @@
+/** Share workspace, plugin, and notebook atoms across launcher views. @module */
 import { Data, Effect } from "effect";
 import { Atom } from "effect/reactivity";
 import * as Proxy from "./Proxy.ts";
@@ -8,10 +9,11 @@ import * as Host from "./views.ts";
 
 class Target extends Data.Class<Notebook.Target> {}
 
-export function makeRuntime(options: {
+/** Creates the atoms used by launcher views in their shared registry. */
+export function make(options: {
   baseUrl: string | URL;
   launchKey?: string;
-  plugins: readonly Plugin.Plugin[];
+  plugins: readonly Plugin.Interface[];
   fetch?: typeof globalThis.fetch;
 }) {
   const proxy = Proxy.make(options.baseUrl, { fetch: options.fetch });
@@ -29,4 +31,5 @@ export function makeRuntime(options: {
     notebook: (target: Notebook.Target) => notebooks(new Target(target)),
   };
 }
-export type Runtime = ReturnType<typeof makeRuntime>;
+/** Workspace, plugin, and notebook atoms for a launcher instance. */
+export type Interface = ReturnType<typeof make>;

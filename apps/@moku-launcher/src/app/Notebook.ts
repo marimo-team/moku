@@ -19,7 +19,10 @@ export interface Interface extends Model.Interface {
 }
 
 /** Acquire the model and output connection in the same scope. */
-export const make = Effect.fnUntraced(function* (proxy: Proxy.Proxy, input: Target) {
+export const make = Effect.fnUntraced(function* (
+  proxy: Proxy.Interface,
+  input: Target,
+) {
   const target = Object.freeze({ ...input });
   const transport = yield* Layer.build(proxy.http);
   const host = yield* Host.make({

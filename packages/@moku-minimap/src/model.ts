@@ -39,7 +39,8 @@ export const ROW_HEIGHT = 21;
 // Marimo's original gutter, before cell numbers were added, is 51px wide.
 export const CENTER = 25;
 
-export type Model = ReturnType<typeof make>;
+/** Reactive minimap rows and selection for one notebook. */
+export type Interface = ReturnType<typeof make>;
 
 /** Each minimap owns its selection; all reads use the caller's atom registry. */
 export function make(state: Notebook.Interface["state"]) {

@@ -9,7 +9,7 @@ const empty = Atom.make<Observation<Workspace.Catalog>>({
   status: "connecting",
   error: null,
 });
-export function useCatalog(workspace: Workspace.Workspace, connectionId: string) {
+export function useCatalog(workspace: Workspace.Interface, connectionId: string) {
   const atom = React.useMemo(
     () => (connectionId ? workspace.catalog(connectionId) : empty),
     [workspace, connectionId],

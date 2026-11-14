@@ -1,7 +1,7 @@
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import { AsyncResult, AtomRegistry } from "effect/reactivity";
-import { makeRuntime } from "../src/app/runtime.ts";
+import * as Runtime from "../src/app/runtime.ts";
 
 Vitest.test(
   "view consumers share one attachment per target and release it after the last closes",
@@ -42,7 +42,7 @@ Vitest.test(
     };
     const registry = AtomRegistry.make();
     Vitest.onTestFinished(() => registry.dispose());
-    const runtime = makeRuntime({ baseUrl: "http://moku.test", plugins: [], fetch });
+    const runtime = Runtime.make({ baseUrl: "http://moku.test", plugins: [], fetch });
     const target = { connectionId: "host-a", notebookId: "n" };
     const first = runtime.notebook(target);
     Vitest.expect(runtime.notebook({ ...target })).toBe(first);

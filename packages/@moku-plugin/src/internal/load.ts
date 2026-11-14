@@ -5,10 +5,10 @@
  */
 import { Cause, Effect, Exit, Scope } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import type { Plugin, View, Context } from "../Plugin.ts";
+import type * as Plugin from "../Plugin.ts";
 
 /** A view registered by a plugin, with its host-wide identity. */
-export interface RegisteredView extends View {
+export interface RegisteredView extends Plugin.View {
   /** Encoded plugin and view IDs separated by a slash. */
   readonly key: string;
   /** The plugin that owns this registration. */
@@ -53,7 +53,7 @@ export interface Interface {
  * const host = runtime.atom(Plugin.load([plugin]));
  * ```
  */
-export function load<const P extends readonly Plugin<unknown>[]>(
+export function load<const P extends readonly Plugin.Interface<unknown>[]>(
   plugins: P,
 ): Effect.Effect<
   Interface,
@@ -62,11 +62,11 @@ export function load<const P extends readonly Plugin<unknown>[]>(
   | AtomRegistry.AtomRegistry
   | Scope.Scope
 >;
-export function load<R>(plugins: readonly Plugin<R>[]) {
+export function load<R>(plugins: readonly Plugin.Interface<R>[]) {
   return loadPlugins(plugins);
 }
 const loadPlugins = Effect.fnUntraced(function* <R>(
-  plugins: readonly Plugin<R>[],
+  plugins: readonly Plugin.Interface<R>[],
 ): Effect.fn.Return<Interface, never, R | AtomRegistry.AtomRegistry | Scope.Scope> {
   const registry = yield* AtomRegistry.AtomRegistry;
   const owner = yield* Effect.scope;
@@ -92,7 +92,7 @@ const loadPlugins = Effect.fnUntraced(function* <R>(
         closed = true;
       }),
     );
-    const context: Context = {
+    const context: Plugin.Context = {
       view: {
         add: (view) =>
           Effect.acquireRelease(

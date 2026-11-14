@@ -112,6 +112,13 @@ Keep Effect's module imports (`Effect`, `Stream`, `Atom`, etc.): they already
 provide namespaces. Keep named imports from `@effect/atom-react` and Vitest's
 `vi` namespace. Direct component and type imports are fine.
 
+Modules organized around a primary handle or definition name that type `Interface`,
+so callers use `Host.Interface` or `Plugin.Interface`. Use `Service` for the Effect
+context key and `layer` for its provider when dependency injection is needed;
+modules do not need to expose either merely to follow the convention. Constructors
+use `make`, while operations such as `define` and `load` keep their specific names.
+Supporting types retain names such as `State`, `Options`, and `Loaded`.
+
 ## Type safety
 
 Prefer code the compiler can verify. When a typing limitation requires opting out

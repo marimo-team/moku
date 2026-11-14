@@ -8,7 +8,7 @@ export function HostNotebooks({
   selectedView,
 }: {
   connection: Workspace.Connection;
-  workspace: Workspace.Workspace;
+  workspace: Workspace.Interface;
   selectedView: string;
 }) {
   const catalog = useCatalog(workspace, connection.id);

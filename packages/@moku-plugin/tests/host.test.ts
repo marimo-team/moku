@@ -15,7 +15,7 @@ const view = {
   render: () => null,
 };
 
-async function host(plugins: readonly Plugin.Plugin[]) {
+async function host(plugins: readonly Plugin.Interface[]) {
   const registry = AtomRegistry.make();
   const scope = await Effect.runPromise(Scope.make());
   const instance = await Effect.runPromise(

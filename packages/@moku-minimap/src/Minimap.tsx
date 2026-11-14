@@ -4,7 +4,7 @@ import type * as Notebook from "@moku/core/Notebook";
 import * as Model from "./model.ts";
 import type { Cell, Selection as SelectionValue } from "./model.ts";
 
-const Context = React.createContext<Model.Model | null>(null);
+const Context = React.createContext<Model.Interface | null>(null);
 
 function useModel() {
   const model = React.useContext(Context);

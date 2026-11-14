@@ -57,7 +57,7 @@ export interface State {
 /**
  * Host connections and catalogs read through the registry that created them.
  */
-export interface Workspace {
+export interface Interface {
   /**
    * Read-only connections and request status, updated through model operations.
    */
@@ -133,7 +133,7 @@ const checkResponse = Effect.fnUntraced(function* (
 
 /** Authenticate a launcher session and acquire its host catalogs. */
 export const make = Effect.fnUntraced(function* (
-  proxy: Proxy.Proxy,
+  proxy: Proxy.Interface,
   options: { launchKey?: string } = {},
 ) {
   const transport = yield* HttpClient.HttpClient;
@@ -240,7 +240,7 @@ export const make = Effect.fnUntraced(function* (
       };
     }).pipe(Atom.setIdleTTL(0)),
   );
-  const workspace: Workspace = {
+  const workspace: Interface = {
     state: Atom.readable((get) => get(current)),
     refresh,
     catalog,

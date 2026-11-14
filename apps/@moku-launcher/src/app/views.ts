@@ -1,7 +1,6 @@
 /** Project plugin tab registrations into navigable application views. @module */
 import { Atom } from "effect/reactivity";
-import type { ViewProps } from "@moku/plugin";
-import type * as Host from "./Host.ts";
+import type { Plugin, ViewProps } from "@moku/plugin";
 export interface RegisteredView {
   readonly key: string;
   readonly title: string;
@@ -10,12 +9,12 @@ export interface RegisteredView {
 }
 export interface State {
   readonly views: readonly RegisteredView[];
-  readonly failures: readonly Host.Failure[];
+  readonly failures: readonly Plugin.Failure[];
 }
 export interface Interface {
   readonly state: Atom.Atom<State>;
 }
-export function make(plugins: Host.Interface): Interface {
+export function make(plugins: Plugin.Loaded): Interface {
   return {
     state: Atom.readable((get): State => {
       const { views, failures } = get(plugins.state);

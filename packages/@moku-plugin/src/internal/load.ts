@@ -5,7 +5,7 @@
  */
 import { Cause, Effect, Exit, Scope } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import type { Plugin, View, Context } from "@moku/plugin";
+import type { Plugin, View, Context } from "../Plugin.ts";
 
 /** A view registered by a plugin, with its host-wide identity. */
 export interface RegisteredView extends View {
@@ -42,8 +42,18 @@ export interface Interface {
  * removes its registrations; closing the host scope releases every plugin.
  * Duplicate plugin IDs are reported without running the duplicate's setup.
  *
+ * @example Observe registered views through a runtime atom
+ * ```ts
+ * import { Layer } from "effect";
+ * import { Atom } from "effect/reactivity";
+ * import { Plugin } from "@moku/plugin";
+ * import plugin from "./plugin.ts";
+ *
+ * const runtime = Atom.runtime(Layer.empty);
+ * const host = runtime.atom(Plugin.load([plugin]));
+ * ```
  */
-export function load<const P extends readonly Plugin.Plugin<unknown>[]>(
+export function load<const P extends readonly Plugin<unknown>[]>(
   plugins: P,
 ): Effect.Effect<
   Interface,
@@ -52,11 +62,11 @@ export function load<const P extends readonly Plugin.Plugin<unknown>[]>(
   | AtomRegistry.AtomRegistry
   | Scope.Scope
 >;
-export function load<R>(plugins: readonly Plugin.Plugin<R>[]) {
+export function load<R>(plugins: readonly Plugin<R>[]) {
   return loadPlugins(plugins);
 }
 const loadPlugins = Effect.fnUntraced(function* <R>(
-  plugins: readonly Plugin.Plugin<R>[],
+  plugins: readonly Plugin<R>[],
 ): Effect.fn.Return<Interface, never, R | AtomRegistry.AtomRegistry | Scope.Scope> {
   const registry = yield* AtomRegistry.AtomRegistry;
   const owner = yield* Effect.scope;

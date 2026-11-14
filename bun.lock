@@ -102,6 +102,9 @@
       "dependencies": {
         "@moku/core": "workspace:*",
       },
+      "devDependencies": {
+        "react-dom": "^19.3.0",
+      },
       "peerDependencies": {
         "effect": "4.1.0",
         "react": "^19.3.0",

@@ -89,3 +89,11 @@ export interface Plugin<R = never> {
  * ```
  */
 export const define = <P extends Plugin<unknown>>(plugin: P): P => plugin;
+
+export { load } from "./internal/load.ts";
+export type {
+  Interface as Loaded,
+  State,
+  RegisteredView,
+  Failure,
+} from "./internal/load.ts";

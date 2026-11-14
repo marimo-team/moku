@@ -112,12 +112,31 @@ Keep Effect's module imports (`Effect`, `Stream`, `Atom`, etc.): they already
 provide namespaces. Keep named imports from `@effect/atom-react` and Vitest's
 `vi` namespace. Direct component and type imports are fine.
 
-Modules organized around a primary handle or definition name that type `Interface`,
-so callers use `Host.Interface` or `Plugin.Interface`. Use `Service` for the Effect
-context key and `layer` for its provider when dependency injection is needed;
-modules do not need to expose either merely to follow the convention. Constructors
-use `make`, while operations such as `define` and `load` keep their specific names.
-Supporting types retain names such as `State`, `Options`, and `Loaded`.
+Use flat module exports, as in [Document.ts](packages/@moku-editor/src/Document.ts).
+
+```ts
+export interface Interface {
+  readonly flush: Effect.Effect<Notebook.Document, SyncError>;
+}
+
+export class Service extends Context.Service<Service, Interface>()("@moku/Document") {}
+
+export const layer = (notebook: Notebook.Interface) =>
+  Layer.effect(Service, make(notebook));
+```
+
+```ts
+import { Effect } from "effect";
+import * as Document from "@moku/editor/Document";
+
+const program = Effect.gen(function* () {
+  const document = yield* Document.Service;
+  yield* document.flush;
+});
+```
+
+[Host.ts](packages/@moku-core/src/Host.ts) shows the same convention without a service
+or layer.
 
 ## Type safety
 

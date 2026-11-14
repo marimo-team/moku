@@ -49,7 +49,6 @@ interface Listener {
   readonly emit: (event: Interaction.Event) => void;
   readonly end: () => void;
 }
-type Channel = Omit<Interaction.State, "runtime">;
 
 /** Wait without leaving an abort listener behind when the operation finishes. */
 async function until<A>(promise: Promise<A>, signal: AbortSignal): Promise<A> {
@@ -77,11 +76,7 @@ export const make = Effect.fnUntraced(function* (
   const lifetime = new AbortController();
   const base = options.baseUrl.pathname.replace(/\/$/, "");
   const urlFor = (path: string) => new URL(base + path, options.baseUrl).href;
-  const channel = Atom.make<Channel>({
-    connection: "idle",
-    canInteract: false,
-    error: null,
-  });
+  const channel = Atom.make<Interaction.Connection>(Interaction.Connection.Idle());
   const unmount = registry.mount(channel);
   const snapshot = new Snapshot();
   const listeners = new Set<Listener>();
@@ -107,11 +102,7 @@ export const make = Effect.fnUntraced(function* (
     if (connection !== current) return;
     const problem = failure(cause);
     reset(problem);
-    registry.set(channel, {
-      connection: "error",
-      canInteract: false,
-      error: problem,
-    });
+    registry.set(channel, Interaction.Connection.Failed({ error: problem }));
   };
 
   async function request(path: string, init: RequestInit): Promise<Response> {
@@ -246,11 +237,12 @@ export const make = Effect.fnUntraced(function* (
           notification.op === "consumer-capabilities"
         ) {
           current.canInteract = notification.consumer_capabilities?.interact === true;
-          registry.set(channel, {
-            connection: "connected",
-            canInteract: current.canInteract,
-            error: null,
-          });
+          registry.set(
+            channel,
+            Interaction.Connection.Connected({
+              canInteract: current.canInteract,
+            }),
+          );
           if (notification.op === "kernel-ready") current.ready.resolve();
         }
         if (notification.op === "function-call-result") {
@@ -309,7 +301,7 @@ export const make = Effect.fnUntraced(function* (
     attempted = key;
     reset(error("stale-runtime", "The runtime or output connection changed."));
     if (!key || !notebook || !runtime) {
-      registry.set(channel, { connection: "idle", canInteract: false, error: null });
+      registry.set(channel, Interaction.Connection.Idle());
       return;
     }
     const current: Connection = {
@@ -322,11 +314,7 @@ export const make = Effect.fnUntraced(function* (
     };
     void current.ready.promise.catch(() => {});
     connection = current;
-    registry.set(channel, {
-      connection: "connecting",
-      canInteract: false,
-      error: null,
-    });
+    registry.set(channel, Interaction.Connection.Connecting());
     const deadline = setTimeout(
       () =>
         fail(current, error("timeout", "The output connection did not become ready.")),
@@ -349,7 +337,7 @@ export const make = Effect.fnUntraced(function* (
       unsubscribe = undefined;
       attempted = null;
       reset(error("closed", "The output connection was released."));
-      registry.set(channel, { connection: "idle", canInteract: false, error: null });
+      registry.set(channel, Interaction.Connection.Idle());
     };
   }
 
@@ -404,11 +392,12 @@ export const make = Effect.fnUntraced(function* (
         const release = acquire();
         try {
           const current = connection;
-          if (!current)
-            throw (
-              registry.get(channel).error ??
-              error("unavailable", "The output connection is unavailable.")
-            );
+          if (!current) {
+            const state = registry.get(channel);
+            throw state._tag === "Failed"
+              ? state.error
+              : error("unavailable", "The output connection is unavailable.");
+          }
           const signal = AbortSignal.any([
             caller,
             lifetime.signal,
@@ -450,7 +439,7 @@ export const make = Effect.fnUntraced(function* (
   return {
     state: Atom.readable((get): Interaction.State => ({
       runtime: AsyncResult.getOrElse(get(observed), () => undefined)?.runtime ?? null,
-      ...get(channel),
+      connection: get(channel),
     })),
     events,
     retry: Effect.sync(() => {

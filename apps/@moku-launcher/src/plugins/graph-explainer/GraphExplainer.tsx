@@ -28,6 +28,7 @@ export function GraphExplainer({ notebook }: ViewProps) {
     disabledReason,
     actionError,
     action,
+    runCell,
     cellRunDisabled,
   } = actions;
   let statusLabel: string = run?.outcome ?? run?.status ?? "Ready";
@@ -49,7 +50,7 @@ export function GraphExplainer({ notebook }: ViewProps) {
           actionKind={actionKind}
           actionLabel={actionLabel}
           disabledReason={disabledReason}
-          onAction={() => action(actionKind)}
+          onAction={action}
           expanded={expanded}
           onToggleExpanded={() => setExpanded(!expanded)}
         />
@@ -62,7 +63,7 @@ export function GraphExplainer({ notebook }: ViewProps) {
           <div className="empty-state">This notebook has no cells.</div>
         ) : (
           <DependencyGraph
-            onRunCell={(cellId) => action("run", cellId)}
+            onRunCell={runCell}
             runDisabled={cellRunDisabled}
             state={state}
             run={run}

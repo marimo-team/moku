@@ -135,12 +135,28 @@ export interface WidgetMessage extends Target {
   readonly buffers: readonly string[];
 }
 
+/** Native output transport availability and its connection-specific capabilities. */
+export type Connection = Data.TaggedEnum<{
+  Idle: {};
+  Connecting: {};
+  Connected: {
+    /** Whether the host permits mutations through this connection. */
+    readonly canInteract: boolean;
+  };
+  Failed: {
+    /** The failure retained until retry or a runtime change. */
+    readonly error: Error;
+  };
+}>;
+/** Constructors and exhaustive matching for output connection states. */
+export const Connection = Data.taggedEnum<Connection>();
+
 /** Kernel identity and the availability of its output connection. */
 export interface State {
+  /** The runtime currently observed on the notebook. */
   readonly runtime: Protocol.RuntimeOutput | null;
-  readonly connection: "idle" | "connecting" | "connected" | "error";
-  readonly canInteract: boolean;
-  readonly error: Error | null;
+  /** Native output transport state, independent of notebook observation. */
+  readonly connection: Connection;
 }
 
 /** A scoped connection for native output notifications and requests. */

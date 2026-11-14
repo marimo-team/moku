@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { Cause, Effect, Fiber, Schema, Semaphore } from "effect";
+import { Cause, Data, Effect, Fiber, Schema, Semaphore } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Host from "@moku/core/Host";
 import type * as Protocol from "@moku/core/Protocol";
@@ -41,10 +41,13 @@ export interface Catalog {
 /**
  * Progress and the most recent failure of a connect or refresh operation.
  */
-export interface Status {
-  readonly pending: boolean;
-  readonly error: RequestError | null;
-}
+export type Status = Data.TaggedEnum<{
+  Idle: {};
+  Pending: {};
+  Failed: { readonly error: RequestError };
+}>;
+/** Constructors and exhaustive matching for workspace request progress. */
+export const Status = Data.taggedEnum<Status>();
 
 /**
  * Host connections and the progress of discovery or connection requests.
@@ -166,7 +169,7 @@ export const make = Effect.fnUntraced(function* (
   );
   const current = Atom.make<State>({
     connections: [],
-    status: { pending: false, error: null },
+    status: Status.Idle(),
   });
   yield* Atom.mount(current);
   const setStatus = (status: Status) =>
@@ -175,17 +178,18 @@ export const make = Effect.fnUntraced(function* (
   const update = <A>(operation: Effect.Effect<A, RequestError>) =>
     lock.withPermit(
       Effect.gen(function* () {
-        setStatus({ pending: true, error: null });
+        setStatus(Status.Pending());
         return yield* operation.pipe(
           Effect.tapError((error) =>
-            Effect.sync(() => setStatus({ pending: false, error })),
+            Effect.sync(() => setStatus(Status.Failed({ error }))),
           ),
           Effect.ensuring(
             Effect.sync(() =>
-              registry.update(current, (state) => ({
-                ...state,
-                status: { ...state.status, pending: false },
-              })),
+              registry.update(current, (state) =>
+                state.status._tag === "Pending"
+                  ? { ...state, status: Status.Idle() }
+                  : state,
+              ),
             ),
           ),
         );

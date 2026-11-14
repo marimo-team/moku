@@ -6,7 +6,7 @@ import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";
 import { Effect, Queue, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import type * as Interaction from "@moku/core/Interaction";
+import * as Interaction from "@moku/core/Interaction";
 import { Provider, OutputContext, type Notebook } from "../src/Provider.tsx";
 import type { SessionOptions } from "../src/internal/session.ts";
 
@@ -39,9 +39,7 @@ function fixture() {
   const runtime: Notebook["runtime"] = {
     state: Atom.readable(() => ({
       runtime: null,
-      connection: "connected",
-      canInteract: true,
-      error: null,
+      connection: Interaction.Connection.Connected({ canInteract: true }),
     })),
     events: Stream.callback<Interaction.Event>((queue) =>
       Effect.acquireRelease(

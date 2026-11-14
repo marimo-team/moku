@@ -152,7 +152,9 @@ async function fixture() {
     subscribe,
     ready: () =>
       vi.waitFor(() =>
-        Vitest.expect(registry.get(model.runtime.state).connection).toBe("connected"),
+        Vitest.expect(registry.get(model.runtime.state).connection._tag).toBe(
+          "Connected",
+        ),
       ),
     notify: (notification: Interaction.Notification) =>
       native.at(-1)!.send("marimo", { marimo: notification }),
@@ -326,9 +328,10 @@ Vitest.test(
     f.authenticate(false);
     f.subscribe();
     await vi.waitFor(() =>
-      Vitest.expect(f.registry.get(f.model.runtime.state).error?.code).toBe(
-        "authentication",
-      ),
+      Vitest.expect(f.registry.get(f.model.runtime.state).connection).toMatchObject({
+        _tag: "Failed",
+        error: { code: "authentication" },
+      }),
     );
     Vitest.expect(f.native).toHaveLength(0);
     f.authenticate(true);
@@ -337,11 +340,11 @@ Vitest.test(
     f.wrongRuntime();
     await Effect.runPromise(f.model.runtime.retry);
     await vi.waitFor(() =>
-      Vitest.expect(f.registry.get(f.model.runtime.state).error?.code).toBe(
-        "stale-runtime",
-      ),
+      Vitest.expect(f.registry.get(f.model.runtime.state).connection).toMatchObject({
+        _tag: "Failed",
+        error: { code: "stale-runtime" },
+      }),
     );
-    Vitest.expect(f.registry.get(f.model.runtime.state).canInteract).toBe(false);
     Vitest.expect(f.native.at(-1)?.signal.aborted).toBe(true);
   },
 );

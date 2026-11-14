@@ -74,19 +74,22 @@ async function fixture() {
       return kernel;
     }),
   );
-  const run = vi.fn(() =>
-    Effect.succeed(
-      Schema.decodeUnknownSync(Protocol.Run)({
-        id: "run",
-        notebook_id: "n",
-        runtime_id: "rt",
-        cells: ["c"],
-        status: "queued",
-        outcome: null,
-        started_at: null,
-        completed_at: null,
-      }),
-    ),
+  const accepted = Schema.decodeUnknownSync(Protocol.Run)({
+    id: "run",
+    notebook_id: "n",
+    runtime_id: "rt",
+    cells: ["c"],
+    status: "queued",
+    outcome: null,
+    started_at: null,
+    completed_at: null,
+  });
+  const run = vi.fn(() => Effect.succeed(accepted));
+  const cancel = vi.fn((input: { runId: string }) =>
+    Effect.succeed({
+      ...accepted,
+      id: Schema.decodeUnknownSync(Protocol.RunId)(input.runId),
+    }),
   );
   const unused = () => Effect.die("Unexpected operation");
   const notebook: Notebook.Interface = {
@@ -120,7 +123,7 @@ async function fixture() {
       execute: unused,
       reply: unused,
       run,
-      cancel: unused,
+      cancel,
       interrupt: unused,
       stop: unused,
     },
@@ -130,15 +133,12 @@ async function fixture() {
     const actions = useRunActions(
       notebook,
       toSnapshot(snapshot.value),
-      undefined,
+      Object.values(snapshot.value.runs)[0],
       true,
     );
     return (
       <>
-        <button
-          disabled={!!actions.disabledReason}
-          onClick={() => actions.action("run")}
-        >
+        <button disabled={!!actions.disabledReason} onClick={actions.action}>
           {actions.actionLabel}
         </button>
         <p role="alert">{actions.actionError}</p>
@@ -176,6 +176,8 @@ async function fixture() {
     kernel,
     start,
     run,
+    cancel,
+    accepted,
     click,
     ready,
     close,
@@ -330,3 +332,21 @@ Vitest.test("repeated clicks before React renders only start one command", async
   await f.ready();
   Vitest.expect(f.run).toHaveBeenCalledOnce();
 });
+
+Vitest.test(
+  "cancelling an active run never starts the kernel or submits cells",
+  async () => {
+    const f = await fixture();
+    await React.act(async () =>
+      f.registry.update(f.state, (state) => ({
+        ...state,
+        value: { ...state.value, runs: { [f.accepted.id]: f.accepted } },
+      })),
+    );
+    Vitest.expect(f.element.querySelector("button")!.textContent).toBe("Cancel run");
+    await f.click();
+    Vitest.expect(f.cancel).toHaveBeenCalledExactlyOnceWith({ runId: f.accepted.id });
+    Vitest.expect(f.start).not.toHaveBeenCalled();
+    Vitest.expect(f.run).not.toHaveBeenCalled();
+  },
+);

@@ -40,7 +40,7 @@ export const OutputContext = React.createContext<{
  */
 export function Provider({ notebook, children }: ProviderProps) {
   const runtime = notebook.runtime;
-  const connection = useAtomValue(runtime.state);
+  const connection = useAtomValue(runtime.state, (state) => state.connection);
   const [reconnecting, reconnect] = useAtom(
     React.useMemo(
       () => Atom.fn(() => runtime.retry).pipe(Atom.setIdleTTL(0)),
@@ -61,11 +61,10 @@ export function Provider({ notebook, children }: ProviderProps) {
       });
     }
   }, [runtime]);
-  const error = state.error ?? connection.error;
+  const error = state.error ?? (connection._tag === "Failed" ? connection.error : null);
+  const canInteract = connection._tag === "Connected" && connection.canInteract;
   return (
-    <OutputContext.Provider
-      value={{ session: state.session, canInteract: connection.canInteract }}
-    >
+    <OutputContext.Provider value={{ session: state.session, canInteract }}>
       {error && (
         <div className="moku-output-notice" role="alert">
           {error.message}

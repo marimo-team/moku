@@ -148,10 +148,9 @@ Vitest.test(
     ).not.toContain("secret");
     await f.run(workspace.refresh);
     Vitest.expect(f.registry.get(workspace.state).connections).toHaveLength(2);
-    Vitest.expect(f.registry.get(workspace.state).status).toEqual({
-      pending: false,
-      error: null,
-    });
+    Vitest.expect(f.registry.get(workspace.state).status).toEqual(
+      Workspace.Status.Idle(),
+    );
     unmount();
     await vi.waitFor(() => Vitest.expect(stream.closed).toBe(true));
   },
@@ -196,7 +195,10 @@ Vitest.test(
       status: 503,
       problem,
     });
-    Vitest.expect(f.registry.get(workspace.state).status.pending).toBe(false);
+    Vitest.expect(f.registry.get(workspace.state).status).toMatchObject({
+      _tag: "Failed",
+      error: { message: problem.error },
+    });
     f.respond(async () => new Response("Bad gateway", { status: 502 }));
     await Vitest.expect(f.run(workspace.refresh)).rejects.toMatchObject({
       status: 502,
@@ -249,5 +251,54 @@ Vitest.test.each(["caller", "workspace"] as const)(
       await Vitest.expect(f.run(workspace.refresh)).rejects.toBeDefined();
       Vitest.expect(f.requests).toHaveLength(count);
     }
+  },
+);
+
+Vitest.test(
+  "refresh leaves pending state on cancellation and clears failure on recovery",
+  async () => {
+    const f = await fixture();
+    const workspace = await f.run(Workspace.make(f.proxy));
+    await vi.waitFor(() =>
+      Vitest.expect(f.registry.get(workspace.state).connections).toHaveLength(1),
+    );
+    f.respond(async () => Response.json({ error: "Offline" }, { status: 503 }));
+    await Vitest.expect(f.run(workspace.refresh)).rejects.toBeDefined();
+    Vitest.expect(f.registry.get(workspace.state).status).toMatchObject({
+      _tag: "Failed",
+      error: { message: "Offline" },
+    });
+    f.respond(
+      (request) =>
+        new Promise((_resolve, reject) => {
+          request.signal.addEventListener(
+            "abort",
+            () => reject(request.signal.reason),
+            { once: true },
+          );
+        }),
+    );
+    const caller = new AbortController();
+    const request = f.run(workspace.refresh, caller.signal).then(
+      () => "accepted",
+      () => "aborted",
+    );
+    await vi.waitFor(() =>
+      Vitest.expect(f.registry.get(workspace.state).status).toEqual(
+        Workspace.Status.Pending(),
+      ),
+    );
+    caller.abort();
+    Vitest.expect(await request).toBe("aborted");
+    Vitest.expect(f.registry.get(workspace.state).status).toEqual(
+      Workspace.Status.Idle(),
+    );
+    f.respond(async () => Response.json({ error: "Offline" }, { status: 503 }));
+    await Vitest.expect(f.run(workspace.refresh)).rejects.toBeDefined();
+    f.respond(undefined);
+    await f.run(workspace.refresh);
+    Vitest.expect(f.registry.get(workspace.state).status).toEqual(
+      Workspace.Status.Idle(),
+    );
   },
 );

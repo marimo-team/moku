@@ -21,6 +21,7 @@ export function Launcher({
 }) {
   const connections = useAtomValue(workspace.state, (state) => state.connections);
   const discovery = useAtomValue(workspace.state, (state) => state.status);
+  const pending = discovery._tag === "Pending";
   const { views, failures } = useAtomValue(host.state);
   const [preference, setPreference] = React.useState(preferredView);
   const selectedView = views.some((view) => view.key === preference)
@@ -50,7 +51,7 @@ export function Launcher({
               className="refresh-hosts"
               aria-label="Refresh hosts"
               title="Refresh hosts"
-              disabled={discovery.pending}
+              disabled={pending}
               onClick={() => refresh()}
             >
               <svg
@@ -71,7 +72,7 @@ export function Launcher({
         }
       />
       <div className="catalog-content">
-        {discovery.error && (
+        {discovery._tag === "Failed" && (
           <p className="error-banner" role="alert">
             {discovery.error.message}
           </p>
@@ -92,12 +93,8 @@ export function Launcher({
           ))
         ) : (
           <div className="catalog-empty">
-            <p>
-              {discovery.pending
-                ? "Discovering local hosts…"
-                : "No notebooks connected."}
-            </p>
-            {!discovery.pending && <code>marimo edit your_notebook.py</code>}
+            <p>{pending ? "Discovering local hosts…" : "No notebooks connected."}</p>
+            {!pending && <code>marimo edit your_notebook.py</code>}
           </div>
         )}
       </div>

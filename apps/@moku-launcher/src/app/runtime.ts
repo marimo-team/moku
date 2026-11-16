@@ -18,7 +18,7 @@ export function make(options: {
   const proxy = Proxy.make(options.baseUrl, { fetch: options.fetch });
   const runtime = Atom.runtime(proxy.http);
   const workspace = runtime
-    .atom(Workspace.make(proxy, { launchKey: options.launchKey }))
+    .atom(Workspace.make({ launchKey: options.launchKey }))
     .pipe(Atom.setIdleTTL(0));
   const notebooks = Atom.family((target: Target) =>
     runtime
@@ -33,9 +33,7 @@ export function make(options: {
   );
   return {
     workspace,
-    plugins: runtime
-      .atom(Plugin.load(options.plugins))
-      .pipe(Atom.setIdleTTL(0)),
+    plugins: runtime.atom(Plugin.load(options.plugins)).pipe(Atom.setIdleTTL(0)),
     notebook: (target: Notebook.Target) => notebooks(new Target(target)),
   };
 }

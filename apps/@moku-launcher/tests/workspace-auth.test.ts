@@ -24,7 +24,7 @@ Vitest.test("native authorization accepts the proxy acknowledgement", async () =
   await Effect.runPromise(
     Effect.scoped(
       Effect.gen(function* () {
-        const workspace = yield* Workspace.make(proxy);
+        const workspace = yield* Workspace.make();
         yield* workspace.authorizeInteractions({
           connectionId: "local",
           token: "native-token",

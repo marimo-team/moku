@@ -100,7 +100,6 @@ async function fixture() {
     registry.dispose();
   });
   return {
-    proxy,
     run,
     registry,
     requests,
@@ -120,7 +119,7 @@ Vitest.test(
   "correcting credentials restarts shared observations without discarding editor drafts",
   async () => {
     const f = await fixture();
-    const workspace = await f.run(Workspace.make(f.proxy));
+    const workspace = await f.run(Workspace.make());
     await vi.waitFor(() =>
       Vitest.expect(f.registry.get(workspace.state).connections).toHaveLength(1),
     );
@@ -229,7 +228,7 @@ Vitest.test(
   "workspace authenticates, shares catalog atoms, and refreshes after manual connections",
   async () => {
     const f = await fixture();
-    const workspace = await f.run(Workspace.make(f.proxy, { launchKey: "launch-key" }));
+    const workspace = await f.run(Workspace.make({ launchKey: "launch-key" }));
     Vitest.expectTypeOf(workspace.state).not.toExtend<Atom.Writable<Workspace.State>>();
     Vitest.expect(Atom.isWritable(workspace.state)).toBe(false);
     await vi.waitFor(() =>
@@ -275,7 +274,7 @@ Vitest.test(
   "proxy requests preserve policy, routing, and structured failures",
   async () => {
     const f = await fixture();
-    const workspace = await f.run(Workspace.make(f.proxy));
+    const workspace = await f.run(Workspace.make());
     await vi.waitFor(() =>
       Vitest.expect(f.registry.get(workspace.state).connections).toHaveLength(1),
     );
@@ -330,7 +329,7 @@ Vitest.test.each(["caller", "workspace"] as const)(
   "requests abort with their %s",
   async (owner) => {
     const f = await fixture();
-    const workspace = await f.run(Workspace.make(f.proxy));
+    const workspace = await f.run(Workspace.make());
     await vi.waitFor(() =>
       Vitest.expect(f.registry.get(workspace.state).connections).toHaveLength(1),
     );
@@ -374,7 +373,7 @@ Vitest.test(
   "refresh leaves pending state on cancellation and clears failure on recovery",
   async () => {
     const f = await fixture();
-    const workspace = await f.run(Workspace.make(f.proxy));
+    const workspace = await f.run(Workspace.make());
     await vi.waitFor(() =>
       Vitest.expect(f.registry.get(workspace.state).connections).toHaveLength(1),
     );

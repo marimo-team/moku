@@ -17,7 +17,6 @@ import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Host from "@moku/core/Host";
 import { RequestError } from "./request.ts";
 import { HttpBody, HttpClient, HttpClientResponse } from "effect/http";
-import type * as Proxy from "./Proxy.ts";
 
 /**
  * A discovered or manually connected host, without its authentication token.
@@ -137,11 +136,12 @@ const checkResponse = Effect.fnUntraced(function* (
   );
 });
 
-/** Authenticate a launcher session and acquire its host catalogs. */
-export const make = Effect.fnUntraced(function* (
-  proxy: Proxy.Interface,
-  options: { launchKey?: string } = {},
-) {
+/**
+ * Authenticate a proxy session and share its host observations.
+ *
+ * The supplied HttpClient handles the base URL and request credentials.
+ */
+export const make = Effect.fnUntraced(function* (options: { launchKey?: string } = {}) {
   const transport = yield* HttpClient.HttpClient;
   const http = transport.pipe(
     HttpClient.transformResponse(Effect.flatMap(checkResponse)),
@@ -212,7 +212,7 @@ export const make = Effect.fnUntraced(function* (
   const hosts = yield* RcMap.make({
     lookup: (connectionId: string) =>
       Host.make({
-        baseUrl: proxy.url(`/api/hosts/${encodeURIComponent(connectionId)}`),
+        baseUrl: `/api/hosts/${encodeURIComponent(connectionId)}`,
       }).pipe(Effect.provideService(HttpClient.HttpClient, transport)),
   });
   const host = (connectionId: string) => RcMap.get(hosts, connectionId);

@@ -17,6 +17,7 @@ moku is a development playground for building marimo clients entirely on the [ho
 - [**Notebook**](apps/@moku-launcher/src/plugins/notebook/) — a notebook editor with interactive outputs.
 - [**Minimap**](apps/@moku-launcher/src/plugins/minimap/) — a linear view of cell dependencies.
 - [**Graph explainer**](apps/@moku-launcher/src/plugins/graph-explainer/) — a view of cell dependencies and execution.
+- [**Sheet**](apps/@moku-launcher/src/plugins/sheet/) — a spreadsheet where every grid cell is a marimo cell.
 
 The clients share connections, notebook state, editing, and output rendering through the [packages](packages/).
 

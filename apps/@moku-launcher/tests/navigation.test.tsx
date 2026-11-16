@@ -297,7 +297,7 @@ Vitest.test(
   "view URLs preserve identifiers and malformed routes stay unavailable",
   () => {
     const target = { connectionId: "host +/&", notebookId: "notebook/%?雪" };
-    const viewKey = "plugin%2Fone/view";
+    const viewKey = "plugin%2Fone/view/tab%2Fone";
     Vitest.expect(
       parseRoute(new URL(viewHref(target, viewKey), "http://moku.test")),
     ).toEqual({
@@ -321,8 +321,10 @@ Vitest.test(
 Vitest.test("existing notebook links resolve to the renamed plugins", () => {
   const target = { connectionId: "host", notebookId: "notebook" };
   for (const [previous, current] of [
-    ["dag/graph", "graph-explainer/graph"],
-    ["editor/notebook", "notebook/notebook"],
+    ["dag/graph", "graph-explainer/graph/main"],
+    ["graph-explainer/graph", "graph-explainer/graph/main"],
+    ["editor/notebook", "notebook/notebook/main"],
+    ["notebook/notebook", "notebook/notebook/main"],
   ]) {
     Vitest.expect(
       parseRoute(new URL(viewHref(target, previous), "http://moku.test")),
@@ -333,3 +335,24 @@ Vitest.test("existing notebook links resolve to the renamed plugins", () => {
     });
   }
 });
+
+Vitest.test(
+  "saved views and direct links select their original default tab",
+  async () => {
+    localStorage.setItem("moku:open-with", "test/identity");
+    const catalog = await mount({ kind: "catalog" });
+    await vi.waitFor(() =>
+      Vitest.expect(catalog.element.querySelector("select")?.value).toBe(
+        "test/identity/main",
+      ),
+    );
+    const view = await mount(
+      parseRoute(
+        new URL("/notebook/n?host=a&view=test%2Fidentity", "http://moku.test"),
+      ),
+    );
+    await vi.waitFor(() =>
+      Vitest.expect(view.element.querySelector("h1")?.textContent).toBe("a:n"),
+    );
+  },
+);

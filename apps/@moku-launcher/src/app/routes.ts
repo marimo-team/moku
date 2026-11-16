@@ -5,6 +5,17 @@ export type Route =
   | { readonly kind: "view"; readonly target: Target; readonly viewKey: string }
   | { readonly kind: "missing" };
 
+/** Resolve saved view identities from before views contributed individual tabs. */
+export function canonicalViewKey(key: string): string {
+  const view =
+    key === "dag/graph"
+      ? "graph-explainer/graph"
+      : key === "editor/notebook"
+        ? "notebook/notebook"
+        : key;
+  return view.split("/").length === 2 ? `${view}/main` : view;
+}
+
 /** Builds a bookmarkable URL for one notebook and registered view. */
 export function viewHref(target: Target, viewKey: string): string {
   const query = new URLSearchParams({ host: target.connectionId, view: viewKey });
@@ -22,12 +33,7 @@ export function parseRoute(url: URL): Route {
     return {
       kind: "view",
       target: { connectionId, notebookId: decodeURIComponent(match[1]) },
-      viewKey:
-        viewKey === "dag/graph"
-          ? "graph-explainer/graph"
-          : viewKey === "editor/notebook"
-            ? "notebook/notebook"
-            : viewKey,
+      viewKey: canonicalViewKey(viewKey),
     };
   } catch {
     return { kind: "missing" };

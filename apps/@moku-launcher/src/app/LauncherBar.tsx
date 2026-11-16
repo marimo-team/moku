@@ -2,12 +2,14 @@ import type * as React from "react";
 import * as ReactRouter from "react-router";
 import type { RegisteredView } from "./views.ts";
 
+import { canonicalViewKey } from "./routes.ts";
+
 export const HOST_VIEW = "host";
 const preferenceKey = "moku:open-with";
 
 export function preferredView() {
   try {
-    return localStorage.getItem(preferenceKey) ?? HOST_VIEW;
+    return canonicalViewKey(localStorage.getItem(preferenceKey) ?? HOST_VIEW);
   } catch {
     return HOST_VIEW;
   }

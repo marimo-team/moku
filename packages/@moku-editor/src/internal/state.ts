@@ -3,12 +3,17 @@
  *
  * @module
  */
-import type { Source } from "./source.ts";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
 import { Atom, type AtomRegistry } from "effect/reactivity";
 import * as Draft from "./draft.ts";
 import { editDocument, type Edit } from "./edit.ts";
+
+/** Confirmed source and whether the current connection permits editing. */
+export interface Source {
+  readonly document: Notebook.Document | null;
+  readonly canEdit: boolean;
+}
 
 /**
  * The captured draft and immutable request for one synchronization attempt.

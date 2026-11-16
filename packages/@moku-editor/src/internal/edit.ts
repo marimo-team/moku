@@ -8,7 +8,7 @@ import { Schema } from "effect";
  */
 import * as Protocol from "@moku/core/Protocol";
 import type { Document } from "@moku/core/Notebook";
-import * as Source from "./source.ts";
+import * as Notebook from "@moku/core/Notebook";
 import {
   type CellEdit,
   type Draft,
@@ -79,7 +79,7 @@ export function editDocument(
     const local = next.cells.get(id);
     return (
       local?.kind === "create" ||
-      (local?.kind !== "delete" && Source.index(confirmed).has(id))
+      (local?.kind !== "delete" && Notebook.cellIndex(confirmed).has(id))
     );
   }
 
@@ -103,16 +103,14 @@ export function editDocument(
         config: Schema.decodeUnknownSync(Protocol.CellConfigInput)(patch),
       }),
     createCell: (input, placement = {}) => {
-      let id = input.id;
-      for (let attempt = 0; id === undefined && attempt < 100; attempt++) {
-        const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        const candidate = Array.from(
-          crypto.getRandomValues(new Uint8Array(4)),
-          (byte) => alphabet[byte % 52],
-        ).join("");
-        if (!hasCell(candidate)) id = candidate;
-      }
-      if (id === undefined) throw new Error("Could not generate a unique cell ID.");
+      const id =
+        input.id ??
+        Notebook.createCellId(
+          (id) =>
+            Notebook.cellIndex(confirmed).has(id) ||
+            next.cells.has(id) ||
+            sent.cells.has(id),
+        );
       const cell = Schema.decodeUnknownSync(Protocol.CellInput)({ ...input, id });
       assertActive();
       if (hasCell(cell.id)) {
@@ -125,7 +123,7 @@ export function editDocument(
       if (anchor !== undefined) {
         requireCell(anchor);
       }
-      next = Source.index(confirmed).has(cell.id)
+      next = Notebook.cellIndex(confirmed).has(cell.id)
         ? restoreCell(confirmed, next, cell, { ...placement }, sent)
         : createCell(next, cell, { ...placement });
       return cell.id;

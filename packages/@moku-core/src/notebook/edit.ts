@@ -1,13 +1,12 @@
 /** Compile edits against observed cells into an atomic protocol request. @module */
 import { Schema } from "effect";
-import type * as Notebook from "../Notebook.ts";
+import * as Notebook from "../Notebook.ts";
 import * as Protocol from "../Protocol.ts";
 import { ModelError } from "../internal/client.ts";
 
 const invalid = (message: string): never => {
   throw new ModelError({ reason: "invalid-edit", message });
 };
-const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 export function build(
   id: string,
   reserved: Set<string>,
@@ -83,21 +82,7 @@ export function build(
       check();
       if (placement.before !== undefined && placement.after !== undefined)
         invalid("Specify either before or after.");
-      let cellId = input.id;
-      if (!cellId) {
-        for (let attempt = 0; attempt < 100; attempt++) {
-          const bytes = crypto.getRandomValues(new Uint8Array(4));
-          const value = Array.from(
-            bytes,
-            (byte) => alphabet[byte % alphabet.length],
-          ).join("");
-          if (!reserved.has(value)) {
-            cellId = Schema.decodeUnknownSync(Protocol.CellId)(value);
-            break;
-          }
-        }
-      }
-      if (!cellId) return invalid("Could not generate a unique cell ID.");
+      const cellId = input.id ?? Notebook.createCellId((id) => reserved.has(id));
       if (changes.has(cellId))
         return invalid("The cell already exists in this transaction.");
       reserved.add(cellId);

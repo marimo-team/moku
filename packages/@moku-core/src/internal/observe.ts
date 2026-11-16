@@ -76,7 +76,9 @@ export const observe = Effect.fnUntraced(function* <
                     ready = true;
                     attempt = 0;
                   }
-                  if (ready && event.id !== undefined && event.event !== "reset")
+                  // Replay mutates the retained state too. Resume after the last
+                  // applied event, even if this connection ends before ready.
+                  if (event.id !== undefined && (ready || cursor !== undefined))
                     cursor = event.id;
                   if (ready) publish(AsyncResult.success(options.value(state)));
                 },

@@ -1,4 +1,4 @@
-import type * as Notebook from "@moku/core/Notebook";
+import * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
 import * as Outputs from "@moku/core/Outputs";
 
@@ -14,10 +14,10 @@ const time = (execution: typeof Protocol.Execution.Type) =>
 
 /** Retain the last result while a replacement execution is running. */
 export function select(state: Notebook.State, previous?: Selection): Selection {
+  const cells = state.document && Notebook.cellIndex(state.document);
   const runtimeId = state.runtime?.id ?? null;
   const results = new Map(previous?.runtimeId === runtimeId ? previous.results : []);
-  for (const id of results.keys())
-    if (!state.document?.cells.find((cell) => cell.id === id)) results.delete(id);
+  for (const id of results.keys()) if (!cells?.has(id)) results.delete(id);
   const current = new Map<string, typeof Protocol.Execution.Type>();
   for (const execution of Object.values(state.executions).sort(
     (a, b) => time(a) - time(b),
@@ -25,7 +25,7 @@ export function select(state: Notebook.State, previous?: Selection): Selection {
     const id = execution.cell_id;
     if (
       id === null ||
-      !state.document?.cells.find((cell) => cell.id === id) ||
+      !cells?.has(id) ||
       (runtimeId !== null && execution.runtime_id !== runtimeId)
     )
       continue;

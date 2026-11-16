@@ -4,19 +4,9 @@
  * @module
  */
 import * as Protocol from "@moku/core/Protocol";
-import {
-  Clock,
-  Data,
-  Deferred,
-  Effect,
-  Exit,
-  Option,
-  Queue,
-  Schema,
-  type Scope,
-} from "effect";
+import { Data, Deferred, Effect, Exit, Option, Queue, type Scope } from "effect";
 import { Atom, type AtomRegistry } from "effect/reactivity";
-import type * as Notebook from "@moku/core/Notebook";
+import * as Notebook from "@moku/core/Notebook";
 
 import type { Document } from "@moku/core/Notebook";
 import * as Draft from "./draft.ts";
@@ -54,7 +44,6 @@ export interface Interface {
 interface Request {
   readonly submission: State.Submission;
   readonly operation: ReturnType<Notebook.Interface["edit"]>;
-  readonly startedAt: number;
 }
 
 /** An accepted request only waits for the stream; it must never be sent again. */
@@ -89,8 +78,6 @@ function withFailure(progress: Progress, error: SyncError): Progress {
   });
 }
 
-// Keep retries of uncertain writes bounded, preserving the same request and key.
-const retryWindow = 60_000;
 const stopped = () =>
   new SyncError({ message: "The document is closed.", retryable: false });
 
@@ -181,7 +168,6 @@ export function synchronize(
               request: {
                 submission,
                 operation: notebook.edit(submission.edit),
-                startedAt: yield* Clock.currentTimeMillis,
               },
             }),
           );
@@ -190,15 +176,6 @@ export function synchronize(
         if (sending._tag === "Sending") {
           const request = sending.request;
           for (let attempt = 0; ; attempt++) {
-            if ((yield* Clock.currentTimeMillis) - request.startedAt >= retryWindow) {
-              return yield* Effect.fail(
-                new SyncError({
-                  message:
-                    "The edit's outcome is unknown and its safe retry window has expired. Your draft is retained.",
-                  retryable: false,
-                }),
-              );
-            }
             const result = yield* request.operation.pipe(
               Effect.timeout("10 seconds"),
               Effect.result,
@@ -218,11 +195,19 @@ export function synchronize(
             }
             const cause = result.failure;
             if (
-              Schema.is(Protocol.Problem)(cause) &&
-              cause.status !== undefined &&
-              cause.status >= 400 &&
-              cause.status < 500
+              cause instanceof Notebook.ModelError &&
+              cause.reason === "retry-expired"
             ) {
+              return yield* Effect.fail(
+                new SyncError({
+                  message:
+                    "The edit's outcome is unknown and its safe retry window has expired. Your draft is retained.",
+                  retryable: false,
+                  cause,
+                }),
+              );
+            }
+            if (Notebook.isRejection(cause)) {
               const problem = cause;
               const error = new SyncError({
                 message: `${problem.detail ?? problem.title} Your draft is retained.`,

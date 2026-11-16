@@ -33,6 +33,16 @@ export class ModelError extends Schema.TaggedError<ModelError>()("ModelError", {
   message: Schema.String,
 }) {}
 
+/**
+ * Whether the host definitively rejected a command without accepting its work.
+ *
+ * These responses retire the request key. Transport and server failures retain it
+ * so retrying cannot repeat work whose outcome is unknown.
+ */
+export function isRejection(error: unknown): error is typeof Problems.Problem.Type {
+  return Schema.is(Problems.Problem)(error) && error.status < 500;
+}
+
 export const makeClient = Effect.fnUntraced(function* (options: {
   readonly baseUrl: string | URL;
   readonly token?: Redacted.Redacted<string>;
@@ -125,8 +135,7 @@ export const makeCommands = Effect.fnUntraced(function* (
                 Effect.sync(() => {
                   if (
                     Exit.isSuccess(exit) ||
-                    (Exit.isFailure(exit) &&
-                      Schema.is(Problems.Problem)(Cause.squash(exit.cause)))
+                    (Exit.isFailure(exit) && isRejection(Cause.squash(exit.cause)))
                   )
                     command = undefined;
                 }),

@@ -1,6 +1,6 @@
 import { Option } from "effect";
 import { AsyncResult, Atom } from "effect/reactivity";
-import type * as Notebook from "@moku/core/Notebook";
+import * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
 import { Graph, type Item, type Trace } from "./graph.ts";
 
@@ -48,7 +48,7 @@ export function make(state: Notebook.Interface["state"]) {
     AsyncResult.getOrElse(state, () => undefined),
   );
   const cells = Atom.map(value, (value) =>
-    Object.fromEntries(value?.document?.cells.map((cell) => [cell.id, cell]) ?? []),
+    value?.document ? Notebook.cellIndex(value.document) : null,
   );
   // Read related records together so a document revision cannot briefly be
   // compared with analysis from the previous snapshot during propagation.
@@ -106,8 +106,8 @@ export function make(state: Notebook.Interface["state"]) {
           index,
           startsColumn:
             index > 0 &&
-            (sources[id]?.config.column ?? 0) !==
-              (sources[order[index - 1]]?.config.column ?? 0),
+            (sources?.get(id)?.config.column ?? 0) !==
+              (sources?.get(order[index - 1])?.config.column ?? 0),
         },
       ]),
     );
@@ -117,7 +117,9 @@ export function make(state: Notebook.Interface["state"]) {
   const latest = Atom.readable((get) =>
     latestExecutions(get(executions), get(runtime)),
   );
-  const source = Atom.family((id: string) => Atom.map(cells, (cells) => cells[id]));
+  const source = Atom.family((id: string) =>
+    Atom.map(cells, (cells) => cells?.get(id)),
+  );
   const execution = Atom.family((id: string) =>
     Atom.map(latest, (latest) => latest.get(id)),
   );

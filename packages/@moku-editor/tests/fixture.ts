@@ -5,8 +5,9 @@ import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Protocol from "@moku/core/Protocol";
 import * as Notebook from "@moku/core/Notebook";
 import { emptyState } from "../../@moku-core/tests/fixtures.ts";
-import * as Source from "../src/internal/source.ts";
-import * as Edit from "../../@moku-core/src/notebook/edit.ts";
+import type { Source } from "../src/internal/state.ts";
+import * as Host from "@moku/core/Host";
+import { FetchHttpClient } from "effect/http";
 import * as Document from "../src/Document.ts";
 
 export const cell = Schema.decodeUnknownSync(Protocol.Cell)({
@@ -50,17 +51,75 @@ export async function setup(
     request: typeof Protocol.EditRequest.Type;
     requestId: string;
   }) => Effect.Effect<unknown, unknown>,
+  options: Pick<Host.Options, "retryWindow"> = {},
 ) {
   const registry = AtomRegistry.make();
-  const source = Atom.make<Source.Source>({ document: confirmed(), canEdit: true });
+  const source = Atom.make<Source>({ document: confirmed(), canEdit: true });
   const calls: {
     request: typeof Protocol.EditRequest.Type;
     key: string;
     respond: (version: number) => void;
   }[] = [];
-  const unused = () => Effect.die("Unexpected notebook operation");
+  const scope = Effect.runSync(Scope.make());
+  const fetch: typeof globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init);
+    if (request.url.endsWith("/events"))
+      return new Response(new ReadableStream(), {
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    if (!request.url.endsWith("/edits"))
+      throw new Error(`Unexpected request: ${request.url}`);
+    const payload = Schema.decodeUnknownSync(Protocol.EditRequest)(
+      await request.json(),
+    );
+    const key = request.headers.get("idempotency-key")!;
+    const operation = edit
+      ? edit({ request: payload, requestId: key })
+      : Effect.callback<unknown>((resume) => {
+          calls.push({
+            request: payload,
+            key,
+            respond: (version) =>
+              resume(
+                Effect.succeed({
+                  document: { ...document, etag: `doc-${version}`, version },
+                  cells: {},
+                }),
+              ),
+          });
+        });
+    return Effect.runPromise(
+      operation.pipe(
+        Effect.match({
+          onSuccess: (body) => Response.json(body),
+          onFailure: (cause) => {
+            const problem = Schema.decodeUnknownOption(Protocol.Problem)(cause);
+            if (problem._tag === "Some")
+              return Response.json(problem.value, {
+                status: problem.value.status,
+                headers: { "Content-Type": "application/problem+json" },
+              });
+            throw cause;
+          },
+        }),
+      ),
+      { signal: request.signal },
+    );
+  };
+  const host = await Effect.runPromise(
+    Host.make({ baseUrl: "http://host.test", ...options }).pipe(
+      Effect.provide(FetchHttpClient.layer),
+      Effect.provideService(FetchHttpClient.Fetch, fetch),
+      Effect.provideService(AtomRegistry.AtomRegistry, registry),
+      Effect.provideService(Scope.Scope, scope),
+    ),
+  );
+  const attached = await Effect.runPromise(
+    host.notebooks.attach("n").pipe(Effect.provideService(Scope.Scope, scope)),
+  );
+  // Draft tests control source synchronously; commands still cross the real HTTP client.
   const notebook: Notebook.Interface = {
-    id: document.notebook_id,
+    ...attached,
     state: Atom.readable((get) => {
       const sourceValue = get(source);
       return AsyncResult.success({
@@ -76,54 +135,7 @@ export async function setup(
         document: sourceValue.document,
       });
     }),
-    ensureRunning: unused(),
-    edit: (callback) => {
-      const key = crypto.randomUUID();
-      const request = Edit.build("n", new Set(), callback);
-      const operation = edit
-        ? Effect.suspend(() => edit({ request, requestId: key }))
-        : Effect.callback<unknown>((resume) => {
-            calls.push({
-              request,
-              key,
-              respond: (version) =>
-                resume(
-                  Effect.succeed({
-                    document: { ...document, etag: `doc-${version}`, version },
-                    cells: {},
-                  }),
-                ),
-            });
-          });
-      return operation.pipe(
-        Effect.catch((cause) => {
-          const problem = Schema.decodeUnknownOption(Protocol.Problem)(cause);
-          return Effect.fail(
-            problem._tag === "Some"
-              ? problem.value
-              : new Notebook.ModelError({
-                  reason: "invalid-state",
-                  message: "Network failure.",
-                }),
-          );
-        }),
-        Effect.flatMap(Schema.decodeUnknownEffect(Protocol.EditResponse)),
-        Effect.map(Edit.result),
-      );
-    },
-    save: unused,
-    runtime: {
-      start: unused,
-      restart: unused,
-      execute: unused,
-      reply: unused,
-      run: unused,
-      interrupt: unused,
-      cancel: unused,
-      stop: unused,
-    },
   };
-  const scope = Effect.runSync(Scope.make());
   const make = () =>
     Effect.runPromise(
       Layer.buildWithScope(Document.layer(notebook), scope).pipe(

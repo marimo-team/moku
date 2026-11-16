@@ -30,10 +30,7 @@ Vitest.test("native authorization accepts the proxy acknowledgement", async () =
           token: "native-token",
         });
       }),
-    ).pipe(
-      Effect.provide(proxy.http),
-      Effect.provide(AtomRegistry.layer),
-    ),
+    ).pipe(Effect.provide(proxy.http), Effect.provide(AtomRegistry.layer)),
   );
   const request = requests.find((request) => request.url.endsWith("/marimo/auth"));
   Vitest.expect(request?.method).toBe("POST");

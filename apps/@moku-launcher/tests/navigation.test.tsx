@@ -343,7 +343,7 @@ Vitest.test(
       ),
     );
     await vi.waitFor(() =>
-      Vitest.expect(view.element.querySelector("h1")?.textContent).toBe("a:n"),
+      Vitest.expect(view.element.querySelector("h1")?.textContent).toBe("n"),
     );
   },
 );

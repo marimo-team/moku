@@ -1,11 +1,11 @@
 /** Observe and edit a notebook acquired with Host.notebooks.attach. @module */
-import type { Effect } from "effect";
+import { Schema, type Effect } from "effect";
 import type { AsyncResult, Atom } from "effect/reactivity";
-import type * as Protocol from "./Protocol.ts";
+import * as Protocol from "./Protocol.ts";
 import type { Client } from "./internal/client.ts";
 import { ModelError } from "./internal/client.ts";
 import type { Sse } from "effect/encoding";
-export { ModelError };
+export { ModelError, isRejection } from "./internal/client.ts";
 
 /** A coherent document revision with its cells in display order. */
 export type Document = typeof Protocol.Document.Type & {
@@ -166,4 +166,41 @@ export interface Interface {
   ) => Effect.Effect<EditResult, CommandError>;
   /** Commands targeting the current runtime. */
   readonly runtime: Runtime;
+}
+
+const indexes = new WeakMap<Document, ReadonlyMap<string, typeof Protocol.Cell.Type>>();
+
+/** Returns the cell lookup shared by readers of this immutable document revision. */
+export function cellIndex(
+  document: Document,
+): ReadonlyMap<string, typeof Protocol.Cell.Type> {
+  let cells = indexes.get(document);
+  if (!cells) {
+    cells = new Map(document.cells.map((cell) => [cell.id, cell]));
+    indexes.set(document, cells);
+  }
+  return cells;
+}
+
+/**
+ * Creates a cell ID that the caller has not reserved.
+ *
+ * Include deleted and pending cells in the reservation check when their identities
+ * must not be reused. Throws {@link ModelError} if 100 candidates collide.
+ */
+export function createCellId(
+  reserved: (id: string) => boolean,
+): typeof Protocol.CellId.Type {
+  const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const id = Array.from(
+      crypto.getRandomValues(new Uint8Array(4)),
+      (byte) => alphabet[byte % alphabet.length],
+    ).join("");
+    if (!reserved(id)) return Schema.decodeUnknownSync(Protocol.CellId)(id);
+  }
+  throw new ModelError({
+    reason: "invalid-edit",
+    message: "Could not generate a unique cell ID.",
+  });
 }

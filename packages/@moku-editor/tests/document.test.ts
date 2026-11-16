@@ -249,7 +249,7 @@ Vitest.test(
     h.publish("first", 2);
     h.change("second");
     await vi.waitFor(() => Vitest.expect(attempts).toHaveLength(3));
-    Vitest.expect(attempts[1].request).toBe(attempts[0].request);
+    Vitest.expect(attempts[1].request).toEqual(attempts[0].request);
     Vitest.expect(attempts[1].key).toBe(attempts[0].key);
     Vitest.expect(attempts[2].key).not.toBe(attempts[0].key);
     Vitest.expect(attempts[2].request.changes[0]).toMatchObject({
@@ -269,12 +269,15 @@ for (const expired of [false, true]) {
         vi.useRealTimers();
       });
       const attempts: { request: typeof Protocol.EditRequest.Type; key: string }[] = [];
-      const h = await setup(({ request, requestId: key }) => {
-        attempts.push({ request, key });
-        return attempts.length <= 3
-          ? Effect.fail(new Error("Connection lost"))
-          : Effect.succeed({ document: { ...document, version: 2 }, cells: {} });
-      });
+      const h = await setup(
+        ({ request, requestId: key }) => {
+          attempts.push({ request, key });
+          return attempts.length <= 3
+            ? Effect.fail(new Error("Connection lost"))
+            : Effect.succeed({ document: { ...document, version: 2 }, cells: {} });
+        },
+        { retryWindow: expired ? 2_000 : 120_000 },
+      );
       h.change("accepted");
       const flushed = Effect.runPromiseExit(h.model.flush);
       await vi.waitFor(() => Vitest.expect(attempts).toHaveLength(3), {
@@ -283,7 +286,7 @@ for (const expired of [false, true]) {
       Vitest.expect((await flushed)._tag).toBe("Failure");
       // Matching source alone cannot establish the outcome of an uncertain write.
       h.publish("accepted", 2);
-      await vi.advanceTimersByTimeAsync(expired ? 60_000 : 500);
+      await vi.advanceTimersByTimeAsync(expired ? 2_000 : 61_000);
       Vitest.expect(h.registry.get(h.model.state).status.status).toBe("error");
       Vitest.expect(attempts).toHaveLength(3);
 
@@ -300,7 +303,7 @@ for (const expired of [false, true]) {
         Vitest.expect(attempts).toHaveLength(4);
         for (const attempt of attempts) {
           Vitest.expect(attempt.key).toBe(attempts[0].key);
-          Vitest.expect(attempt.request).toBe(attempts[0].request);
+          Vitest.expect(attempt.request).toEqual(attempts[0].request);
         }
         Vitest.expect(h.registry.get(h.model.state).dirty).toBe(false);
       }
@@ -577,3 +580,60 @@ Vitest.test(
     Vitest.expect(h.code()).toBe("updated");
   },
 );
+
+Vitest.test(
+  "automatic retries of host server failures preserve the submitted edit",
+  async () => {
+    const attempts: { request: typeof Protocol.EditRequest.Type; key: string }[] = [];
+    const problem = Schema.decodeUnknownSync(Protocol.InternalProblem)({
+      type: "urn:marimo:problem:internal",
+      title: "Host failed",
+      status: 500,
+    });
+    const h = await setup(({ request, requestId: key }) => {
+      attempts.push({ request, key });
+      return attempts.length === 1
+        ? Effect.fail(problem)
+        : Effect.succeed({ document: { ...document, version: 2 }, cells: {} });
+    });
+    h.change("accepted");
+    const flushed = Effect.runPromise(h.model.flush);
+    await vi.waitFor(() => Vitest.expect(attempts).toHaveLength(2));
+    h.publish("accepted", 2);
+    await flushed;
+    Vitest.expect(attempts[1]).toEqual(attempts[0]);
+  },
+);
+
+Vitest.test("generated cell IDs exclude deleted identities", async () => {
+  const h = await setup();
+  const prior = confirmed();
+  const deletedId = Schema.decodeUnknownSync(Protocol.CellId)("aaaa");
+  h.registry.set(h.source, {
+    document: {
+      ...prior,
+      order: [deletedId],
+      cells: [
+        { ...prior.cells[0], id: Schema.decodeUnknownSync(Protocol.CellId)("aaaa") },
+      ],
+    },
+    canEdit: true,
+  });
+  const random = vi.spyOn(crypto, "getRandomValues");
+  random.mockImplementationOnce((array) => {
+    new Uint8Array(array!.buffer).fill(0);
+    return array;
+  });
+  random.mockImplementationOnce((array) => {
+    new Uint8Array(array!.buffer).fill(1);
+    return array;
+  });
+  Vitest.onTestFinished(() => random.mockRestore());
+  let created: string | undefined;
+  h.model.edit((tx) => {
+    tx.deleteCell("aaaa");
+    created = tx.createCell({ code: "new = 1" });
+  });
+  Vitest.expect(created).toBe("bbbb");
+  Vitest.expect(h.registry.get(h.model.state).document?.order).toEqual(["bbbb"]);
+});

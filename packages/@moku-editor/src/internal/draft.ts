@@ -8,14 +8,13 @@ import { Schema } from "effect";
  */
 import { Equivalence } from "effect";
 import type { Document } from "@moku/core/Notebook";
-import * as Source from "./source.ts";
 import * as Protocol from "@moku/core/Protocol";
 
 type Cell = typeof Protocol.Cell.Type;
 type CellId = string;
 type CellConfig = typeof Protocol.CellConfig.Type;
 type CellInput = typeof Protocol.CellInput.Type;
-import type * as Notebook from "@moku/core/Notebook";
+import * as Notebook from "@moku/core/Notebook";
 
 /** The fields a client edits. Null code means the host withheld source. */
 export type EditableCell = Readonly<Pick<Cell, "id" | "code" | "name">> & {
@@ -228,7 +227,7 @@ export function editCell(
       ? draft
       : withCell(draft, id, { ...current, cell });
   }
-  const base = Source.index(confirmed).get(id);
+  const base = Notebook.cellIndex(confirmed).get(id);
   if (base === undefined) {
     return draft;
   }
@@ -334,7 +333,7 @@ export function prune(
   for (const [id, cell] of draft.cells) {
     if (
       cell.kind === "delete" &&
-      !Source.index(confirmed).has(id) &&
+      !Notebook.cellIndex(confirmed).has(id) &&
       sent.cells.get(id)?.kind !== "create"
     ) {
       cells ??= new Map(draft.cells);
@@ -400,7 +399,7 @@ export function viewDocument(confirmed: Document, draft: Draft): EditableDocumen
   }
   let order: readonly CellId[] = draft.order ?? confirmed.order;
   for (const [id, local] of draft.cells) {
-    if (local.kind === "create" && !Source.index(confirmed).has(id)) {
+    if (local.kind === "create" && !Notebook.cellIndex(confirmed).has(id)) {
       cells.set(id, local.cell);
       if (draft.order === null) {
         order = insertAt(order, id, local.placement);
@@ -434,7 +433,7 @@ export function toEdits(
   let stagedOrder: readonly string[] = confirmed.order;
   const stagedIds = new Set(stagedOrder);
   for (const [id, local] of draft.cells) {
-    const base = Source.index(confirmed).get(id);
+    const base = Notebook.cellIndex(confirmed).get(id);
     if (local.kind === "delete") {
       if (base !== undefined) {
         edits.push((tx) => tx.deleteCell(base));

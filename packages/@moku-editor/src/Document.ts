@@ -9,9 +9,8 @@
 import { Context, Effect, Layer, type Scope } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Notebook from "@moku/core/Notebook";
-import { makeState } from "./internal/state.ts";
+import { makeState, type Source } from "./internal/state.ts";
 import { synchronize, type SyncStatus, type SyncError } from "./internal/sync.ts";
-import type * as Source from "./internal/source.ts";
 import * as Draft from "./internal/draft.ts";
 import type { Edit } from "./internal/edit.ts";
 
@@ -128,7 +127,7 @@ export function make(
 ): Effect.Effect<Interface, never, Scope.Scope | AtomRegistry.AtomRegistry> {
   return Effect.gen(function* () {
     const registry = yield* AtomRegistry.AtomRegistry;
-    const source = Atom.readable((get): Source.Source => {
+    const source = Atom.readable((get): Source => {
       const result = get(notebook.state);
       const state = AsyncResult.getOrElse(result, () => undefined);
       const document = state?.document ?? null;

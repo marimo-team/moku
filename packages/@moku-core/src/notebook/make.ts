@@ -39,16 +39,9 @@ export const make = Effect.fnUntraced(function* (
       if (event.event === "cell") reserved.add(event.data.cell.id);
       return reduceNotebook(state, event);
     },
-    resume: (state) => ({ ...state, phase: "replay" as const, ready: false }),
+    resume: (state) => ({ ...state, phase: "replay" as const }),
     value: (state): Notebook.State => {
-      const {
-        confirmed,
-        phase: _phase,
-        ready: _ready,
-        cells: _cells,
-        document: _document,
-        ...records
-      } = state;
+      const { confirmed, phase: _phase, ...records } = state;
       const confirmedDocument = confirmed.current;
       if (previous !== confirmedDocument) {
         previous = confirmedDocument;

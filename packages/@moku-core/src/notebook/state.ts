@@ -9,12 +9,9 @@ import * as Confirmed from "./confirmed.ts";
 export interface NotebookState {
   phase: "snapshot" | "replay" | "live";
   confirmed: Confirmed.State;
-  ready: boolean;
   notebook: typeof Protocol.Notebook.Type | null;
-  document: typeof Protocol.Document.Type | null;
   analysis: typeof Protocol.Analysis.Type | null;
   runtime: typeof Protocol.Runtime.Type | null;
-  cells: Record<string, typeof Protocol.Cell.Type>;
   runs: Record<string, typeof Protocol.Run.Type>;
   executions: Record<string, typeof Protocol.Execution.Type>;
   consoles: Record<string, typeof Protocol.Console.Type>;
@@ -25,14 +22,11 @@ export interface NotebookState {
 
 export function emptyNotebook(): NotebookState {
   return {
-    ready: false,
     phase: "snapshot",
     confirmed: Confirmed.initial,
     notebook: null,
-    document: null,
     analysis: null,
     runtime: null,
-    cells: {},
     runs: {},
     executions: {},
     consoles: {},
@@ -68,16 +62,10 @@ export function reduceNotebook(
       : { ...emptyNotebook(), phase: state.phase };
   }
   const confirmed = Confirmed.reduce(state.confirmed, event, state.phase);
-  if (confirmed !== state.confirmed)
-    state = {
-      ...state,
-      confirmed,
-      document: confirmed.current?.revision ?? null,
-      cells: Object.fromEntries(confirmed.current?.cells ?? []),
-    };
+  if (confirmed !== state.confirmed) state = { ...state, confirmed };
   switch (event.event) {
     case "ready":
-      return { ...state, ready: true, phase: "live" };
+      return { ...state, phase: "live" };
     case "notebook":
       return { ...state, notebook: event.data.notebook };
     case "analysis":

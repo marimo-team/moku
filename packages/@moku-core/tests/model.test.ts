@@ -71,7 +71,7 @@ async function fixture(start?: () => Promise<Response>) {
   let editResponse: unknown = { document, cells: {} };
   let holdCommands = false;
   let loseCommands = false;
-  let refuseCommands = false;
+  let refuseCommands: number | undefined;
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const request = new Request(input, init);
     request.signal.throwIfAborted();
@@ -126,8 +126,18 @@ async function fixture(start?: () => Promise<Response>) {
       );
     if (refuseCommands)
       return Response.json(
-        { type: "urn:marimo:problem:no-runtime", title: "No runtime", status: 409 },
-        { status: 409, headers: { "Content-Type": "application/problem+json" } },
+        {
+          type:
+            refuseCommands === 500
+              ? "urn:marimo:problem:internal"
+              : "urn:marimo:problem:no-runtime",
+          title: "Host failure",
+          status: refuseCommands,
+        },
+        {
+          status: refuseCommands,
+          headers: { "Content-Type": "application/problem+json" },
+        },
       );
     if (path.endsWith("/notebooks")) return Response.json(notebook, { status: 201 });
     if (path.endsWith("/open"))
@@ -197,13 +207,13 @@ async function fixture(start?: () => Promise<Response>) {
     },
     allow: () => {
       loseCommands = false;
-      refuseCommands = false;
+      refuseCommands = undefined;
     },
     hold: () => {
       holdCommands = true;
     },
-    refuse: () => {
-      refuseCommands = true;
+    refuse: (status = 409) => {
+      refuseCommands = status;
     },
   };
 }
@@ -1182,3 +1192,68 @@ function failure(result: AsyncResult.AsyncResult<Notebook.State, Notebook.Error>
   const error = Cause.squash(result.cause);
   return error instanceof Error ? error.message : String(error);
 }
+
+Vitest.test(
+  "reconnection resumes an interrupted replay after its last applied event",
+  async () => {
+    const f = await fixture();
+    const handle = await f.attach();
+    const first = await f.stream();
+    const revision = (version: number) => ({
+      ...document,
+      order: ["a", "b"],
+      etag: `doc-${version}`,
+      version,
+    });
+    first.send("notebook", { notebook });
+    first.send("cell", { cell });
+    first.send("cell", { cell: { ...cell, id: "b" } });
+    first.send("document", { document: revision(1) });
+    first.send("ready", {}, "1");
+    await vi.waitFor(() =>
+      Vitest.expect(isReady(f.registry.get(handle.state))).toBe(true),
+    );
+    first.end();
+    const second = await f.stream(1);
+    second.send("cell", { cell: { ...cell, version: 2, etag: "a-2" } }, "2");
+    second.send("document", { document: revision(2) }, "3");
+    second.send("cell", { cell: { ...cell, id: "b", version: 3, etag: "b-3" } }, "4");
+    second.end();
+    const third = await f.stream(2);
+    Vitest.expect(third.request.headers.get("last-event-id")).toBe("4");
+    third.send("document", { document: revision(3) }, "5");
+    third.send("ready", {}, "6");
+    await vi.waitFor(() =>
+      Vitest.expect(isReady(f.registry.get(handle.state))).toBe(true),
+    );
+    Vitest.expect(read(f.registry.get(handle.state)).document).toMatchObject({
+      version: 3,
+      cells: [
+        { id: "a", etag: "a-2" },
+        { id: "b", etag: "b-3" },
+      ],
+    });
+  },
+);
+
+Vitest.test(
+  "server failures retain the edit callback, payload, and request key",
+  async () => {
+    const f = await fixture();
+    const handle = await f.attach();
+    const callback = vi.fn((tx: Notebook.Transaction) => {
+      tx.createCell({ code: "x = 1" });
+    });
+    const operation = handle.edit(callback);
+    f.refuse(500);
+    await Vitest.expect(f.run(operation)).rejects.toMatchObject({ status: 500 });
+    f.allow();
+    await f.run(operation);
+    const requests = f.requests.filter((request) => request.method === "POST");
+    Vitest.expect(callback).toHaveBeenCalledTimes(1);
+    Vitest.expect(requests[0].headers.get("idempotency-key")).toBe(
+      requests[1].headers.get("idempotency-key"),
+    );
+    Vitest.expect(await requests[0].json()).toEqual(await requests[1].json());
+  },
+);

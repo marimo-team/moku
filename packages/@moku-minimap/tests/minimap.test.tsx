@@ -345,3 +345,23 @@ Vitest.test("two minimaps using one notebook keep independent selections", async
   Vitest.expect(firstRows[1].getAttribute("aria-pressed")).toBe("true");
   Vitest.expect(secondRows[0].getAttribute("aria-pressed")).toBe("true");
 });
+
+Vitest.test("console events do not rerender unchanged cell rows", async () => {
+  const initial = fixture();
+  const label = vi.fn((cell: Minimap.Cell) => cell.code);
+  const view = await mount(initial, label);
+  label.mockClear();
+  await view.update({
+    ...initial,
+    consoles: {
+      output: Schema.decodeUnknownSync(Protocol.Console)({
+        id: "output",
+        execution_id: "execution",
+        seq: 0,
+        name: "stdout",
+        text: "hello",
+      }),
+    },
+  });
+  Vitest.expect(label).not.toHaveBeenCalled();
+});

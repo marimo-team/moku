@@ -5,7 +5,7 @@ import { AsyncResult } from "effect/reactivity";
 import type * as Notebook from "./Notebook.ts";
 import type * as Workspace from "./Workspace.ts";
 import type { Plugin } from "@moku/plugin";
-import type * as Runtime from "./runtime.ts";
+import type * as Application from "./Application.ts";
 import { viewHref } from "./routes.ts";
 import { LauncherBar, ViewPicker, rememberView } from "./LauncherBar.tsx";
 
@@ -13,20 +13,20 @@ export function ViewHeader({
   target,
   viewKey,
   views,
-  runtime,
+  application,
   workspace,
 }: {
   target: Notebook.Target;
   viewKey: string;
   views: readonly Plugin.RegisteredView[];
-  runtime: Runtime.Interface;
+  application: Application.Interface;
   workspace: Workspace.Interface;
 }) {
   const navigate = ReactRouter.useNavigate();
   React.useEffect(() => rememberView(viewKey), [viewKey]);
   const { connections } = useAtomValue(workspace.state);
   const connection = connections.find((item) => item.id === target.connectionId);
-  const attachment = useAtomValue(runtime.notebook(target));
+  const attachment = useAtomValue(application.notebook(target));
 
   return (
     <LauncherBar

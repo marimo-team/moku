@@ -1,7 +1,7 @@
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import { AsyncResult, AtomRegistry } from "effect/reactivity";
-import * as Runtime from "../src/app/runtime.ts";
+import * as Application from "../src/app/Application.ts";
 
 Vitest.test(
   "catalogs and notebook views share hosts until their last consumer closes",
@@ -46,12 +46,16 @@ Vitest.test(
     };
     const registry = AtomRegistry.make();
     Vitest.onTestFinished(() => registry.dispose());
-    const runtime = Runtime.make({ baseUrl: "http://moku.test", plugins: [], fetch });
+    const application = Application.make({
+      baseUrl: "http://moku.test",
+      plugins: [],
+      fetch,
+    });
     const target = { connectionId: "host-a", notebookId: "n" };
-    const first = runtime.notebook(target);
-    Vitest.expect(runtime.notebook({ ...target })).toBe(first);
+    const first = application.notebook(target);
+    Vitest.expect(application.notebook({ ...target })).toBe(first);
     const closeFirst = registry.mount(first);
-    const closeSecond = registry.mount(runtime.notebook({ ...target }));
+    const closeSecond = registry.mount(application.notebook({ ...target }));
     await vi.waitFor(() => Vitest.expect(requests).toHaveLength(2));
     const result = registry.get(first);
     Vitest.expect(AsyncResult.isSuccess(result)).toBe(true);
@@ -59,11 +63,11 @@ Vitest.test(
     await vi.waitFor(() =>
       Vitest.expect(AsyncResult.isSuccess(registry.get(result.value.state))).toBe(true),
     );
-    const session = registry.get(runtime.workspace);
+    const session = registry.get(application.workspace);
     if (!AsyncResult.isSuccess(session)) throw new Error("Missing workspace");
     const closeCatalog = registry.mount(session.value.catalog("host-a"));
     const closeAnotherNotebook = registry.mount(
-      runtime.notebook({ connectionId: "host-a", notebookId: "m" }),
+      application.notebook({ connectionId: "host-a", notebookId: "m" }),
     );
     await vi.waitFor(() => Vitest.expect(requests).toHaveLength(3));
     Vitest.expect(
@@ -76,7 +80,7 @@ Vitest.test(
     Vitest.expect(requests[0].closed).toBe(false);
     Vitest.expect(requests[2].closed).toBe(false);
     const closeOtherHost = registry.mount(
-      runtime.notebook({ connectionId: "host-b", notebookId: "n" }),
+      application.notebook({ connectionId: "host-b", notebookId: "n" }),
     );
     await vi.waitFor(() => Vitest.expect(requests).toHaveLength(5));
     closeAnotherNotebook();

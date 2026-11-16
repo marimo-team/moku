@@ -4,18 +4,18 @@ import * as ReactRouter from "react-router";
 import type * as Workspace from "./Workspace.ts";
 import { Launcher } from "./Launcher.tsx";
 import { ViewInstance, ViewErrorBoundary } from "./ViewInstance.tsx";
-import type * as Runtime from "./runtime.ts";
+import type * as Application from "./Application.ts";
 import { parseRoute, type Route } from "./routes.ts";
 import type { Plugin } from "@moku/plugin";
 import { ViewHeader } from "./ViewHeader.tsx";
 import { LauncherBar } from "./LauncherBar.tsx";
 
-export function App({ runtime }: { runtime: Runtime.Interface }) {
+export function App({ application }: { application: Application.Interface }) {
   const location = ReactRouter.useLocation();
   const route = parseRoute(
     new URL(location.pathname + location.search, window.location.origin),
   );
-  const workspace = useAtomValue(runtime.workspace);
+  const workspace = useAtomValue(application.workspace);
   if (!AsyncResult.isSuccess(workspace)) {
     const failed = AsyncResult.isFailure(workspace);
     return (
@@ -30,19 +30,21 @@ export function App({ runtime }: { runtime: Runtime.Interface }) {
       </main>
     );
   }
-  return <WorkspaceApp runtime={runtime} workspace={workspace.value} route={route} />;
+  return (
+    <WorkspaceApp application={application} workspace={workspace.value} route={route} />
+  );
 }
 
 function WorkspaceApp({
-  runtime,
+  application,
   workspace,
   route,
 }: {
-  runtime: Runtime.Interface;
+  application: Application.Interface;
   workspace: Workspace.Interface;
   route: Route;
 }) {
-  const plugins = useAtomValue(runtime.plugins);
+  const plugins = useAtomValue(application.plugins);
   if (!AsyncResult.isSuccess(plugins))
     return (
       <main className="empty-state">
@@ -53,7 +55,7 @@ function WorkspaceApp({
     <Launcher workspace={workspace} plugins={plugins.value} />
   ) : (
     <ViewPage
-      runtime={runtime}
+      application={application}
       workspace={workspace}
       state={plugins.value.state}
       route={route}
@@ -62,12 +64,12 @@ function WorkspaceApp({
 }
 
 function ViewPage({
-  runtime,
+  application,
   workspace,
   state,
   route,
 }: {
-  runtime: Runtime.Interface;
+  application: Application.Interface;
   workspace: Workspace.Interface;
   state: Atom.Atom<Plugin.State>;
   route: Exclude<Route, { kind: "catalog" }>;
@@ -84,7 +86,7 @@ function ViewPage({
           target={route.target}
           viewKey={route.viewKey}
           views={views}
-          runtime={runtime}
+          application={application}
           workspace={workspace}
         />
       ) : (
@@ -95,7 +97,7 @@ function ViewPage({
           <ViewErrorBoundary
             key={`${route.target.connectionId}:${route.target.notebookId}`}
           >
-            <ViewInstance target={route.target} view={view} runtime={runtime} />
+            <ViewInstance target={route.target} view={view} application={application} />
           </ViewErrorBoundary>
         ) : (
           <div className="empty-state">

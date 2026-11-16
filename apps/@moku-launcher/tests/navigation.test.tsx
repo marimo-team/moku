@@ -10,7 +10,7 @@ import { AtomRegistry } from "effect/reactivity";
 import { Plugin, type ViewProps } from "@moku/plugin";
 import { Effect } from "effect";
 import { App } from "../src/app/App.tsx";
-import * as Runtime from "../src/app/runtime.ts";
+import * as Application from "../src/app/Application.ts";
 import { parseRoute, viewHref, type Route } from "../src/app/routes.ts";
 
 vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -79,7 +79,7 @@ async function mount(route: Route) {
       { headers: { "Content-Type": "text/event-stream" } },
     );
   };
-  const runtime = Runtime.make({
+  const application = Application.make({
     baseUrl: "http://moku.test",
     fetch,
     plugins: [
@@ -106,7 +106,7 @@ async function mount(route: Route) {
   document.body.append(element);
   const root = ReactDOMClient.createRoot(element);
   const router = ReactRouter.createMemoryRouter(
-    [{ path: "*", element: <App runtime={runtime} /> }],
+    [{ path: "*", element: <App application={application} /> }],
     {
       initialEntries: [
         route.kind === "view" ? viewHref(route.target, route.viewKey) : "/",

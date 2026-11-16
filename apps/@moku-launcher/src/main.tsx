@@ -3,7 +3,7 @@ import * as ReactDOMClient from "react-dom/client";
 import * as ReactRouter from "react-router";
 import * as ReactRouterDOM from "react-router/dom";
 import { App } from "./app/App.tsx";
-import * as Runtime from "./app/runtime.ts";
+import * as Application from "./app/Application.ts";
 
 import GraphExplainerPlugin from "./plugins/graph-explainer/index.tsx";
 import NotebookEditorPlugin from "./plugins/notebook/index.tsx";
@@ -16,7 +16,7 @@ const launchKey = new URLSearchParams(location.hash.slice(1)).get("key") ?? unde
 if (launchKey) {
   history.replaceState(null, "", location.pathname + location.search);
 }
-const runtime = Runtime.make({
+const application = Application.make({
   baseUrl: location.origin,
   launchKey,
   plugins: [GraphExplainerPlugin, NotebookEditorPlugin, BasicPlugin, MinimapPlugin],
@@ -25,7 +25,7 @@ const runtime = Runtime.make({
 const router = ReactRouter.createBrowserRouter([
   {
     path: "*",
-    element: <App runtime={runtime} />,
+    element: <App application={application} />,
   },
 ]);
 

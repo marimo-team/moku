@@ -1,4 +1,8 @@
-/** Share workspace, plugin, and notebook atoms across launcher views. @module */
+/**
+ * Compose the shared workspace, plugins, and notebooks for a launcher application.
+ *
+ * @module
+ */
 import { Data, Effect } from "effect";
 import { Atom } from "effect/reactivity";
 import * as Proxy from "./Proxy.ts";
@@ -8,7 +12,7 @@ import { Plugin } from "@moku/plugin";
 
 class Target extends Data.Class<Notebook.Target> {}
 
-/** Creates the atoms used by launcher views in their shared registry. */
+/** Creates application state for views that share an atom registry. */
 export function make(options: {
   baseUrl: string | URL;
   launchKey?: string;
@@ -37,5 +41,5 @@ export function make(options: {
     notebook: (target: Notebook.Target) => notebooks(new Target(target)),
   };
 }
-/** Workspace, plugin, and notebook atoms for a launcher instance. */
+/** Shared state and notebook access for one launcher application. */
 export type Interface = ReturnType<typeof make>;

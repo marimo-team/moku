@@ -164,7 +164,7 @@ Vitest.test(
       canEdit: true,
       document: {
         ...confirmed(),
-        cells: new Map([[cell.id, { ...cell, code: null }]]),
+        cells: [{ ...cell, code: null }],
       },
     });
     await tick();

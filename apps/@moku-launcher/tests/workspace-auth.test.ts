@@ -1,8 +1,8 @@
 import * as Vitest from "vite-plus/test";
 import { Effect } from "effect";
 import { AtomRegistry } from "effect/reactivity";
-import * as Core from "@moku/core";
-import * as Workspace from "@moku/core/Workspace";
+import * as Proxy from "../src/app/Proxy.ts";
+import * as Workspace from "../src/app/Workspace.ts";
 
 Vitest.test("native authorization accepts the proxy acknowledgement", async () => {
   const requests: Request[] = [];
@@ -20,17 +20,18 @@ Vitest.test("native authorization accepts the proxy acknowledgement", async () =
         throw new Error(`Unexpected request: ${request.url}`);
     }
   };
+  const proxy = Proxy.make("http://moku.test", { fetch });
   await Effect.runPromise(
     Effect.scoped(
       Effect.gen(function* () {
-        const workspace = yield* Workspace.make();
+        const workspace = yield* Workspace.make(proxy);
         yield* workspace.authorizeInteractions({
           connectionId: "local",
           token: "native-token",
         });
       }),
     ).pipe(
-      Effect.provide(Core.layer("http://moku.test", { fetch })),
+      Effect.provide(proxy.http),
       Effect.provide(AtomRegistry.layer),
     ),
   );

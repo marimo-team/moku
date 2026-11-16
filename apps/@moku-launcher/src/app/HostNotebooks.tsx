@@ -1,4 +1,4 @@
-import type * as Workspace from "@moku/core/Workspace";
+import type * as Workspace from "./Workspace.ts";
 import { useCatalog } from "./catalog.ts";
 import { NotebookRow } from "./NotebookRow.tsx";
 
@@ -8,7 +8,7 @@ export function HostNotebooks({
   selectedView,
 }: {
   connection: Workspace.Connection;
-  workspace: Workspace.Workspace;
+  workspace: Workspace.Interface;
   selectedView: string;
 }) {
   const catalog = useCatalog(workspace, connection.id);

@@ -68,7 +68,7 @@ export interface Interface<R = never> {
  *     ctx.view.add({
  *       id: "identity",
  *       title: "Notebook identity",
- *       render: ({ notebook }) => <p>{notebook.target.notebookId}</p>,
+ *       render: ({ notebook }) => <p>{notebook.id}</p>,
  *     }),
  * });
  * ```

@@ -1,23 +1,24 @@
 import * as React from "react";
 import { useAtomValue } from "@effect/atom-react";
-import { Atom } from "effect/reactivity";
-import type * as Workspace from "@moku/core/Workspace";
-import type { Observation } from "@moku/core";
+import { AsyncResult, Atom } from "effect/reactivity";
+import type * as Workspace from "./Workspace.ts";
+import { Cause } from "effect";
+import type * as Host from "@moku/core/Host";
+import type * as Notebook from "@moku/core/Notebook";
 
-const empty = Atom.make<Observation<Workspace.Catalog>>({
-  value: { ready: false, notebooks: {} },
-  status: "connecting",
-  error: null,
-});
-export function useCatalog(workspace: Workspace.Workspace, connectionId: string) {
+const empty = Atom.make<AsyncResult.AsyncResult<Host.State, Notebook.Error>>(
+  AsyncResult.initial(),
+);
+export function useCatalog(workspace: Workspace.Interface, connectionId: string) {
   const atom = React.useMemo(
     () => (connectionId ? workspace.catalog(connectionId) : empty),
     [workspace, connectionId],
   );
-  const { value, error } = useAtomValue(atom);
+  const result = useAtomValue(atom);
+  const state = AsyncResult.getOrElse(result, () => undefined);
   return {
-    notebooks: Object.values(value.notebooks),
-    ready: value.ready,
-    error: error?.message ?? "",
+    notebooks: Object.values(state?.notebooks ?? {}),
+    ready: AsyncResult.isSuccess(result) && !result.waiting,
+    error: AsyncResult.isFailure(result) ? Cause.pretty(result.cause) : "",
   };
 }

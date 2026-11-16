@@ -1,10 +1,12 @@
+import * as Host from "@moku/core/Host";
+import { AsyncResult } from "effect/reactivity";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import { Effect, Exit, Scope, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import * as Model from "../src/index.ts";
-import * as Notebook from "../src/Notebook.ts";
-import type * as Interaction from "../src/Interaction.ts";
+import * as Proxy from "../src/app/Proxy.ts";
+import * as Notebook from "../src/app/Notebook.ts";
+import type * as Interaction from "@moku/core/Interaction";
 
 const notebook = {
   id: "n",
@@ -105,9 +107,16 @@ async function fixture() {
   };
   const registry = AtomRegistry.make();
   const scope = Effect.runSync(Scope.make());
+  const proxy = Proxy.make("http://moku.test", { fetch });
   const model = await Effect.runPromise(
-    Notebook.make({ connectionId: "host", notebookId: "n" }).pipe(
-      Effect.provide(Model.layer("http://moku.test", { fetch })),
+    Effect.gen(function* () {
+      const host = yield* Host.make({ baseUrl: proxy.url("/api/hosts/host") });
+      return yield* Notebook.make(proxy, host, {
+        connectionId: "host",
+        notebookId: "n",
+      });
+    }).pipe(
+      Effect.provide(proxy.http),
       Effect.provideService(AtomRegistry.AtomRegistry, registry),
       Effect.provideService(Scope.Scope, scope),
     ),
@@ -118,7 +127,7 @@ async function fixture() {
     registry.dispose();
   });
   await vi.waitFor(() =>
-    Vitest.expect(registry.get(model.state).value.ready).toBe(true),
+    Vitest.expect(AsyncResult.isSuccess(registry.get(model.state))).toBe(true),
   );
   const subscribe = () => {
     const events: Interaction.Event[] = [];
@@ -149,7 +158,9 @@ async function fixture() {
     subscribe,
     ready: () =>
       vi.waitFor(() =>
-        Vitest.expect(registry.get(model.runtime.state).connection).toBe("connected"),
+        Vitest.expect(registry.get(model.runtime.state).connection._tag).toBe(
+          "Connected",
+        ),
       ),
     notify: (notification: Interaction.Notification) =>
       native.at(-1)!.send("marimo", { marimo: notification }),
@@ -323,9 +334,10 @@ Vitest.test(
     f.authenticate(false);
     f.subscribe();
     await vi.waitFor(() =>
-      Vitest.expect(f.registry.get(f.model.runtime.state).error?.code).toBe(
-        "authentication",
-      ),
+      Vitest.expect(f.registry.get(f.model.runtime.state).connection).toMatchObject({
+        _tag: "Failed",
+        error: { code: "authentication" },
+      }),
     );
     Vitest.expect(f.native).toHaveLength(0);
     f.authenticate(true);
@@ -334,11 +346,11 @@ Vitest.test(
     f.wrongRuntime();
     await Effect.runPromise(f.model.runtime.retry);
     await vi.waitFor(() =>
-      Vitest.expect(f.registry.get(f.model.runtime.state).error?.code).toBe(
-        "stale-runtime",
-      ),
+      Vitest.expect(f.registry.get(f.model.runtime.state).connection).toMatchObject({
+        _tag: "Failed",
+        error: { code: "stale-runtime" },
+      }),
     );
-    Vitest.expect(f.registry.get(f.model.runtime.state).canInteract).toBe(false);
     Vitest.expect(f.native.at(-1)?.signal.aborted).toBe(true);
   },
 );

@@ -10,7 +10,7 @@ import { createGraphView } from "./view.ts";
 
 interface DependencyGraphProps {
   state: NotebookState;
-  run: Protocol.RunOutput | undefined;
+  run: typeof Protocol.Run.Type | undefined;
   selected: string;
   onSelect: (id: string) => void;
   onRunCell: (id: string) => void;
@@ -27,7 +27,7 @@ export function DependencyGraph({
 }: DependencyGraphProps) {
   const graph = React.useMemo(
     () => dependencyGraph(state),
-    [state.document, state.analysis, state.cells],
+    [state.document, state.analysis],
   );
   const [collapsed, setCollapsed] = React.useState(false);
   const [hovered, setHovered] = React.useState<string | null>(null);
@@ -40,7 +40,7 @@ export function DependencyGraph({
 
   return (
     <>
-      {!graph.current && state.ready && (
+      {!graph.current && state.document !== null && (
         <div className="notice">
           {state.analysis
             ? "Waiting for the updated dependency graph…"

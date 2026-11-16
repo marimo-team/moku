@@ -10,27 +10,27 @@ import type * as Protocol from "./Protocol.ts";
  * A display or console record, distinguished by `kind`.
  */
 export type Item =
-  | ({ readonly kind: "display" } & Protocol.DisplayOutput)
-  | ({ readonly kind: "console" } & Protocol.ConsoleOutput);
+  | ({ readonly kind: "display" } & typeof Protocol.Display.Type)
+  | ({ readonly kind: "console" } & typeof Protocol.Console.Type);
 
 /**
  * The outcome and ordered output records for one execution.
  */
 export interface Snapshot {
   readonly runtimeId: string | null;
-  readonly outcome: Protocol.OutcomeOutput | null;
+  readonly outcome: typeof Protocol.Outcome.Type | null;
   readonly items: readonly Item[];
 }
 
 /** Group output records once when selecting multiple executions from a snapshot. */
 export function index(
-  state: Pick<Notebook.Snapshot, "consoles" | "displays">,
+  state: Pick<Notebook.State, "consoles" | "displays">,
 ): ReadonlyMap<string, readonly Item[]> {
   return collect(state);
 }
 
 function collect(
-  state: Pick<Notebook.Snapshot, "consoles" | "displays">,
+  state: Pick<Notebook.State, "consoles" | "displays">,
   executionId?: string,
 ) {
   const grouped = new Map<string, Item[]>();
@@ -60,7 +60,7 @@ function collect(
  * Pass an index built from the same snapshot when selecting multiple executions.
  */
 export function forExecution(
-  state: Pick<Notebook.Snapshot, "executions" | "consoles" | "displays">,
+  state: Pick<Notebook.State, "executions" | "consoles" | "displays">,
   executionId: string,
   indexed: ReadonlyMap<string, readonly Item[]> = collect(state, executionId),
 ): Snapshot {

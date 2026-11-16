@@ -19,9 +19,9 @@
 
 import type * as Protocol from "@moku/core/Protocol";
 
-type Cell = Protocol.CellOutput;
-type Execution = Protocol.ExecutionOutput;
-type Variable = Protocol.VariableOutput;
+type Cell = typeof Protocol.Cell.Type;
+type Execution = typeof Protocol.Execution.Type;
+type Variable = typeof Protocol.Variable.Type;
 
 interface CellFreshness {
   /** This cell's source differs from its pending execution, or its last result. */

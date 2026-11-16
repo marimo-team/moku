@@ -1,16 +1,16 @@
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult, type Atom } from "effect/reactivity";
 import * as ReactRouter from "react-router";
-import type * as Workspace from "@moku/core/Workspace";
+import type * as Workspace from "./Workspace.ts";
 import { Launcher } from "./Launcher.tsx";
 import { ViewInstance, ViewErrorBoundary } from "./ViewInstance.tsx";
-import type { Runtime } from "./runtime.ts";
+import type * as Runtime from "./runtime.ts";
 import { parseRoute, type Route } from "./routes.ts";
 import type { Plugin } from "@moku/plugin";
 import { ViewHeader } from "./ViewHeader.tsx";
 import { LauncherBar } from "./LauncherBar.tsx";
 
-export function App({ runtime }: { runtime: Runtime }) {
+export function App({ runtime }: { runtime: Runtime.Interface }) {
   const location = ReactRouter.useLocation();
   const route = parseRoute(
     new URL(location.pathname + location.search, window.location.origin),
@@ -38,8 +38,8 @@ function WorkspaceApp({
   workspace,
   route,
 }: {
-  runtime: Runtime;
-  workspace: Workspace.Workspace;
+  runtime: Runtime.Interface;
+  workspace: Workspace.Interface;
   route: Route;
 }) {
   const plugins = useAtomValue(runtime.plugins);
@@ -67,8 +67,8 @@ function ViewPage({
   state,
   route,
 }: {
-  runtime: Runtime;
-  workspace: Workspace.Workspace;
+  runtime: Runtime.Interface;
+  workspace: Workspace.Interface;
   state: Atom.Atom<Plugin.State>;
   route: Exclude<Route, { kind: "catalog" }>;
 }) {

@@ -34,17 +34,22 @@ function progressLabel(status: CellStatus) {
 
 export function createGraphView(
   state: NotebookState,
-  run: Protocol.RunOutput | undefined,
+  run: typeof Protocol.Run.Type | undefined,
   layout: RailRow[],
   analysisCurrent: boolean,
 ) {
   const executions = Object.values(state.executions).filter(
     (execution) => !run || execution.run_id === run.id,
   );
-  const byCell = new Map(executions.map((execution) => [execution.cell_id, execution]));
+  const byCell = new Map<string, typeof Protocol.Execution.Type>(
+    executions.flatMap((execution) =>
+      execution.cell_id === null ? [] : [[execution.cell_id, execution] as const],
+    ),
+  );
   const inputs = Object.values(state.inputs);
   const rows: GraphRow[] = layout.map((rail, index) => {
-    const cell = state.cells[rail.id];
+    const cell = state.document?.cells.find((cell) => cell.id === rail.id);
+    if (!cell) throw new Error("The graph references a missing cell.");
     const execution = byCell.get(rail.id);
     const status = cellStatus(cell, execution, inputs);
     const analysis = analysisCurrent ? state.analysis?.cells[cell.id] : undefined;
@@ -54,7 +59,7 @@ export function createGraphView(
       label: cellLabel(cell, index),
       status,
       progress: progressLabel(status),
-      bindings: execution?.status === "completed" ? (analysis?.defs ?? []) : [],
+      bindings: execution?.status === "completed" ? [...(analysis?.defs ?? [])] : [],
       warning: edited ? "Code changed since execution" : analysis?.errors[0]?.message,
       edited,
       disabled: cell.config.disabled,

@@ -1,33 +1,28 @@
+import { Schema } from "effect";
 import * as Protocol from "@moku/core/Protocol";
-import { emptyNotebook } from "../../@moku-core/src/notebook/state.ts";
+import { emptyState } from "../../@moku-core/tests/fixtures.ts";
 
 export function fixture() {
-  const state = emptyNotebook();
-  state.ready = true;
-  state.phase = "live";
   // Deliberately different from dependency order: source → middle → result.
   const ids = ["result", "source", "middle", "isolated"];
-  state.cells = Object.fromEntries(
-    ids.map((id) => [
+  const cells = ids.map((id) =>
+    Schema.decodeUnknownSync(Protocol.Cell)({
       id,
-      Protocol.Cell.parse({
-        id,
-        notebook_id: "n",
-        name: "_",
-        code: `${id} = 1`,
-        config: {
-          column: null,
-          disabled: false,
-          hide_code: false,
-          expand_output: false,
-        },
-        etag: id,
-        code_fingerprint: id,
-        version: 1,
-      }),
-    ]),
+      notebook_id: "n",
+      name: "_",
+      code: `${id} = 1`,
+      config: {
+        column: null,
+        disabled: false,
+        hide_code: false,
+        expand_output: false,
+      },
+      etag: id,
+      code_fingerprint: id,
+      version: 1,
+    }),
   );
-  state.document = Protocol.Document.parse({
+  const revision = Schema.decodeUnknownSync(Protocol.Document)({
     notebook_id: "n",
     order: ids,
     app_config: {},
@@ -37,7 +32,7 @@ export function fixture() {
     app_config_etag: "app",
     version: 1,
   });
-  state.analysis = Protocol.Analysis.parse({
+  const analysis = Schema.decodeUnknownSync(Protocol.Analysis)({
     notebook_id: "n",
     document_etag: "v1",
     cells: {
@@ -47,5 +42,5 @@ export function fixture() {
       isolated: { defs: [], refs: ["external"], errors: [] },
     },
   });
-  return { ...state, document: state.document, analysis: state.analysis };
+  return { ...emptyState(), document: { ...revision, cells }, analysis };
 }

@@ -10,17 +10,17 @@ export interface NotebookState {
   phase: "snapshot" | "replay" | "live";
   confirmed: Confirmed.State;
   ready: boolean;
-  notebook: Protocol.NotebookOutput | null;
-  document: Protocol.DocumentOutput | null;
-  analysis: Protocol.AnalysisOutput | null;
-  runtime: Protocol.RuntimeOutput | null;
-  cells: Record<string, Protocol.CellOutput>;
-  runs: Record<string, Protocol.RunOutput>;
-  executions: Record<string, Protocol.ExecutionOutput>;
-  consoles: Record<string, Protocol.ConsoleOutput>;
-  displays: Record<string, Protocol.DisplayOutput>;
-  variables: Record<string, Protocol.VariableOutput>;
-  inputs: Record<string, Protocol.InputOutput>;
+  notebook: typeof Protocol.Notebook.Type | null;
+  document: typeof Protocol.Document.Type | null;
+  analysis: typeof Protocol.Analysis.Type | null;
+  runtime: typeof Protocol.Runtime.Type | null;
+  cells: Record<string, typeof Protocol.Cell.Type>;
+  runs: Record<string, typeof Protocol.Run.Type>;
+  executions: Record<string, typeof Protocol.Execution.Type>;
+  consoles: Record<string, typeof Protocol.Console.Type>;
+  displays: Record<string, typeof Protocol.Display.Type>;
+  variables: Record<string, typeof Protocol.Variable.Type>;
+  inputs: Record<string, typeof Protocol.Input.Type>;
 }
 
 export function emptyNotebook(): NotebookState {
@@ -59,7 +59,7 @@ function withoutExecution<T extends { execution_id: string }>(
 
 export function reduceNotebook(
   state: NotebookState,
-  event: Protocol.EventOutput,
+  event: Protocol.NotebookEvent,
 ): NotebookState {
   if (event.event === "reset") return emptyNotebook();
   if (event.event === "notebook.removed") {

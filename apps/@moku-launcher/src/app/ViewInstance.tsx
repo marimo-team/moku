@@ -1,9 +1,9 @@
 import * as React from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
-import type { Target } from "@moku/core/Notebook";
+import type { Target } from "./Notebook.ts";
 import type { Plugin } from "@moku/plugin";
-import type { Runtime } from "./runtime.ts";
+import type * as Runtime from "./runtime.ts";
 import { Provider } from "@moku/outputs";
 
 export function ViewInstance({
@@ -13,7 +13,7 @@ export function ViewInstance({
 }: {
   target: Target;
   view: Plugin.RegisteredView;
-  runtime: Runtime;
+  runtime: Runtime.Interface;
 }) {
   const attachment = useAtomValue(runtime.notebook(target));
   if (!AsyncResult.isSuccess(attachment))

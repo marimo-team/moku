@@ -3,10 +3,10 @@ import * as ReactDOMServer from "react-dom/server";
 import type { ViewProps } from "@moku/plugin";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import * as Core from "@moku/core";
-import * as Notebook from "@moku/core/Notebook";
-import { Context, Effect, Exit, Scope } from "effect";
-import { Atom, AtomRegistry } from "effect/reactivity";
+import { FetchHttpClient } from "effect/http";
+import * as CoreHost from "@moku/core/Host";
+import { Context, Effect, Exit, Scope, Layer } from "effect";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { Plugin } from "@moku/plugin";
 
 const view = {
@@ -126,10 +126,10 @@ Vitest.test(
 );
 
 Vitest.test(
-  "a standalone host can load and render a lazy plugin with a notebook",
+  "a standalone host can load and render a lazy plugin with a direct notebook",
   async () => {
     const loadView = vi.fn(async () => ({
-      default: ({ notebook }: ViewProps) => notebook.target.notebookId,
+      default: ({ notebook }: ViewProps) => notebook.id,
     }));
     const LazyView = React.lazy(loadView);
     const f = await host([
@@ -143,10 +143,12 @@ Vitest.test(
           }),
       }),
     ]);
-    let closed = false;
+    const streams: { closed: boolean }[] = [];
     const fetch: typeof globalThis.fetch = async (input, init) => {
       const request = new Request(input, init);
       Vitest.expect(new URL(request.url).pathname.endsWith("/events")).toBe(true);
+      const stream = { closed: false };
+      streams.push(stream);
       return new Response(
         new ReadableStream({
           start(controller) {
@@ -166,25 +168,34 @@ Vitest.test(
             request.signal.addEventListener(
               "abort",
               () => {
-                closed = true;
-                controller.close();
+                if (!stream.closed) controller.close();
+                stream.closed = true;
               },
               { once: true },
             );
+          },
+          cancel() {
+            stream.closed = true;
           },
         }),
         { headers: { "Content-Type": "text/event-stream" } },
       );
     };
     const notebook = await Effect.runPromise(
-      Notebook.make({ connectionId: "host", notebookId: "n" }).pipe(
-        Effect.provide(Core.layer("http://standalone.test", { fetch })),
+      Effect.gen(function* () {
+        const transport = yield* Layer.build(FetchHttpClient.layer);
+        const host = yield* CoreHost.make({
+          baseUrl: "http://standalone.test/api/marimo/v1",
+        }).pipe(Effect.provideContext(transport));
+        return yield* host.notebooks.attach("n");
+      }).pipe(
+        Effect.provideService(FetchHttpClient.Fetch, fetch),
         Effect.provideService(AtomRegistry.AtomRegistry, f.registry),
         Effect.provideService(Scope.Scope, f.scope),
       ),
     );
     await vi.waitFor(() =>
-      Vitest.expect(f.registry.get(notebook.state).value.ready).toBe(true),
+      Vitest.expect(AsyncResult.isSuccess(f.registry.get(notebook.state))).toBe(true),
     );
     const view = f.state().views[0];
     Vitest.expect(view.key).toBe("portable/identity");
@@ -202,7 +213,8 @@ Vitest.test(
     await loadView.mock.results[0].value;
     Vitest.expect(render()).toContain("n");
     await f.close();
-    Vitest.expect(closed).toBe(true);
+    Vitest.expect(streams).toHaveLength(2);
+    Vitest.expect(streams.every((stream) => stream.closed)).toBe(true);
     Vitest.expect(f.state().views).toEqual([]);
   },
 );

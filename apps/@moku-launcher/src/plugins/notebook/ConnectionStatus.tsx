@@ -1,19 +1,15 @@
-import type * as Notebook from "@moku/core/Notebook";
-type Status = Notebook.State["status"];
+import { Cause } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import * as Problems from "./feedback/problems.ts";
 import * as React from "react";
 
 export function ConnectionStatus({
-  status,
-  ready,
+  result,
   compact = false,
-  error,
   retry,
 }: {
-  status: Status;
-  ready: boolean;
+  result: AsyncResult.AsyncResult<unknown, unknown>;
   compact?: boolean;
-  error?: unknown;
   retry?: () => void;
 }) {
   const menu = React.useRef<HTMLDetailsElement>(null);
@@ -35,11 +31,17 @@ export function ConnectionStatus({
       document.removeEventListener("keydown", escape);
     };
   }, []);
-  const problem = error === undefined ? undefined : Problems.describe(error);
-  const live = !problem && status === "connected" && ready;
+  const problem = AsyncResult.isFailure(result)
+    ? Problems.describe(Cause.squash(result.cause))
+    : undefined;
+  const live = AsyncResult.isSuccess(result) && !result.waiting;
   const label =
     problem?.title ??
-    (live ? "Live" : status === "reconnecting" ? "Reconnecting…" : "Connecting…");
+    (live
+      ? "Live"
+      : !AsyncResult.isInitial(result) && result.waiting
+        ? "Reconnecting…"
+        : "Connecting…");
   const indicator = (
     <span
       className={`connection-status ${live ? "live" : ""}`}

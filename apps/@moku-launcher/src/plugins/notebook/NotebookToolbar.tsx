@@ -1,9 +1,10 @@
 import type * as Notebook from "@moku/core/Notebook";
+import type { AsyncResult } from "effect/reactivity";
 import { ConnectionStatus } from "./ConnectionStatus.tsx";
 import { ThemeSelect } from "./appearance/ThemeSelect.tsx";
 
 interface Props {
-  connection: Pick<Notebook.State, "status" | "error"> & { ready: boolean };
+  connection: AsyncResult.AsyncResult<Notebook.State, Notebook.Error>;
   save?: { pending: boolean; disabled: boolean; onClick: () => void };
   execution?: {
     starting: boolean;
@@ -17,12 +18,7 @@ export function NotebookToolbar({ connection, save, execution }: Props) {
   return (
     <header className="notebook-heading">
       <div className="notebook-connection">
-        <ConnectionStatus
-          status={connection.status}
-          ready={connection.ready}
-          compact
-          error={connection.error ?? undefined}
-        />
+        <ConnectionStatus result={connection} compact />
       </div>
       <div className="notebook-controls">
         <ThemeSelect />

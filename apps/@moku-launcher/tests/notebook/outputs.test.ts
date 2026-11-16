@@ -1,11 +1,11 @@
+import { Schema } from "effect";
 import * as Vitest from "vite-plus/test";
 import * as Protocol from "@moku/core/Protocol";
-import { emptyNotebook } from "../../../../packages/@moku-core/src/notebook/state.ts";
+import { emptyState } from "../../../../packages/@moku-core/tests/fixtures.ts";
 import * as Outputs from "../../src/plugins/notebook/outputs.ts";
 
 function fixture() {
-  const state = emptyNotebook();
-  state.cells.c = Protocol.Cell.parse({
+  const cell = Schema.decodeUnknownSync(Protocol.Cell)({
     id: "c",
     notebook_id: "n",
     code: "await asyncio.sleep(3)",
@@ -20,7 +20,7 @@ function fixture() {
     code_fingerprint: "v1",
     version: 1,
   });
-  const old = Protocol.Execution.parse({
+  const old = Schema.decodeUnknownSync(Protocol.Execution)({
     id: "old",
     run_id: "previous",
     runtime_id: "rt",
@@ -34,7 +34,7 @@ function fixture() {
     completed_at: "2026-11-12T12:00:03Z",
     outcome: { kind: "value", display: null },
   });
-  const pending = Protocol.Execution.parse({
+  const pending = Schema.decodeUnknownSync(Protocol.Execution)({
     ...old,
     id: "pending",
     run_id: "next",
@@ -43,7 +43,25 @@ function fixture() {
     completed_at: null,
     outcome: null,
   });
-  state.executions = { old, pending };
+  const executions: Record<string, typeof Protocol.Execution.Type> = { old, pending };
+  const state = {
+    ...emptyState(),
+    executions,
+    displays: emptyState().displays,
+    document: {
+      ...Schema.decodeUnknownSync(Protocol.Document)({
+        notebook_id: "n",
+        order: ["c"],
+        app_config: {},
+        etag: "v1",
+        saved_etag: "v1",
+        order_etag: "v1",
+        app_config_etag: "v1",
+        version: 1,
+      }),
+      cells: [cell],
+    },
+  };
   return { state, old, pending };
 }
 
@@ -53,22 +71,22 @@ Vitest.test("a rerun is active while queued and retains the previous result", ()
   Vitest.expect(queued.current.get("c")).toBe(pending);
   Vitest.expect(queued.results.get("c")).toBe(old);
 
-  const running = {
+  const running = Schema.decodeUnknownSync(Protocol.Execution)({
     ...pending,
     status: "running" as const,
     started_at: "2026-11-12T12:01:00Z",
-  };
+  });
   state.executions.pending = running;
   const active = Outputs.select(state, queued);
   Vitest.expect(active.current.get("c")).toBe(running);
   Vitest.expect(active.results.get("c")).toBe(old);
 
-  const completed = {
+  const completed = Schema.decodeUnknownSync(Protocol.Execution)({
     ...running,
     status: "completed" as const,
     completed_at: "2026-11-12T12:01:03Z",
     outcome: old.outcome,
-  };
+  });
   state.executions.pending = completed;
   const done = Outputs.select(state, active);
   Vitest.expect(done.current.get("c")).toBe(completed);
@@ -85,14 +103,24 @@ Vitest.test(
   "cell selection shares one output index and refreshes it on updates",
   () => {
     const { state, old } = fixture();
-    state.cells.other = { ...state.cells.c, id: "other" };
-    state.executions.other = { ...old, id: "other", cell_id: "other" };
-    state.displays.d = {
+    const other = Schema.decodeUnknownSync(Protocol.Cell)({
+      ...state.document.cells[0],
+      id: "other",
+    });
+    state.document = { ...state.document!, cells: [...state.document.cells, other] };
+    const execution = Schema.decodeUnknownSync(Protocol.Execution)({
+      ...old,
+      id: "other",
+      cell_id: "other",
+    });
+    state.executions = { ...state.executions, other: execution };
+    const display = Schema.decodeUnknownSync(Protocol.Display)({
       id: "d",
       execution_id: "pending",
       seq: 2,
       content: { mimetype: "text/plain", data: "first" },
-    };
+    });
+    state.displays = { d: display };
     const consoles = {
       c: {
         id: "c",

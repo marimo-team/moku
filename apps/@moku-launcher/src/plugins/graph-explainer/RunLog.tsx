@@ -8,13 +8,16 @@ export function RunLog({
   run,
 }: {
   state: NotebookState;
-  run: Protocol.RunOutput | undefined;
+  run: typeof Protocol.Run.Type | undefined;
 }) {
   const [logOpen, setLogOpen] = React.useState(false);
   const executions = Object.values(state.executions).filter(
     (e) => !run || e.run_id === run.id,
   );
   const running = executions.find((e) => e.status === "running");
+  const runningCell = state.document?.cells.find(
+    (cell) => cell.id === running?.cell_id,
+  );
   const executionIds = new Set(executions.map((e) => e.id));
   const logs = Object.values(state.consoles).filter((log) =>
     executionIds.has(log.execution_id),
@@ -28,9 +31,7 @@ export function RunLog({
       >
         <span className="chevron">{logOpen ? "⌄" : "›"}</span>
         <strong>Run log</strong>
-        {running?.cell_id && state.cells[running.cell_id] && (
-          <span>{cellLabel(state.cells[running.cell_id], 0)} · running</span>
-        )}
+        {runningCell && <span>{cellLabel(runningCell, 0)} · running</span>}
       </button>
       {logOpen &&
         (logs.length ? (

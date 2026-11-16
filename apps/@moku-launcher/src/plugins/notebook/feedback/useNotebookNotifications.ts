@@ -1,11 +1,10 @@
-import type * as Notebook from "@moku/core/Notebook";
+import * as React from "react";
 import type * as Document from "@moku/editor/Document";
 import type { AsyncResult } from "effect/reactivity";
 import * as Problems from "./problems.ts";
 import { useFailureNotification, useNotification } from "./useNotifications.ts";
 
 interface Options {
-  target: Notebook.Target;
   sync: Document.SyncStatus;
   retry: Document.Interface["retry"];
   saving: AsyncResult.AsyncResult<unknown, unknown>;
@@ -16,7 +15,6 @@ interface Options {
 
 /** Reports command failures and offers retries for unsynchronized edits. */
 export function useNotebookNotifications({
-  target,
   sync,
   retry,
   saving,
@@ -24,7 +22,7 @@ export function useNotebookNotifications({
   interruption,
   cancellation,
 }: Options) {
-  const scope = `editor:${target.connectionId}:${target.notebookId}`;
+  const scope = React.useId();
   useFailureNotification(saving, {
     id: `${scope}:save`,
     title: "Could not save notebook",

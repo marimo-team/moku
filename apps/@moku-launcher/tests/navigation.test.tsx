@@ -10,7 +10,7 @@ import { AtomRegistry } from "effect/reactivity";
 import { Plugin, type ViewProps } from "@moku/plugin";
 import { Effect } from "effect";
 import { App } from "../src/app/App.tsx";
-import { makeRuntime } from "../src/app/runtime.ts";
+import * as Runtime from "../src/app/runtime.ts";
 import { parseRoute, viewHref, type Route } from "../src/app/routes.ts";
 
 vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -24,11 +24,7 @@ async function mount(route: Route) {
     React.useEffect(() => {
       notebooks.push(notebook);
     }, [notebook]);
-    return (
-      <h1>
-        {notebook.target.connectionId}:{notebook.target.notebookId}
-      </h1>
-    );
+    return <h1>{notebook.id}</h1>;
   }
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const request = new Request(input, init);
@@ -83,7 +79,7 @@ async function mount(route: Route) {
       { headers: { "Content-Type": "text/event-stream" } },
     );
   };
-  const runtime = makeRuntime({
+  const runtime = Runtime.make({
     baseUrl: "http://moku.test",
     fetch,
     plugins: [
@@ -143,7 +139,7 @@ Vitest.test(
       viewKey: "test/identity",
     });
     await vi.waitFor(() =>
-      Vitest.expect(view.element.querySelector("h1")?.textContent).toBe("a:n"),
+      Vitest.expect(view.element.querySelector("h1")?.textContent).toBe("n"),
     );
     const picker = view.element.querySelector("select")!;
     await React.act(async () => {
@@ -164,6 +160,7 @@ Vitest.test(
     Vitest.expect(new Set(view.notebooks).size).toBe(1);
     Vitest.expect(view.closed).toEqual([]);
     Vitest.expect(view.requests.filter((path) => path.endsWith("/events"))).toEqual([
+      "/api/hosts/a/events",
       "/api/hosts/a/notebooks/n/events",
     ]);
     Vitest.expect(view.requests.filter((path) => path === "/api/session")).toHaveLength(
@@ -238,7 +235,7 @@ Vitest.test(
     );
     const view = await mount(route);
     await vi.waitFor(() =>
-      Vitest.expect(view.element.querySelector("h1")?.textContent).toBe("b:n"),
+      Vitest.expect(view.element.querySelector("h1")?.textContent).toBe("n"),
     );
     Vitest.expect(view.element.querySelector(".catalog-page")).toBeNull();
     Vitest.expect(view.element.querySelector("select")?.value).toBe("test/identity");
@@ -247,6 +244,7 @@ Vitest.test(
       "example.py",
     );
     Vitest.expect(view.requests.filter((path) => path.endsWith("/events"))).toEqual([
+      "/api/hosts/b/events",
       "/api/hosts/b/notebooks/n/events",
     ]);
     Vitest.expect(

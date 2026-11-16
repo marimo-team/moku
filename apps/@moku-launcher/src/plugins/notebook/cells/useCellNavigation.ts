@@ -17,9 +17,10 @@ export function useCellNavigation() {
       const next = document.order[index + 1];
       if (next !== undefined) focus(next);
       else if (canEdit) {
-        const created = crypto.randomUUID();
-        model.edit((edit) => edit.createCell({ id: created, code: "" }, { after: id }));
-        focus(created);
+        model.edit((edit) => {
+          const created = edit.createCell({ code: "" }, { after: id });
+          focus(created);
+        });
       }
     },
     [model, focus],

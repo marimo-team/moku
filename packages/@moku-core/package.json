@@ -4,15 +4,14 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./Workspace": "./src/Workspace.ts",
     "./Notebook": "./src/Notebook.ts",
+    "./Host": "./src/Host.ts",
     "./Protocol": "./src/Protocol.ts",
     "./Outputs": "./src/Outputs.ts",
-    "./Runtime": "./src/Runtime.ts",
     "./Interaction": "./src/Interaction.ts"
   },
   "dependencies": {
-    "@marimo-team/client": "file:../../vendor/client",
+    "@marimo-team/host-protocol": "file:../../vendor/host-protocol",
     "effect": "4.1.0"
   }
 }

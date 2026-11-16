@@ -86,7 +86,7 @@ export function CodeEditor({
   onRun,
   focusRequest,
 }: {
-  cellId: Protocol.CellId;
+  cellId: typeof Protocol.CellId.Type;
   autoFocus?: boolean;
   onRun?: (advance: boolean) => void;
   focusRequest?: number;

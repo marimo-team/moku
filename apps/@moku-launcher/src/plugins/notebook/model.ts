@@ -3,8 +3,9 @@
  *
  * @module
  */
+import { empty } from "../empty.ts";
 import { Effect, Option } from "effect";
-import { Atom } from "effect/reactivity";
+import { AsyncResult, Atom } from "effect/reactivity";
 import * as Document from "@moku/editor/Document";
 import type * as Notebook from "@moku/core/Notebook";
 import * as Outputs from "./outputs.ts";
@@ -16,7 +17,7 @@ function make(notebook: Notebook.Interface) {
     const document = yield* Document.make(notebook);
     const outputs = Atom.readable((get): Outputs.Selection =>
       Outputs.select(
-        get(notebook.state).value,
+        AsyncResult.getOrElse(get(notebook.state), () => empty),
         Option.getOrUndefined(get.self<Outputs.Selection>()),
       ),
     );

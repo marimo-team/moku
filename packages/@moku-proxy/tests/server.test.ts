@@ -3,6 +3,11 @@ import * as Vitest from "vite-plus/test";
 import * as NodeHttp from "node:http";
 import { createApi } from "../src/server.ts";
 import type { HostRecordOutput } from "@marimo-team/client/protocol";
+import { Effect, Schema } from "effect";
+import { AtomRegistry } from "effect/reactivity";
+import { FetchHttpClient } from "effect/http";
+import * as Host from "@moku/core/Host";
+import * as Protocol from "@marimo-team/host-protocol/Schemas";
 
 Vitest.test(
   "local authentication protects discovery and forwards authenticated streams without exposing host tokens",
@@ -217,6 +222,150 @@ async function fixture(
     base: `${origin}/api/hosts/${hosts[0].id}`,
   };
 }
+
+Vitest.test(
+  "the real Host client uses proxy routes, responses, and typed failures without a host token",
+  async ({ onTestFinished }) => {
+    const notebook = {
+      id: "n",
+      project_id: "p",
+      name: "demo.py",
+      path: "demo.py",
+      operations: [],
+      updated_at: null,
+    };
+    const requests: {
+      method: string | undefined;
+      url: string | undefined;
+      body: string;
+    }[] = [];
+    const upstreamProblem = {
+      type: "urn:marimo:problem:conflict",
+      title: "Conflict",
+      status: 409,
+      detail: "Runtime is changing.",
+    };
+    const f = await fixture(onTestFinished, (req, res) => {
+      Vitest.expect(req.headers.authorization).toBe("Bearer local-secret");
+      Vitest.expect(req.headers.cookie).toBeUndefined();
+      if (req.method === "GET") {
+        res.writeHead(200, { "Content-Type": "text/event-stream" });
+        res.write("event: ready\nid: cursor-1\ndata: {}\n\n");
+        return;
+      }
+      void (async () => {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(Buffer.from(chunk));
+        requests.push({
+          method: req.method,
+          url: req.url,
+          body: Buffer.concat(chunks).toString(),
+        });
+        Vitest.expect(req.headers["idempotency-key"]).toEqual(
+          Vitest.expect.any(String),
+        );
+        if (req.url?.includes("/runtime/")) {
+          res.writeHead(409, { "Content-Type": "application/problem+json" });
+          res.end(JSON.stringify(upstreamProblem));
+        } else if (req.method === "DELETE") {
+          res.writeHead(204);
+          res.end();
+        } else {
+          res.writeHead(req.url?.endsWith("/notebooks") ? 201 : 200, {
+            "Content-Type": "application/json",
+          });
+          res.end(
+            JSON.stringify(
+              req.url?.endsWith("/open")
+                ? {
+                    url: "http://host.test/?file=demo.py&access_token=native-secret#cell-a",
+                  }
+                : notebook,
+            ),
+          );
+        }
+      })();
+    });
+    let authenticated = true;
+    const transport: typeof fetch = (input, init) => {
+      const request = new Request(input, init);
+      if (authenticated) request.headers.set("Cookie", f.headers.Cookie);
+      request.headers.set("Origin", f.origin);
+      request.headers.set("Authorization", "Bearer browser-token");
+      return fetch(request);
+    };
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const host = yield* Host.make({ baseUrl: f.base });
+          const created = yield* host.notebooks.create(
+            Schema.decodeUnknownSync(Protocol.CreateNotebookRequest)({
+              project_id: "p",
+              name: "demo.py",
+            }),
+          );
+          Vitest.expect(created).toEqual(notebook);
+          Vitest.expect(
+            yield* host.notebooks.update("n", { name: "renamed.py" }),
+          ).toEqual(notebook);
+          Vitest.expect(yield* host.notebooks.open("n")).toEqual({
+            url: "http://host.test/?file=demo.py#cell-a",
+          });
+          yield* host.notebooks.delete("n");
+          const attached = yield* host.notebooks.attach("n");
+          for (const operation of [
+            attached.runtime.restart().pipe(Effect.asVoid),
+            attached.runtime.execute({ code: "print(42)" }).pipe(Effect.asVoid),
+            attached.runtime
+              .reply({ inputId: "input-1", value: "answer" })
+              .pipe(Effect.asVoid),
+          ]) {
+            const result = yield* Effect.flip(operation);
+            Vitest.expect(result).toMatchObject({
+              _tag: "ConflictProblem",
+              ...upstreamProblem,
+            });
+          }
+          authenticated = false;
+          const error = yield* Effect.flip(host.notebooks.open("n"));
+          Vitest.expect(error).toMatchObject({
+            _tag: "UnauthorizedProblem",
+            status: 401,
+          });
+        }),
+      ).pipe(
+        Effect.provide(FetchHttpClient.layer),
+        Effect.provide(AtomRegistry.layer),
+        Effect.provideService(FetchHttpClient.Fetch, transport),
+      ),
+    );
+    Vitest.expect(requests).toEqual([
+      {
+        method: "POST",
+        url: "/api/marimo/v1/notebooks",
+        body: JSON.stringify({ project_id: "p", name: "demo.py" }),
+      },
+      {
+        method: "PATCH",
+        url: "/api/marimo/v1/notebooks/n",
+        body: JSON.stringify({ name: "renamed.py" }),
+      },
+      { method: "POST", url: "/api/marimo/v1/notebooks/n/open", body: "" },
+      { method: "DELETE", url: "/api/marimo/v1/notebooks/n", body: "" },
+      { method: "POST", url: "/api/marimo/v1/notebooks/n/runtime/restart", body: "" },
+      {
+        method: "POST",
+        url: "/api/marimo/v1/notebooks/n/runtime/execute",
+        body: JSON.stringify({ code: "print(42)" }),
+      },
+      {
+        method: "POST",
+        url: "/api/marimo/v1/notebooks/n/runtime/inputs/input-1/reply",
+        body: JSON.stringify({ value: "answer" }),
+      },
+    ]);
+  },
+);
 
 Vitest.test(
   "manual connections normalize URLs, replace credentials, and keep secrets server-side",

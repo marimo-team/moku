@@ -1,4 +1,4 @@
-import type * as Workspace from "@moku/core/Workspace";
+import type * as Workspace from "./Workspace.ts";
 import * as ReactRouter from "react-router";
 import type * as Protocol from "@moku/core/Protocol";
 import { viewHref } from "./routes.ts";
@@ -11,10 +11,10 @@ export function NotebookRow({
   selectedView,
   workspace,
 }: {
-  notebook: Protocol.NotebookOutput;
+  notebook: typeof Protocol.Notebook.Type;
   connectionId: string;
   selectedView: string;
-  workspace: Workspace.Workspace;
+  workspace: Workspace.Interface;
 }) {
   const target = { connectionId, notebookId: notebook.id };
   const host = useOpenHost(workspace, target);

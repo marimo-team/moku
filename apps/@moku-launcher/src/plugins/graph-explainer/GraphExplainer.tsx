@@ -1,3 +1,6 @@
+import { Cause } from "effect";
+import { AsyncResult } from "effect/reactivity";
+import { empty } from "../empty.ts";
 import * as React from "react";
 import { useAtomValue } from "@effect/atom-react";
 import type { ViewProps } from "@moku/plugin";
@@ -9,12 +12,16 @@ import { CellDetails } from "./CellDetails.tsx";
 import { DependencyGraph } from "./diagram/DependencyGraph.tsx";
 
 export function GraphExplainer({ notebook }: ViewProps) {
-  const { value: state, status, error } = useAtomValue(notebook.state);
+  const result = useAtomValue(notebook.state);
+  const state = AsyncResult.getOrElse(result, () => empty);
+  const ready = AsyncResult.isSuccess(result) && !result.waiting;
+  const error = AsyncResult.isFailure(result) ? Cause.squash(result.cause) : null;
+
   const [selected, setSelected] = React.useState("");
   const [expanded, setExpanded] = React.useState(false);
   const run = newestRun(state);
   const active = run && run.status !== "completed";
-  const actions = useRunActions(notebook, state, run, status === "connected");
+  const actions = useRunActions(notebook, state, run, ready);
   const {
     actionKind,
     actionLabel,
@@ -22,13 +29,17 @@ export function GraphExplainer({ notebook }: ViewProps) {
     disabledReason,
     actionError,
     action,
+    runCell,
     cellRunDisabled,
   } = actions;
   let statusLabel: string = run?.outcome ?? run?.status ?? "Ready";
   if (starting) statusLabel = "Starting kernel";
-  if (status !== "connected")
-    statusLabel = status === "connecting" ? "Connecting" : "Disconnected";
-  const message = error?.message || actionError || state.runtime?.message;
+  if (!ready)
+    statusLabel = AsyncResult.isInitial(result) ? "Connecting" : "Disconnected";
+  const message =
+    (error instanceof Error ? error.message : "") ||
+    actionError ||
+    state.runtime?.message;
   return (
     <div className="dag">
       <section className={`run-view ${expanded ? "expanded" : ""}`}>
@@ -40,7 +51,7 @@ export function GraphExplainer({ notebook }: ViewProps) {
           actionKind={actionKind}
           actionLabel={actionLabel}
           disabledReason={disabledReason}
-          onAction={() => action(actionKind)}
+          onAction={action}
           expanded={expanded}
           onToggleExpanded={() => setExpanded(!expanded)}
         />
@@ -49,11 +60,11 @@ export function GraphExplainer({ notebook }: ViewProps) {
             {message}
           </div>
         )}
-        {state.ready && !state.document?.order.length ? (
+        {ready && !state.document?.order.length ? (
           <div className="empty-state">This notebook has no cells.</div>
         ) : (
           <DependencyGraph
-            onRunCell={(cellId) => action("run", cellId)}
+            onRunCell={runCell}
             runDisabled={cellRunDisabled}
             state={state}
             run={run}

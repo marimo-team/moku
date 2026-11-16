@@ -1,5 +1,5 @@
 import type * as Protocol from "@moku/core/Protocol";
-import type { Snapshot as NotebookState } from "@moku/core/Notebook";
+import type { State as NotebookState } from "@moku/core/Notebook";
 export type { NotebookState };
 
 export type CellStatus =
@@ -14,9 +14,9 @@ export type CellStatus =
   | "waiting";
 
 export function cellStatus(
-  cell: Protocol.CellOutput,
-  execution: Protocol.ExecutionOutput | undefined,
-  inputs: Protocol.InputOutput[],
+  cell: typeof Protocol.Cell.Type,
+  execution: typeof Protocol.Execution.Type | undefined,
+  inputs: (typeof Protocol.Input.Type)[],
 ): CellStatus {
   if (!execution) return cell.config.disabled ? "disabled" : "pending";
   if (
@@ -41,7 +41,7 @@ export function cellStatus(
   }
 }
 
-export function cellLabel(cell: Protocol.CellOutput, index: number) {
+export function cellLabel(cell: typeof Protocol.Cell.Type, index: number) {
   if (cell.name !== "_") return cell.name.replaceAll("_", " ");
   const line = cell.code?.split("\n").find((line) => line.trim());
   if (line?.trim().startsWith("#")) return line.trim().replace(/^#+\s*/, "");
@@ -66,7 +66,9 @@ export function newestRun(state: NotebookState) {
 }
 
 export function executionSpan(
-  execution: Pick<Protocol.ExecutionOutput, "started_at" | "completed_at"> | undefined,
+  execution:
+    | Pick<typeof Protocol.Execution.Type, "started_at" | "completed_at">
+    | undefined,
   now: number,
 ) {
   if (!execution?.started_at) return null;

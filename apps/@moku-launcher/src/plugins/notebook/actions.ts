@@ -1,10 +1,8 @@
 /** Notebook commands, including draft synchronization before execution. @module */
 import { Effect } from "effect";
-import { Atom, AtomRegistry } from "effect/reactivity";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Document from "@moku/editor/Document";
-import * as Runtime from "@moku/core/Runtime";
-import * as Run from "../../app/Run.ts";
 
 export function make(notebook: Notebook.Interface, document: Document.Interface) {
   return Effect.gen(function* () {
@@ -12,29 +10,34 @@ export function make(notebook: Notebook.Interface, document: Document.Interface)
     const run = Atom.fn((input: { cellIds?: readonly string[] }) =>
       Effect.gen(function* () {
         yield* document.flush;
-        if (!(yield* Runtime.ensureRunning(notebook))) return;
+        yield* notebook.ensureRunning;
         const confirmed = yield* document.flush;
-        yield* Run.cells(notebook, input.cellIds ?? confirmed.revision.order, (id) =>
-          confirmed.cells.get(id),
-        );
+        const cells =
+          input.cellIds === undefined
+            ? confirmed.cells
+            : input.cellIds.map((id) => {
+                const cell = confirmed.cells.find((cell) => cell.id === id);
+                if (!cell) throw new Error("The cell was removed before it could run.");
+                return cell;
+              });
+        return yield* notebook.runtime.run({ cells });
       }),
     );
     const save = Atom.fn(() =>
       Effect.gen(function* () {
         const confirmed = yield* document.flush;
-        return yield* notebook.save({
-          etag: confirmed.revision.etag,
-          requestId: crypto.randomUUID(),
-        });
+        return yield* notebook.save(confirmed);
       }),
     );
-    const interrupt = Atom.fn(() =>
-      notebook.runtime.interrupt({ requestId: crypto.randomUUID() }),
-    );
+    const interrupt = Atom.fn(() => notebook.runtime.interrupt());
     const cancel = Atom.fn(() =>
       Effect.gen(function* () {
-        if (registry.get(notebook.state).value.runtime?.status !== "starting") return;
-        yield* notebook.runtime.stop({ requestId: crypto.randomUUID() });
+        if (
+          AsyncResult.getOrElse(registry.get(notebook.state), () => undefined)?.runtime
+            ?.status !== "starting"
+        )
+          return;
+        yield* notebook.runtime.stop();
       }),
     );
     return { run, save, interrupt, cancel };

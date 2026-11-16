@@ -1,24 +1,22 @@
+import { Schema } from "effect";
 // @vitest-environment happy-dom
 import * as React from "react";
 import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
-import { Effect, Stream } from "effect";
-import { Atom, AtomRegistry } from "effect/reactivity";
+import { Effect } from "effect";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import type * as Notebook from "@moku/core/Notebook";
+import * as Notebook from "@moku/core/Notebook";
 import * as Protocol from "@moku/core/Protocol";
-import { emptyNotebook } from "../../../../packages/@moku-core/src/notebook/state.ts";
+import { emptyState } from "../../../../packages/@moku-core/tests/fixtures.ts";
 import { useRunActions } from "../../src/plugins/graph-explainer/actions.ts";
 
 vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 
 async function fixture() {
   const registry = AtomRegistry.make();
-  const initial = emptyNotebook();
-  initial.ready = true;
-  initial.phase = "live";
-  initial.notebook = Protocol.Notebook.parse({
+  const record = Schema.decodeUnknownSync(Protocol.Notebook)({
     id: "n",
     project_id: "p",
     name: "Pipeline",
@@ -26,7 +24,7 @@ async function fixture() {
     operations: ["runtime.start", "runtime.run"],
     updated_at: null,
   });
-  initial.cells.c = Protocol.Cell.parse({
+  const cell = Schema.decodeUnknownSync(Protocol.Cell)({
     id: "c",
     notebook_id: "n",
     name: "work",
@@ -36,23 +34,25 @@ async function fixture() {
     code_fingerprint: "v1",
     config: { column: null, disabled: false, hide_code: false, expand_output: false },
   });
-  initial.document = Protocol.Document.parse({
-    notebook_id: "n",
-    order: ["c"],
-    app_config: {},
-    etag: "v1",
-    saved_etag: "v1",
-    order_etag: "v1",
-    app_config_etag: "v1",
-    version: 1,
-  });
+  const snapshot = {
+    ...Schema.decodeUnknownSync(Protocol.Document)({
+      notebook_id: "n",
+      order: ["c"],
+      app_config: {},
+      etag: "v1",
+      saved_etag: "v1",
+      order_etag: "v1",
+      app_config_etag: "v1",
+      version: 1,
+    }),
+    cells: [cell],
+  };
   const state = Atom.make<Notebook.State>({
-    value: initial,
-    status: "connected",
-    error: null,
-    source: { document: null, canEdit: false },
+    ...emptyState(),
+    notebook: record,
+    document: snapshot,
   });
-  const kernel = Protocol.Runtime.parse({
+  const kernel = Schema.decodeUnknownSync(Protocol.Runtime)({
     id: "rt",
     notebook_id: "n",
     status: "starting",
@@ -60,63 +60,79 @@ async function fixture() {
     marimo_version: "0.25.2",
     message: null,
   });
-  const setRuntime = (runtime: Protocol.RuntimeOutput | null) =>
-    registry.update(state, (s) => ({ ...s, value: { ...s.value, runtime } }));
+  const setRuntime = (runtime: typeof Protocol.Runtime.Type | null) =>
+    registry.update(state, (s) => ({ ...s, runtime }));
   const start = vi.fn(() =>
     Effect.sync(() => {
       setRuntime(kernel);
       return kernel;
     }),
   );
-  const run = vi.fn(() =>
-    Effect.succeed(
-      Protocol.Run.parse({
-        id: "run",
-        notebook_id: "n",
-        runtime_id: "rt",
-        cells: ["c"],
-        status: "queued",
-        outcome: null,
-        started_at: null,
-        completed_at: null,
-      }),
-    ),
+  const accepted = Schema.decodeUnknownSync(Protocol.Run)({
+    id: "run",
+    notebook_id: "n",
+    runtime_id: "rt",
+    cells: ["c"],
+    status: "queued",
+    outcome: null,
+    started_at: null,
+    completed_at: null,
+  });
+  const run = vi.fn(() => Effect.succeed(accepted));
+  const cancel = vi.fn((input: { runId: string }) =>
+    Effect.succeed({
+      ...accepted,
+      id: Schema.decodeUnknownSync(Protocol.RunId)(input.runId),
+    }),
   );
   const unused = () => Effect.die("Unexpected operation");
   const notebook: Notebook.Interface = {
-    target: { connectionId: "host", notebookId: "n" },
-    state,
+    id: record.id,
+    state: Atom.map(state, AsyncResult.success),
+    ensureRunning: Effect.gen(function* () {
+      const initial = registry.get(state).runtime;
+      if (initial?.status === "running") return;
+      yield* start();
+      yield* Effect.callback<void, Notebook.ModelError>((resume) => {
+        const stop = registry.subscribe(state, (state) => {
+          if (state.runtime?.status === "running") resume(Effect.void);
+          if (state.runtime?.status === "failed")
+            resume(
+              Effect.fail(
+                new Notebook.ModelError({
+                  reason: "runtime-stopped",
+                  message: state.runtime.message ?? "Failed",
+                }),
+              ),
+            );
+        });
+        return Effect.sync(stop);
+      });
+    }),
     edit: unused,
     save: unused,
     runtime: {
       start,
+      restart: unused,
+      execute: unused,
+      reply: unused,
       run,
-      cancel: unused,
+      cancel,
       interrupt: unused,
       stop: unused,
-      state: Atom.make({
-        runtime: null,
-        connection: "idle",
-        canInteract: false,
-        error: null,
-      }),
-      events: Stream.empty,
-      setUIValues: unused,
-      invoke: unused,
-      sendWidgetMessage: unused,
-      assetUrl: (path) => path,
-      retry: Effect.void,
     },
   };
   function View() {
     const snapshot = useAtomValue(state);
-    const actions = useRunActions(notebook, snapshot.value, undefined, true);
+    const actions = useRunActions(
+      notebook,
+      snapshot,
+      Object.values(snapshot.runs)[0],
+      true,
+    );
     return (
       <>
-        <button
-          disabled={!!actions.disabledReason}
-          onClick={() => actions.action("run")}
-        >
+        <button disabled={!!actions.disabledReason} onClick={actions.action}>
           {actions.actionLabel}
         </button>
         <p role="alert">{actions.actionError}</p>
@@ -154,6 +170,8 @@ async function fixture() {
     kernel,
     start,
     run,
+    cancel,
+    accepted,
     click,
     ready,
     close,
@@ -175,9 +193,12 @@ Vitest.test(
     await React.act(async () =>
       f.registry.update(f.state, (s) => ({
         ...s,
-        value: {
-          ...s.value,
-          cells: { c: { ...s.value.cells.c, etag: "after-start" } },
+        document: {
+          ...s.document!,
+          cells: s.document!.cells.map((cell) => ({
+            ...cell,
+            etag: Schema.decodeUnknownSync(Protocol.Etag)("after-start"),
+          })),
         },
       })),
     );
@@ -185,8 +206,12 @@ Vitest.test(
     await vi.waitFor(() => Vitest.expect(f.run).toHaveBeenCalledTimes(1));
     Vitest.expect(f.run.mock.calls[0]).toEqual([
       {
-        request: { cells: [{ id: "c", etag: "after-start" }] },
-        requestId: Vitest.expect.any(String),
+        cells: [
+          Vitest.expect.objectContaining({
+            id: "c",
+            etag: Schema.decodeUnknownSync(Protocol.Etag)("after-start"),
+          }),
+        ],
       },
     ]);
     await f.click();
@@ -206,54 +231,54 @@ Vitest.test(
   },
 );
 
-Vitest.test(
-  "runs enabled cells in document order with their latest etags",
-  async () => {
-    const f = await fixture();
-    await f.click();
-    await React.act(async () =>
-      f.registry.update(f.state, (s) => ({
-        ...s,
-        value: {
-          ...s.value,
-          document: { ...s.value.document!, order: ["last", "disabled", "c"] },
-          cells: {
-            c: s.value.cells.c,
-            last: { ...s.value.cells.c, id: "last", etag: "latest" },
-            disabled: {
-              ...s.value.cells.c,
-              id: "disabled",
-              config: { ...s.value.cells.c.config, disabled: true },
-            },
-          },
-        },
-      })),
-    );
-    await f.ready();
-    Vitest.expect(f.run.mock.calls[0]).toEqual([
-      {
-        request: {
-          cells: [
-            { id: "last", etag: "latest" },
-            { id: "c", etag: "before-start" },
-          ],
-        },
-        requestId: Vitest.expect.any(String),
-      },
-    ]);
-  },
-);
-
-Vitest.test("a removed cell prevents submitting a partial run", async () => {
+Vitest.test("runs cells in document order with their latest etags", async () => {
   const f = await fixture();
   await f.click();
   await React.act(async () =>
     f.registry.update(f.state, (s) => ({
       ...s,
-      value: {
-        ...s.value,
-        document: { ...s.value.document!, order: ["c", "removed"] },
+      document: {
+        ...s.document!,
+        order: Schema.decodeUnknownSync(Schema.Array(Protocol.CellId))([
+          "last",
+          "disabled",
+          "c",
+        ]),
+        cells: [
+          Schema.decodeUnknownSync(Protocol.Cell)({
+            ...s.document!.cells[0],
+            id: "last",
+            etag: "latest",
+          }),
+          Schema.decodeUnknownSync(Protocol.Cell)({
+            ...s.document!.cells[0],
+            id: "disabled",
+            config: { ...s.document!.cells[0].config, disabled: true },
+          }),
+          s.document!.cells[0],
+        ],
       },
+    })),
+  );
+  await f.ready();
+  Vitest.expect(f.run.mock.calls[0]).toEqual([
+    {
+      cells: [
+        Vitest.expect.objectContaining({ id: "last", etag: "latest" }),
+        Vitest.expect.objectContaining({ id: "disabled" }),
+        Vitest.expect.objectContaining({ id: "c", etag: "before-start" }),
+      ],
+    },
+  ]);
+});
+
+Vitest.test("an empty document prevents submitting a run", async () => {
+  const f = await fixture();
+  await f.click();
+  await React.act(async () =>
+    f.registry.update(f.state, (s) => ({
+      ...s,
+      document: { ...s.document!, order: [], cells: [] },
     })),
   );
   await f.ready();
@@ -293,3 +318,21 @@ Vitest.test("repeated clicks before React renders only start one command", async
   await f.ready();
   Vitest.expect(f.run).toHaveBeenCalledOnce();
 });
+
+Vitest.test(
+  "cancelling an active run never starts the kernel or submits cells",
+  async () => {
+    const f = await fixture();
+    await React.act(async () =>
+      f.registry.update(f.state, (state) => ({
+        ...state,
+        runs: { [f.accepted.id]: f.accepted },
+      })),
+    );
+    Vitest.expect(f.element.querySelector("button")!.textContent).toBe("Cancel run");
+    await f.click();
+    Vitest.expect(f.cancel).toHaveBeenCalledExactlyOnceWith({ runId: f.accepted.id });
+    Vitest.expect(f.start).not.toHaveBeenCalled();
+    Vitest.expect(f.run).not.toHaveBeenCalled();
+  },
+);

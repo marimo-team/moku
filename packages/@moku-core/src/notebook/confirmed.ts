@@ -7,15 +7,15 @@ import type * as Protocol from "../Protocol.ts";
 
 /** The cell records and revision belong to the same complete host update. */
 export interface Confirmed {
-  readonly revision: Protocol.DocumentOutput;
-  readonly cells: ReadonlyMap<string, Protocol.CellOutput>;
+  readonly revision: typeof Protocol.Document.Type;
+  readonly cells: ReadonlyMap<string, typeof Protocol.Cell.Type>;
 }
 
 export interface State {
   readonly current: Confirmed | null;
   readonly pending: {
-    readonly revision: Protocol.DocumentOutput | null;
-    readonly cells: ReadonlyMap<string, Protocol.CellOutput>;
+    readonly revision: typeof Protocol.Document.Type | null;
+    readonly cells: ReadonlyMap<string, typeof Protocol.Cell.Type>;
   } | null;
 }
 
@@ -23,7 +23,7 @@ export const initial: State = { current: null, pending: null };
 
 export function reduce(
   state: State,
-  event: Protocol.EventOutput,
+  event: Protocol.NotebookEvent,
   phase: "snapshot" | "replay" | "live",
 ): State {
   const pending = () =>

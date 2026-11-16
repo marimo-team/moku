@@ -12,9 +12,9 @@ import type * as Outputs from "@moku/core/Outputs";
  * JSON is encoded as text. Embedded binary media is base64; data URLs and
  * inline SVG are also accepted by the renderer.
  */
-export type DisplayData = Protocol.DisplayDataOutput;
-export type ConsoleChunk = Protocol.ConsoleOutput;
-export type Outcome = Protocol.OutcomeOutput;
+export type DisplayData = typeof Protocol.DisplayData.Type;
+export type ConsoleChunk = typeof Protocol.Console.Type;
+export type Outcome = typeof Protocol.Outcome.Type;
 export type OutputItem = Outputs.Item;
 export type Theme = "light" | "dark";
 

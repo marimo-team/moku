@@ -93,7 +93,9 @@ export async function setup(
         Effect.match({
           onSuccess: (body) => Response.json(body),
           onFailure: (cause) => {
-            const problem = Schema.decodeUnknownOption(Protocol.Problem)(cause);
+            const problem = Schema.decodeUnknownOption(
+              Schema.Union([Protocol.Problem, Protocol.UnknownProblem]),
+            )(cause);
             if (problem._tag === "Some")
               return Response.json(problem.value, {
                 status: problem.value.status,

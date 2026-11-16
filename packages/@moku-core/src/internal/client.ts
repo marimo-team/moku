@@ -18,7 +18,10 @@ import { HttpApiClient } from "effect/http-api";
 import { Api } from "./api.ts";
 import * as Problems from "@marimo-team/host-protocol/Problems";
 
-export type Client = HttpApiClient.ForApi<typeof Api>;
+export type Client = Effect.Success<ReturnType<typeof makeClient>>;
+const knownProblems = new Set<string>(
+  Problems.Problem.members.map((problem) => problem.fields.type.schema.literal),
+);
 /** A local lifecycle, transaction, or observation failure. */
 export class ModelError extends Schema.TaggedError<ModelError>()("ModelError", {
   /** The operation or lifecycle constraint that prevented progress. */
@@ -39,8 +42,13 @@ export class ModelError extends Schema.TaggedError<ModelError>()("ModelError", {
  * These responses retire the request key. Transport and server failures retain it
  * so retrying cannot repeat work whose outcome is unknown.
  */
-export function isRejection(error: unknown): error is typeof Problems.Problem.Type {
-  return Schema.is(Problems.Problem)(error) && error.status < 500;
+export function isRejection(
+  error: unknown,
+): error is typeof Problems.Problem.Type | typeof Problems.UnknownProblem.Type {
+  return (
+    (Schema.is(Problems.Problem)(error) || Schema.is(Problems.UnknownProblem)(error)) &&
+    error.status < 500
+  );
 }
 
 export const makeClient = Effect.fnUntraced(function* (options: {
@@ -53,6 +61,40 @@ export const makeClient = Effect.fnUntraced(function* (options: {
     HttpClient.transformResponse(Effect.provideContext(services)),
     HttpClient.mapRequest((request) =>
       options.token ? HttpClientRequest.bearerToken(request, options.token) : request,
+    ),
+    HttpClient.transformResponse(
+      Effect.flatMap(
+        Effect.fnUntraced(function* (response) {
+          if (
+            response.status >= 400 &&
+            response.status < 600 &&
+            response.headers["content-type"]?.split(";", 1)[0]?.trim() ===
+              "application/problem+json"
+          ) {
+            const problem = yield* Schema.decodeUnknownEffect(Problems.UnknownProblem)(
+              yield* response.json,
+            );
+            // Known problems still use the endpoint's stricter schema. New problem
+            // types use their status without losing the host's details or extensions.
+            if (!knownProblems.has(problem.type)) {
+              if (problem.status !== response.status) {
+                return yield* Effect.fail(
+                  new HttpClientError.HttpClientError({
+                    reason: new HttpClientError.DecodeError({
+                      request: response.request,
+                      response,
+                      description:
+                        "The problem status does not match the HTTP response.",
+                    }),
+                  }),
+                );
+              }
+              return yield* Effect.fail(problem);
+            }
+          }
+          return response;
+        }),
+      ),
     ),
     HttpClient.transformResponse(
       Effect.map(
@@ -85,9 +127,7 @@ export const makeClient = Effect.fnUntraced(function* (options: {
       ),
     ),
   );
-  return yield* HttpApiClient.make(Api).pipe(
-    Effect.provideService(HttpClient.HttpClient, http),
-  );
+  return yield* HttpApiClient.makeWith(Api, { httpClient: http });
 });
 
 export const makeCommands = Effect.fnUntraced(function* (

@@ -11,7 +11,7 @@ import {
 } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { Sse } from "effect/encoding";
-import { ModelError } from "./client.ts";
+import { isRejection, ModelError } from "./client.ts";
 export const observe = Effect.fnUntraced(function* <
   S,
   A,
@@ -100,12 +100,7 @@ export const observe = Effect.fnUntraced(function* <
               errors !== null &&
               "_tag" in errors &&
               errors._tag === "SchemaError") ||
-            (typeof errors === "object" &&
-              errors !== null &&
-              "status" in errors &&
-              typeof errors.status === "number" &&
-              errors.status >= 400 &&
-              errors.status < 500);
+            isRejection(errors);
           publish(
             AsyncResult.failureWithPrevious(result.cause, {
               previous: Option.some(registry.get(current)),

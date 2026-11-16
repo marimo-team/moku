@@ -637,3 +637,32 @@ Vitest.test("generated cell IDs exclude deleted identities", async () => {
   Vitest.expect(created).toBe("bbbb");
   Vitest.expect(h.registry.get(h.model.state).document?.order).toEqual(["bbbb"]);
 });
+
+Vitest.test(
+  "an unknown rejection retains the draft and retires the request key",
+  async () => {
+    const attempts: string[] = [];
+    const h = await setup(({ requestId }) => {
+      attempts.push(requestId);
+      return attempts.length === 1
+        ? Effect.fail({
+            type: "urn:example:problem:permission-expired",
+            status: 403,
+            title: "Permission expired",
+            detail: "Refresh permissions.",
+          })
+        : Effect.succeed({ document: { ...document, version: 2 }, cells: {} });
+    });
+    h.change("local");
+    await Vitest.expect(Effect.runPromise(h.model.flush)).rejects.toThrow(
+      "Refresh permissions.",
+    );
+    Vitest.expect(attempts).toHaveLength(1);
+    Vitest.expect(h.code()).toBe("local");
+    const retry = Effect.runPromise(h.model.retry);
+    await vi.waitFor(() => Vitest.expect(attempts).toHaveLength(2));
+    Vitest.expect(attempts[1]).not.toBe(attempts[0]);
+    h.publish("local", 2);
+    await retry;
+  },
+);

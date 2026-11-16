@@ -4,7 +4,16 @@
  * @module
  */
 import * as Protocol from "@moku/core/Protocol";
-import { Data, Deferred, Effect, Exit, Option, Queue, type Scope } from "effect";
+import {
+  Data,
+  Deferred,
+  Effect,
+  Exit,
+  Option,
+  Queue,
+  Schema,
+  type Scope,
+} from "effect";
 import { Atom, type AtomRegistry } from "effect/reactivity";
 import * as Notebook from "@moku/core/Notebook";
 
@@ -55,7 +64,9 @@ type Progress = Data.TaggedEnum<{
   Uncertain: { readonly request: Request; readonly error: SyncError };
   Rejected: {
     readonly request: Request;
-    readonly problem: typeof Protocol.Problem.Type;
+    readonly problem:
+      | typeof Protocol.Problem.Type
+      | typeof Protocol.UnknownProblem.Type;
     readonly error: SyncError;
   };
   Confirming: {};
@@ -255,10 +266,11 @@ export function synchronize(
         return yield* Effect.fail(current.error);
       if (current._tag === "Rejected") {
         const source = model.get().source.document;
-        const rejectedAt =
-          current.problem.type === "urn:marimo:problem:precondition-failed"
-            ? current.problem.document.version
-            : undefined;
+        const rejectedAt = Schema.is(Protocol.PreconditionFailedProblem)(
+          current.problem,
+        )
+          ? current.problem.document.version
+          : undefined;
         if (!source || (rejectedAt !== undefined && source.version < rejectedAt)) {
           return yield* Effect.fail(
             new SyncError({

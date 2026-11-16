@@ -72,6 +72,7 @@ async function fixture(start?: () => Promise<Response>) {
   let holdCommands = false;
   let loseCommands = false;
   let refuseCommands: number | undefined;
+  let commandProblem: typeof Protocol.UnknownProblem.Type | undefined;
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const request = new Request(input, init);
     request.signal.throwIfAborted();
@@ -126,7 +127,7 @@ async function fixture(start?: () => Promise<Response>) {
       );
     if (refuseCommands)
       return Response.json(
-        {
+        commandProblem ?? {
           type:
             refuseCommands === 500
               ? "urn:marimo:problem:internal"
@@ -212,8 +213,9 @@ async function fixture(start?: () => Promise<Response>) {
     hold: () => {
       holdCommands = true;
     },
-    refuse: (status = 409) => {
+    refuse: (status = 409, problem?: typeof Protocol.UnknownProblem.Type) => {
       refuseCommands = status;
+      commandProblem = problem;
     },
   };
 }
@@ -1287,3 +1289,103 @@ for (const updateFirst of [false, true]) {
     },
   );
 }
+
+for (const status of [403, 429, 503]) {
+  const problem = {
+    type: "urn:example:problem:unfamiliar",
+    title: "Unfamiliar host problem",
+    detail: "The host explains what happened.",
+    status,
+    context: { notebook: "n" },
+  };
+  Vitest.test(
+    `unknown ${status} problems preserve details and classify command retries`,
+    async () => {
+      const f = await fixture();
+      const handle = await f.attach();
+      const operation = handle.runtime.interrupt();
+      f.refuse(status, problem);
+      await Vitest.expect(f.run(operation)).rejects.toEqual(problem);
+      f.allow();
+      await f.run(operation);
+      const commands = f.requests.filter((request) => request.method === "POST");
+      const keys = commands.map((request) => request.headers.get("idempotency-key"));
+      Vitest.expect(keys[0] === keys[1]).toBe(status >= 500);
+    },
+  );
+
+  Vitest.test(`unknown ${status} problems classify stream retries`, async () => {
+    const registry = AtomRegistry.make();
+    let requests = 0;
+    const fetch: typeof globalThis.fetch = async () => {
+      requests++;
+      return Response.json(problem, {
+        status,
+        headers: { "Content-Type": "application/problem+json; charset=utf-8" },
+      });
+    };
+    try {
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const host = yield* Host.make({ baseUrl: "http://host.test" });
+            yield* Effect.promise(() =>
+              vi.waitFor(() => {
+                const state = registry.get(host.state);
+                Vitest.expect(state._tag).toBe("Failure");
+                if (state._tag !== "Failure") throw new Error("Expected failure");
+                Vitest.expect(Cause.squash(state.cause)).toEqual(problem);
+                Vitest.expect(state.waiting).toBe(status >= 500);
+              }),
+            );
+            // The first retry is after 250ms; rejected connections must stay stopped.
+            yield* Effect.sleep("400 millis");
+            Vitest.expect(requests > 1).toBe(status >= 500);
+          }),
+        ).pipe(
+          Effect.provide(FetchHttpClient.layer),
+          Effect.provideService(FetchHttpClient.Fetch, fetch),
+          Effect.provideService(AtomRegistry.AtomRegistry, registry),
+        ),
+      );
+    } finally {
+      registry.dispose();
+    }
+  });
+}
+
+Vitest.test.each([
+  {
+    status: 503,
+    body: {
+      type: "urn:example:problem:unfamiliar",
+      status: 403,
+      title: "Mismatched status",
+    },
+  },
+  {
+    status: 412,
+    body: {
+      type: "urn:marimo:problem:precondition-failed",
+      status: 412,
+      title: "Missing document",
+    },
+  },
+])(
+  "invalid problems cannot retire a command's request key ($body.title)",
+  async ({ status, body }) => {
+    const f = await fixture();
+    const handle = await f.attach();
+    const operation = handle.edit((tx) => tx.insert({ code: "x = 1" }));
+    f.refuse(status, body);
+    await Vitest.expect(f.run(operation)).rejects.toMatchObject({
+      _tag: "HttpClientError",
+    });
+    f.allow();
+    await f.run(operation);
+    const commands = f.requests.filter((request) => request.method === "POST");
+    Vitest.expect(commands[1].headers.get("idempotency-key")).toBe(
+      commands[0].headers.get("idempotency-key"),
+    );
+  },
+);

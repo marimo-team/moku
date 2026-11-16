@@ -9,7 +9,7 @@ import type {
   CellOutputs,
   OutputItem,
 } from "../src/index.ts";
-import type { DisplayRendererProps } from "../src/internal/session.ts";
+import type * as RendererSession from "../src/internal/RendererSession.ts";
 import type { DisplayRenderer } from "../dist/renderer.js";
 
 Vitest.test(
@@ -26,7 +26,7 @@ Vitest.test(
     >().toEqualTypeOf<typeof Protocol.Outcome.Type | null>();
     Vitest.expectTypeOf<
       React.ComponentProps<typeof DisplayRenderer>
-    >().toEqualTypeOf<DisplayRendererProps>();
+    >().toEqualTypeOf<RendererSession.DisplayProps>();
     Vitest.expectTypeOf<OutputItem>().toEqualTypeOf<Outputs.Item>();
     Vitest.expectTypeOf<
       Extract<OutputItem, { kind: "display" }>["content"]

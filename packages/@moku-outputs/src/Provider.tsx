@@ -6,12 +6,13 @@
 import * as React from "react";
 import { useAtom, useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
-import * as OutputSession from "./internal/output-session.ts";
-import type { Session } from "./internal/session.ts";
+import * as RendererConnection from "./internal/RendererConnection.ts";
+import type * as RendererSession from "./internal/RendererSession.ts";
+import type * as Interaction from "@moku/core/Interaction";
 
 /** The subset of a notebook needed by output renderers. */
 export interface Notebook {
-  readonly runtime: OutputSession.Runtime;
+  readonly runtime: Interaction.Interface;
 }
 export interface ProviderProps {
   readonly notebook: Notebook;
@@ -19,7 +20,7 @@ export interface ProviderProps {
 }
 
 export const OutputContext = React.createContext<{
-  session: Session | null;
+  session: RendererSession.Interface | null;
   canInteract: boolean;
 }>({ session: null, canInteract: false });
 
@@ -39,28 +40,28 @@ export const OutputContext = React.createContext<{
  * ```
  */
 export function Provider({ notebook, children }: ProviderProps) {
-  const runtime = notebook.runtime;
-  const connection = useAtomValue(runtime.state, (state) => state.connection);
+  const interactions = notebook.runtime;
+  const connection = useAtomValue(interactions.state, (state) => state.connection);
   const [reconnecting, reconnect] = useAtom(
     React.useMemo(
-      () => Atom.fn(() => runtime.retry).pipe(Atom.setIdleTTL(0)),
-      [runtime],
+      () => Atom.fn(() => interactions.retry).pipe(Atom.setIdleTTL(0)),
+      [interactions],
     ),
   );
-  const [state, setState] = React.useState<OutputSession.State>({
+  const [state, setState] = React.useState<RendererConnection.State>({
     session: null,
     error: null,
   });
   React.useEffect(() => {
     try {
-      return OutputSession.acquire(runtime, setState);
+      return RendererConnection.acquire(interactions, setState);
     } catch (cause) {
       setState({
         session: null,
         error: cause instanceof Error ? cause : new Error(String(cause)),
       });
     }
-  }, [runtime]);
+  }, [interactions]);
   const error = state.error ?? (connection._tag === "Failed" ? connection.error : null);
   const canInteract = connection._tag === "Connected" && connection.canInteract;
   return (

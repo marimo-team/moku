@@ -8,7 +8,7 @@ import { Effect, Queue, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import * as Interaction from "@moku/core/Interaction";
 import { Provider, OutputContext, type Notebook } from "../src/Provider.tsx";
-import type { SessionOptions } from "../src/internal/session.ts";
+import type * as RendererSession from "../src/internal/RendererSession.ts";
 
 const renderer = vi.hoisted(() => ({ createSession: vi.fn() }));
 vi.mock("../src/internal/renderer.ts", () => ({ loadRenderer: async () => renderer }));
@@ -23,8 +23,11 @@ Vitest.afterEach(async () => {
 });
 
 function fixture() {
-  const sessions: { options: SessionOptions; dispose: ReturnType<typeof vi.fn> }[] = [];
-  renderer.createSession.mockImplementation((options: SessionOptions) => {
+  const sessions: {
+    options: RendererSession.Options;
+    dispose: ReturnType<typeof vi.fn>;
+  }[] = [];
+  renderer.createSession.mockImplementation((options: RendererSession.Options) => {
     const dispose = vi.fn();
     sessions.push({ options, dispose });
     return {

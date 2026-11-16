@@ -22,17 +22,13 @@ import {
 import { safeExtractSetUIElementMessageBuffers } from "@/utils/json/base64";
 import { initializePlugins } from "@/plugins/plugins";
 import type { Theme } from "../src/types.ts";
-import type {
-  DisplayRendererProps,
-  Session,
-  SessionOptions,
-} from "../src/internal/session.ts";
+import type * as RendererSession from "../src/internal/RendererSession.ts";
 import { normalizeDisplay } from "../src/internal/normalize.ts";
 import "@/css/index.css";
 
 initializePlugins();
 store.set(initialModeAtom, "edit");
-let current: Session | undefined;
+let current: RendererSession.Interface | undefined;
 const disconnected = () =>
   Promise.reject(new Error("Output interactions are not connected."));
 const requestClient = (methods: Record<string, unknown>) =>
@@ -49,14 +45,16 @@ export function setTheme(theme: Theme): void {
   }));
 }
 
-export function createSession(options: SessionOptions): Session {
+export function createSession(
+  options: RendererSession.Options,
+): RendererSession.Interface {
   if (current) throw new Error("A notebook already owns the output renderer.");
   const models = new Set<string>();
   let active = true;
   const requireActive = () => {
     if (!active) throw new Error("The output session has ended.");
   };
-  const session: Session = {
+  const session: RendererSession.Interface = {
     runtimeId: options.runtimeId,
     assetUrl: options.assetUrl,
     async handle(notification) {
@@ -122,7 +120,7 @@ export function createSession(options: SessionOptions): Session {
     },
   };
   const sendComponentValues = async (
-    request: Parameters<SessionOptions["sendComponentValues"]>[0],
+    request: Parameters<RendererSession.Options["sendComponentValues"]>[0],
   ) => {
     requireActive();
     await options.sendComponentValues(request);
@@ -132,7 +130,7 @@ export function createSession(options: SessionOptions): Session {
     requestClient({
       sendComponentValues,
       sendModelValue: async (
-        request: Parameters<SessionOptions["sendModelValue"]>[0],
+        request: Parameters<RendererSession.Options["sendModelValue"]>[0],
       ) => {
         requireActive();
         await options.sendModelValue(request);
@@ -169,7 +167,7 @@ export function DisplayRenderer({
   runtimeId,
   session,
   canInteract = false,
-}: DisplayRendererProps): ReactElement {
+}: RendererSession.DisplayProps): ReactElement {
   const { theme } = useTheme();
   const connected =
     session != null && current === session && runtimeId === session.runtimeId;

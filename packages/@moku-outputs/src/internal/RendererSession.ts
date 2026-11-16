@@ -1,9 +1,8 @@
 /**
- * Bind the embedded renderer's callbacks to one producing runtime.
+ * Define the embedded renderer's session contract for one producing runtime.
  *
- * The output bridge runs channel Effects at this Promise-based renderer boundary.
- * Runtime identity stays fixed for the session so historical widgets cannot send
- * requests to a replacement kernel.
+ * Each session owns widget registrations and callbacks for a fixed runtime ID.
+ * The connection supplies callbacks and releases the session when that runtime changes.
  *
  * @module
  */
@@ -11,7 +10,7 @@ import type * as Interaction from "@moku/core/Interaction";
 import type { DisplayViewProps } from "../types.ts";
 
 /** Runtime-bound callbacks installed into the native renderer's registries. */
-export interface SessionOptions {
+export interface Options {
   /** The runtime whose outputs may use this session. */
   readonly runtimeId: string;
   /** Resolves kernel-authored asset references through the authenticated proxy. */
@@ -31,7 +30,7 @@ export interface SessionOptions {
 }
 
 /** Native renderer registrations owned by one runtime and released together. */
-export interface Session {
+export interface Interface {
   /** The runtime whose widget IDs and callbacks belong to this session. */
   readonly runtimeId: string;
   /** Resolves asset references for outputs belonging to this session. */
@@ -43,9 +42,9 @@ export interface Session {
 }
 
 /** Output content with the native session and permissions available to its widgets. */
-export interface DisplayRendererProps extends DisplayViewProps {
+export interface DisplayProps extends DisplayViewProps {
   /** Missing or mismatched sessions leave runtime-bound outputs disconnected. */
-  readonly session?: Session | null;
+  readonly session?: Interface | null;
   /** Whether a connected widget may interact; defaults to false. */
   readonly canInteract?: boolean;
 }

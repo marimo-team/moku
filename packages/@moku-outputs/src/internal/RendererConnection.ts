@@ -1,28 +1,25 @@
 /**
- * Share and release the renderer's page-wide native registries.
+ * Connect native interaction events to shared renderer sessions.
  *
- * Replays output notifications into a renderer session and binds its Promise
- * callbacks to runtime-targeted Effects. Resets discard the old session before
- * another runtime's widgets are installed.
+ * Consumers share one connection. Runtime changes replace its session, and the
+ * last consumer's release stops observation and disposes the session.
  *
  * @module
  */
 import { Effect, Stream } from "effect";
 import type * as Interaction from "@moku/core/Interaction";
-import type { Session } from "./session.ts";
+import type * as RendererSession from "./RendererSession.ts";
 import { loadRenderer } from "./renderer.ts";
 
-/** The messaging capabilities required by the native renderer. */
-export type Runtime = Interaction.Interface;
 /** Renderer availability after applying native output notifications. */
 export interface State {
   /** Null before kernel initialization, after a reset, or after release. */
-  readonly session: Session | null;
+  readonly session: RendererSession.Interface | null;
   /** A renderer loading or notification-handling failure, otherwise null. */
   readonly error: Error | null;
 }
 interface Entry {
-  readonly runtime: Runtime;
+  readonly interactions: Interaction.Interface;
   readonly controller: AbortController;
   readonly listeners: Set<(state: State) => void>;
   state: State;
@@ -37,15 +34,15 @@ let active: Entry | undefined;
  * the page-wide registries while this one still has readers.
  */
 export function acquire(
-  runtime: Runtime,
+  interactions: Interaction.Interface,
   listener: (state: State) => void,
 ): () => void {
-  if (active && active.runtime !== runtime)
+  if (active && active.interactions !== interactions)
     throw new Error("Interactive outputs currently support one notebook per page.");
   let entry = active;
   if (!entry) {
     entry = {
-      runtime,
+      interactions,
       controller: new AbortController(),
       listeners: new Set(),
       state: { session: null, error: null },
@@ -72,7 +69,7 @@ function publish(entry: Entry, state: State) {
 }
 
 async function start(entry: Entry) {
-  const { runtime, controller } = entry;
+  const { interactions, controller } = entry;
   const signal = controller.signal;
   function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
     if (signal.aborted)
@@ -83,7 +80,7 @@ async function start(entry: Entry) {
     const renderer = await loadRenderer();
     if (signal.aborted) return;
     await Effect.runPromise(
-      runtime.events.pipe(
+      interactions.events.pipe(
         Stream.runForEach((event) =>
           Effect.tryPromise({
             try: async () => {
@@ -98,10 +95,10 @@ async function start(entry: Entry) {
                 const runtimeId = event.runtimeId;
                 const session = renderer.createSession({
                   runtimeId,
-                  assetUrl: runtime.assetUrl,
+                  assetUrl: interactions.assetUrl,
                   sendComponentValues: (request) =>
                     run(
-                      runtime.setUIValues({
+                      interactions.setUIValues({
                         runtimeId,
                         values: Object.fromEntries(
                           request.objectIds.map((id, index) => [
@@ -111,9 +108,10 @@ async function start(entry: Entry) {
                         ),
                       }),
                     ),
-                  invoke: (request) => run(runtime.invoke({ ...request, runtimeId })),
+                  invoke: (request) =>
+                    run(interactions.invoke({ ...request, runtimeId })),
                   sendModelValue: (request) =>
-                    run(runtime.sendWidgetMessage({ ...request, runtimeId })),
+                    run(interactions.sendWidgetMessage({ ...request, runtimeId })),
                 });
                 entry.state = { session, error: null };
                 await session.handle(event.notification);

@@ -51,7 +51,7 @@ async function mount(route: Route) {
           source: "manual",
         },
       ]);
-    if (path.endsWith("/open")) return Response.json({ success: true });
+    if (path.endsWith("/open")) return Response.json({ url: "http://host.test/" });
     return new Response(
       new ReadableStream({
         start(controller) {

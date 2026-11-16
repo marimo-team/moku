@@ -113,6 +113,7 @@
       "name": "@moku/proxy",
       "dependencies": {
         "@marimo-team/client": "file:../../vendor/client",
+        "@marimo-team/host-protocol": "file:../../vendor/host-protocol",
         "@moku/core": "workspace:*",
         "effect": "4.1.0",
       },
@@ -566,5 +567,6 @@
     "@moku/launcher/@marimo-team/smart-cells": ["@marimo-team/smart-cells@file:vendor/smart-cells", { "dependencies": { "@codemirror/lang-python": "^6.2.1", "@lezer/common": "^1.5.2", "@lezer/python": "^1.1.19", "string-dedent": "^3.0.2" } }],
 
     "@moku/proxy/@marimo-team/client": ["@marimo-team/client@file:vendor/client", { "dependencies": { "zod": "^4.6.7" } }],
+    "@moku/proxy/@marimo-team/host-protocol": ["@marimo-team/host-protocol@file:vendor/host-protocol", { "dependencies": { "effect": "4.1.0" } }],
   }
 }

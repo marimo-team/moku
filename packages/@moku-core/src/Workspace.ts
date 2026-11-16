@@ -220,7 +220,7 @@ export const make = (options: { launchKey?: string } = {}) =>
         transport
           .json(
             `/api/hosts/${encodeURIComponent(connectionId)}/notebooks/${encodeURIComponent(notebookId)}/open`,
-            Schema.Struct({ success: Schema.Literal(true) }),
+            Schema.Struct({ url: Schema.String }),
             {
               method: "POST",
               headers: { "Idempotency-Key": requestId },
@@ -232,7 +232,7 @@ export const make = (options: { launchKey?: string } = {}) =>
         transport
           .json(
             `/api/hosts/${encodeURIComponent(connectionId)}/marimo/auth`,
-            Schema.Struct({ success: Schema.Literal(true) }),
+            Schema.Struct({ url: Schema.String }),
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },

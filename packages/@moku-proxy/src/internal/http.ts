@@ -1,15 +1,38 @@
+import { Option, Schema } from "effect";
 import * as NodeBuffer from "node:buffer";
 import type * as NodeHttp from "node:http";
 
+const failure = Schema.Struct({
+  error: Schema.String,
+  code: Schema.optionalKey(Schema.String),
+});
+const problemKinds = new Map<number, string>([
+  [400, "invalid-request"],
+  [401, "unauthorized"],
+  [403, "forbidden"],
+  [404, "not-found"],
+  [500, "internal"],
+]);
+
 export function json(res: NodeHttp.ServerResponse, status: number, body: unknown) {
-  if (status >= 400 && typeof body === "object" && body !== null) {
-    if ("code" in body && typeof body.code === "string") {
-      res.setHeader("X-Moku-Error", body.code);
-    }
-    body = { ...body, status };
+  const problem =
+    status >= 400 ? Schema.decodeUnknownOption(failure)(body) : Option.none();
+  if (Option.isSome(problem)) {
+    const { error, code } = problem.value;
+    if (code) res.setHeader("X-Moku-Error", code);
+    const kind = problemKinds.get(status);
+    body = {
+      ...problem.value,
+      type: kind ? `urn:marimo:problem:${kind}` : `urn:moku:problem:http-${status}`,
+      title: error,
+      status,
+      detail: error,
+    };
   }
   res.writeHead(status, {
-    "Content-Type": "application/json",
+    "Content-Type": Option.isSome(problem)
+      ? "application/problem+json"
+      : "application/json",
     "Cache-Control": "no-store",
   });
   res.end(JSON.stringify(body));

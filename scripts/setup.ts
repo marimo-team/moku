@@ -93,6 +93,7 @@ if (checks) {
   run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"]);
 }
 run("bun", ["run", "build"], NodePath.join(Marimo.checkout, "packages/client"));
+run("bun", ["run", "build"], NodePath.join(Marimo.checkout, "packages/host-protocol"));
 run("bun", ["run", "codegen"], NodePath.join(Marimo.checkout, "packages/llm-info"));
 if (!checks)
   run(
@@ -103,6 +104,7 @@ if (!checks)
 
 for (const [name, content] of [
   ["client", "dist"],
+  ["host-protocol", "dist"],
   ["smart-cells", "src"],
 ] as const) {
   const source = NodePath.join(Marimo.checkout, "packages", name);

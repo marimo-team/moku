@@ -11,7 +11,10 @@ import * as MarimoNode from "@marimo-team/client/node";
 import { json, readBody } from "./internal/http.ts";
 import type { ManagedServer } from "./internal/managed.ts";
 import { createNative } from "./internal/native.ts";
-import * as Protocol from "@marimo-team/client/protocol";
+import type * as Discovery from "@marimo-team/client/protocol";
+import { Schema } from "effect";
+import * as Protocol from "@marimo-team/host-protocol/Schemas";
+import * as Routes from "./internal/protocol.ts";
 
 /**
  * Public connection details for a host; authentication tokens stay on the server.
@@ -30,7 +33,7 @@ interface Options {
   clientName?: string;
   server?: Pick<ManagedServer, "host">;
   origin: () => string;
-  discover?: () => AsyncIterable<Protocol.HostRecordOutput>;
+  discover?: () => AsyncIterable<Discovery.HostRecordOutput>;
 }
 
 function matches(actual: string | undefined, expected: string) {
@@ -81,7 +84,7 @@ export function createApi({
 
   async function connections() {
     const found = new Map(manual);
-    const add = (host: Protocol.HostRecordOutput) => {
+    const add = (host: Discovery.HostRecordOutput) => {
       const id = hostId(`${host.url}:${host.process.pid}:${host.process.started_at}`);
       found.set(id, {
         summary: {
@@ -203,36 +206,18 @@ export function createApi({
         origin: expected,
       });
     }
-    const read =
-      req.method === "GET" &&
-      (path === "/events" || /^\/notebooks\/[^/]+\/events$/.test(path));
-    const open = req.method === "POST" && /^\/notebooks\/[^/]+\/open$/.test(path);
-    const save = req.method === "POST" && /^\/notebooks\/[^/]+\/save$/.test(path);
-    const schema =
-      req.method === "POST" && /^\/notebooks\/[^/]+\/edits$/.test(path)
-        ? Protocol.EditRequest
-        : save
-          ? Protocol.SaveRequest
-          : req.method === "POST" && /^\/notebooks\/[^/]+\/runtime\/runs$/.test(path)
-            ? Protocol.RunRequest
-            : req.method === "PUT" && /^\/notebooks\/[^/]+\/runtime$/.test(path)
-              ? Protocol.StartRuntimeRequest
-              : undefined;
-    // Cancelling one run and interrupting the runtime are distinct operations.
-    const mutation =
-      open ||
-      schema !== undefined ||
-      (req.method === "DELETE" &&
-        /^\/notebooks\/[^/]+\/runtime(?:\/runs\/[^/]+)?$/.test(path)) ||
-      (req.method === "POST" && /^\/notebooks\/[^/]+\/runtime\/interrupt$/.test(path));
-    if (!match || !(read || mutation)) {
+    let route: ReturnType<typeof Routes.match>;
+    try {
+      route = Routes.match(req.method, path);
+    } catch {
+      return json(res, 400, { error: "Invalid notebook path." });
+    }
+    if (!match || !route) {
       return json(res, 404, { error: "This proxy does not expose that operation." });
     }
-    if (mutation && req.headers.origin !== expected) {
+    const read = route.endpoint.method === "GET";
+    if (!read && req.headers.origin !== expected) {
       return json(res, 403, { error: "An action must originate from the local app." });
-    }
-    if (mutation && typeof req.headers["idempotency-key"] !== "string") {
-      return json(res, 400, { error: "The notebook request key is missing." });
     }
     const host = (await connections()).get(match[1]);
     if (!host) {
@@ -241,42 +226,29 @@ export function createApi({
         error: "This marimo host is no longer available. Refresh hosts.",
       });
     }
-    let body: string | undefined;
-    if (schema) {
-      try {
-        body = JSON.stringify(schema.parse(await readBody(req, 8 * 1024 * 1024)));
-      } catch {
-        return json(res, 400, { error: "Invalid notebook request." });
-      }
+    let request: Awaited<ReturnType<typeof Routes.prepare>>;
+    try {
+      request = await Routes.prepare(route, req, url);
+    } catch {
+      return json(res, 400, { error: "Invalid host protocol request." });
     }
     if (closed || res.destroyed) {
       res.destroy();
       return;
     }
     const upstream = new URL(host.summary.url.replace(/\/$/, "") + path);
-    // A browser can select stream filters, never an arbitrary proxy target.
-    if (read) {
-      for (const key of ["types", "cursor", "run_id"]) {
-        const value = url.searchParams.get(key);
-        if (value !== null) upstream.searchParams.set(key, value);
-      }
-    }
+    upstream.search = new URLSearchParams(request.query).toString();
     const forward = Forward.create(res, requests);
     try {
-      const headers = new Headers();
+      const { headers, body } = request;
       if (host.token) headers.set("Authorization", `Bearer ${host.token}`);
-      if (mutation) {
-        headers.set("Idempotency-Key", String(req.headers["idempotency-key"]));
-        if (body !== undefined) headers.set("Content-Type", "application/json");
-        if (save && typeof req.headers["if-match"] === "string") {
-          headers.set("If-Match", req.headers["if-match"]);
-        }
-      } else {
+      if (body !== undefined) headers.set("Content-Type", "application/json");
+      if (read) {
         headers.set("Accept", "text/event-stream");
-        headers.set("Marimo-Attachment-Kind", "browser");
-        headers.set("Marimo-Attachment-Name", clientName);
-        const cursor = req.headers["last-event-id"];
-        if (typeof cursor === "string") headers.set("Last-Event-ID", cursor);
+        if (!headers.has("Marimo-Attachment-Kind"))
+          headers.set("Marimo-Attachment-Kind", "browser");
+        if (!headers.has("Marimo-Attachment-Name"))
+          headers.set("Marimo-Attachment-Name", clientName);
       }
       const response = await fetch(upstream, {
         method: req.method,
@@ -285,10 +257,14 @@ export function createApi({
         signal: forward.signal,
         redirect: "error",
       });
-      if (open && response.ok) {
-        // The host opens its browser; its returned URL may contain credentials.
-        await response.body?.cancel();
-        return json(res, 200, { success: true });
+      if (route.endpoint.identifier === "open" && response.ok) {
+        const opened = Schema.decodeUnknownSync(Protocol.OpenNotebookResponse)(
+          await response.json(),
+        );
+        // The pinned host includes its native token despite the protocol contract.
+        const target = new URL(opened.url);
+        target.searchParams.delete("access_token");
+        return json(res, response.status, { url: target.href });
       }
       forward.pipe(response, "application/json");
     } catch {

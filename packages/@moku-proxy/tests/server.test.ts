@@ -111,7 +111,7 @@ Vitest.test(
     );
     NodeAssert.equal(
       (
-        await fetch(`${base}/notebooks/n`, {
+        await fetch(`${base}/notebooks/n/unknown`, {
           method: "DELETE",
           headers: { Cookie: cookie, Origin: origin },
         })
@@ -251,7 +251,7 @@ Vitest.test(
     await response.text();
     NodeAssert.equal(received[0].headers.authorization, "Bearer replacement-secret");
     NodeAssert.equal(received[0].headers.cookie, undefined);
-    NodeAssert.equal(received[0].url, "/api/marimo/v1/events?cursor=abc&run_id=run-1");
+    NodeAssert.equal(received[0].url, "/api/marimo/v1/events");
     NodeAssert.equal((await connect(hostUrl, "")).status, 201);
     await (await fetch(`${origin}/api/hosts/${summary.id}/events`, { headers })).text();
     NodeAssert.equal(received[1].headers.authorization, undefined);
@@ -556,7 +556,7 @@ Vitest.test(
       headers,
     });
     NodeAssert.equal(response.status, 200);
-    NodeAssert.deepEqual(await response.json(), { success: true });
+    NodeAssert.deepEqual(await response.json(), { url: "http://localhost:2718/" });
     NodeAssert.equal(forwarded.authorization, "Bearer local-secret");
     NodeAssert.equal(forwarded["idempotency-key"], "request-1");
   },

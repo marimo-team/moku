@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@marimo-team/client": "file:../../vendor/client",
+    "@marimo-team/host-protocol": "file:../../vendor/host-protocol",
     "@moku/core": "workspace:*",
     "effect": "4.1.0"
   },

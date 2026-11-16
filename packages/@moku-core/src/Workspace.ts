@@ -232,7 +232,7 @@ export const make = (options: { launchKey?: string } = {}) =>
         transport
           .json(
             `/api/hosts/${encodeURIComponent(connectionId)}/marimo/auth`,
-            Schema.Struct({ url: Schema.String }),
+            Schema.Struct({ success: Schema.Literal(true) }),
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },

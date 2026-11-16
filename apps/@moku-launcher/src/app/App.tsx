@@ -6,7 +6,7 @@ import { Launcher } from "./Launcher.tsx";
 import { ViewInstance, ViewErrorBoundary } from "./ViewInstance.tsx";
 import type { Runtime } from "./runtime.ts";
 import { parseRoute, type Route } from "./routes.ts";
-import type * as Host from "./Host.ts";
+import type * as Host from "./views.ts";
 import { ViewHeader } from "./ViewHeader.tsx";
 import { LauncherBar } from "./LauncherBar.tsx";
 

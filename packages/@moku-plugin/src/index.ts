@@ -4,4 +4,4 @@
  * @module
  */
 export * as Plugin from "./Plugin.ts";
-export type { Context, View, ViewProps } from "./Plugin.ts";
+export type { Context, View, ViewProps, Tab } from "./Plugin.ts";

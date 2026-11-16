@@ -34,7 +34,7 @@ export function Basic({ notebook }: ViewProps) {
 function CellPicker({
   notebook,
   document,
-}: ViewProps & { document: Document.Interface }) {
+}: Pick<ViewProps, "notebook"> & { document: Document.Interface }) {
   const draft = useAtomValue(document.state);
   const { value: state, status, error: connectionError } = useAtomValue(notebook.state);
   const [selected, setSelected] = React.useState("");

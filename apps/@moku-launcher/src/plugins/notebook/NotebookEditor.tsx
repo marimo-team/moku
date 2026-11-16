@@ -41,7 +41,10 @@ export function NotebookEditor({ notebook }: ViewProps) {
   );
 }
 
-function NotebookContent({ notebook, model }: ViewProps & { model: Model.Interface }) {
+function NotebookContent({
+  notebook,
+  model,
+}: Pick<ViewProps, "notebook"> & { model: Model.Interface }) {
   const documentModel = useDocument();
   const { document, canEdit, dirty, status: sync } = useAtomValue(documentModel.state);
   const { value: state, status, error } = useAtomValue(notebook.state);

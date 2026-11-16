@@ -631,6 +631,67 @@ Vitest.test(
   },
 );
 
+Vitest.test(
+  "startup retries retain the request key after a lost response",
+  async () => {
+    const f = await fixture();
+    const handle = await f.attach();
+    f.lose();
+    await Vitest.expect(f.run(handle.ensureRunning)).rejects.toMatchObject({
+      _tag: "HttpClientError",
+    });
+    f.allow();
+    await f.run(handle.ensureRunning);
+    const starts = f.requests.filter((request) => request.method === "PUT");
+    Vitest.expect(starts).toHaveLength(2);
+    Vitest.expect(starts[1].headers.get("idempotency-key")).toBe(
+      starts[0].headers.get("idempotency-key"),
+    );
+  },
+);
+
+Vitest.test(
+  "startup expires safely and a confirmed runtime releases the old request",
+  async () => {
+    const f = await fixture();
+    const host = await f.run(f.connect("host-a", { retryWindow: 0 }));
+    const handle = await f.run(host.notebooks.attach("n"));
+    const stream = await f.stream();
+    snapshot(stream);
+    await vi.waitFor(() =>
+      Vitest.expect(isReady(f.registry.get(handle.state))).toBe(true),
+    );
+    f.lose();
+    await Vitest.expect(f.run(handle.ensureRunning)).rejects.toMatchObject({
+      _tag: "HttpClientError",
+    });
+    f.allow();
+    await Vitest.expect(f.run(handle.ensureRunning)).rejects.toMatchObject({
+      reason: "retry-expired",
+    });
+    Vitest.expect(
+      f.requests.filter((request) => request.method === "PUT"),
+    ).toHaveLength(1);
+
+    // The stream can confirm startup even when its HTTP response was lost.
+    stream.send("runtime", { runtime }, "2");
+    await vi.waitFor(() =>
+      Vitest.expect(read(f.registry.get(handle.state)).runtime?.status).toBe("running"),
+    );
+    await f.run(handle.ensureRunning);
+    stream.send("runtime.removed", { id: runtime.id }, "3");
+    await vi.waitFor(() =>
+      Vitest.expect(read(f.registry.get(handle.state)).runtime).toBeNull(),
+    );
+    await f.run(handle.ensureRunning);
+    const starts = f.requests.filter((request) => request.method === "PUT");
+    Vitest.expect(starts).toHaveLength(2);
+    Vitest.expect(starts[1].headers.get("idempotency-key")).not.toBe(
+      starts[0].headers.get("idempotency-key"),
+    );
+  },
+);
+
 Vitest.test.each(["interruption", "timeout"] as const)(
   "runtime startup releases observation on %s",
   async (end) => {

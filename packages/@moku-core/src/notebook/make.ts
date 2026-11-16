@@ -143,6 +143,7 @@ export const make = Effect.fnUntraced(function* (
         ),
       ),
   };
+  let startup: ReturnType<Notebook.Runtime["start"]> | undefined;
   const ensureRunning = commands.owned(
     Effect.gen(function* () {
       const observations =
@@ -169,7 +170,8 @@ export const make = Effect.fnUntraced(function* (
         return yield* Effect.failCause(initial.cause);
       const current = AsyncResult.getOrElse(initial, () => undefined)?.runtime;
       if (current?.status === "running") return;
-      const started = current?.status === "starting" ? current : yield* runtime.start();
+      const started =
+        current?.status === "starting" ? current : yield* (startup ??= runtime.start());
       let latest = started;
       let seen = false;
       while (true) {
@@ -205,7 +207,16 @@ export const make = Effect.fnUntraced(function* (
         const next = yield* Queue.take(observations);
         Queue.offerUnsafe(observations, next);
       }
-    }).pipe(Effect.scoped, Effect.timeout("60 seconds")),
+    }).pipe(
+      Effect.scoped,
+      Effect.timeout("60 seconds"),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          // Observing a running runtime also resolves an uncertain startup request.
+          startup = undefined;
+        }),
+      ),
+    ),
   );
   const notebook = {
     id,

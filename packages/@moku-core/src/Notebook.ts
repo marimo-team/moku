@@ -139,15 +139,21 @@ export interface Runtime {
 /**
  * A scoped notebook observation and commands.
  *
- * A failed mutation retains its request identity for retries within the host's
- * configured retry window. Successful executions start fresh work when repeated.
+ * After a transport or server failure, repeat the same Effect to retry its request
+ * within the host's retry window. Success or rejection ends that request, so
+ * repeating the Effect then submits new work.
  */
 export interface Interface {
   /** Identity of the attached notebook. */
   readonly id: (typeof Protocol.Notebook.Type)["id"];
   /** Synchronized state in the registry that acquired this notebook. */
   readonly state: Atom.Atom<AsyncResult.AsyncResult<State, Error>>;
-  /** Reuses a running kernel or waits up to 60 seconds for startup. */
+  /**
+   * Reuses a running runtime or starts one and waits up to 60 seconds.
+   *
+   * An uncertain startup retains its request key for retry. Once a running runtime
+   * is confirmed, a later call can start fresh work if that runtime has stopped.
+   */
   readonly ensureRunning: Effect.Effect<
     void,
     Error | import("effect").Cause.TimeoutError

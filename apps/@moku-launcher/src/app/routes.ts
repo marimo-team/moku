@@ -5,15 +5,13 @@ export type Route =
   | { readonly kind: "view"; readonly target: Target; readonly viewKey: string }
   | { readonly kind: "missing" };
 
-/** Resolve saved view identities from before views contributed individual tabs. */
+/** Resolve saved links and preferences after a plugin is renamed. */
 export function canonicalViewKey(key: string): string {
-  const view =
-    key === "dag/graph"
-      ? "graph-explainer/graph"
-      : key === "editor/notebook"
-        ? "notebook/notebook"
-        : key;
-  return view.split("/").length === 2 ? `${view}/main` : view;
+  return key === "dag/graph"
+    ? "graph-explainer/graph"
+    : key === "editor/notebook"
+      ? "notebook/notebook"
+      : key;
 }
 
 /** Builds a bookmarkable URL for one notebook and registered view. */

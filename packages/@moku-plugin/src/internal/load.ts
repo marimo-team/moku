@@ -7,7 +7,7 @@ import { Cause, Effect, Exit, Scope } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import type * as Plugin from "../Plugin.ts";
 
-/** A view registered by a plugin, with its host-wide identity. */
+/** A view registered by a plugin, with its application-wide identity. */
 export interface RegisteredView extends Plugin.View {
   /** Encoded plugin and view IDs separated by a slash. */
   readonly key: string;
@@ -39,7 +39,7 @@ export interface Interface {
  * Load plugins in order and acquire their registrations and resources.
  *
  * Each plugin has its own child scope. Failed activation closes that scope and
- * removes its registrations; closing the host scope releases every plugin.
+ * removes its registrations; closing the loading scope releases every plugin.
  * Duplicate plugin IDs are reported without running the duplicate's setup.
  *
  * @example Observe registered views through a runtime atom
@@ -50,7 +50,7 @@ export interface Interface {
  * import plugin from "./plugin.ts";
  *
  * const runtime = Atom.runtime(Layer.empty);
- * const host = runtime.atom(Plugin.load([plugin]));
+ * const plugins = runtime.atom(Plugin.load([plugin]));
  * ```
  */
 export function load<const P extends readonly Plugin.Interface<unknown>[]>(

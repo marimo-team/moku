@@ -6,7 +6,7 @@ import { Launcher } from "./Launcher.tsx";
 import { ViewInstance, ViewErrorBoundary } from "./ViewInstance.tsx";
 import type { Runtime } from "./runtime.ts";
 import { parseRoute, type Route } from "./routes.ts";
-import type * as Host from "./views.ts";
+import type { Plugin } from "@moku/plugin";
 import { ViewHeader } from "./ViewHeader.tsx";
 import { LauncherBar } from "./LauncherBar.tsx";
 
@@ -42,20 +42,20 @@ function WorkspaceApp({
   workspace: Workspace.Workspace;
   route: Route;
 }) {
-  const host = useAtomValue(runtime.host);
-  if (!AsyncResult.isSuccess(host))
+  const plugins = useAtomValue(runtime.plugins);
+  if (!AsyncResult.isSuccess(plugins))
     return (
       <main className="empty-state">
-        {AsyncResult.isFailure(host) ? "Could not load views." : "Loading views…"}
+        {AsyncResult.isFailure(plugins) ? "Could not load views." : "Loading views…"}
       </main>
     );
   return route.kind === "catalog" ? (
-    <Launcher workspace={workspace} host={host.value} />
+    <Launcher workspace={workspace} plugins={plugins.value} />
   ) : (
     <ViewPage
       runtime={runtime}
       workspace={workspace}
-      state={host.value.state}
+      state={plugins.value.state}
       route={route}
     />
   );
@@ -69,7 +69,7 @@ function ViewPage({
 }: {
   runtime: Runtime;
   workspace: Workspace.Workspace;
-  state: Atom.Atom<Host.State>;
+  state: Atom.Atom<Plugin.State>;
   route: Exclude<Route, { kind: "catalog" }>;
 }) {
   const { views, failures } = useAtomValue(state);

@@ -1,6 +1,6 @@
 import type * as React from "react";
 import * as ReactRouter from "react-router";
-import type { RegisteredView } from "./views.ts";
+import type { Plugin } from "@moku/plugin";
 
 import { canonicalViewKey } from "./routes.ts";
 
@@ -50,7 +50,7 @@ export function ViewPicker({
   includeHost = true,
 }: {
   value: string;
-  views: readonly RegisteredView[];
+  views: readonly Plugin.RegisteredView[];
   onChange: (value: string) => void;
   includeHost?: boolean;
 }) {

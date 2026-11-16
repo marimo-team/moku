@@ -2,7 +2,7 @@ import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import * as React from "react";
 import type * as Workspace from "@moku/core/Workspace";
-import type * as Host from "./views.ts";
+import type { Plugin } from "@moku/plugin";
 import { HostNotebooks } from "./HostNotebooks.tsx";
 import {
   LauncherBar,
@@ -14,14 +14,14 @@ import {
 
 export function Launcher({
   workspace,
-  host,
+  plugins,
 }: {
   workspace: Workspace.Workspace;
-  host: Host.Interface;
+  plugins: Plugin.Loaded;
 }) {
   const connections = useAtomValue(workspace.state, (state) => state.connections);
   const discovery = useAtomValue(workspace.state, (state) => state.status);
-  const { views, failures } = useAtomValue(host.state);
+  const { views, failures } = useAtomValue(plugins.state);
   const [preference, setPreference] = React.useState(preferredView);
   const selectedView = views.some((view) => view.key === preference)
     ? preference

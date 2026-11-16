@@ -1,4 +1,3 @@
-import { Atom } from "effect/reactivity";
 // @vitest-environment happy-dom
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
@@ -94,12 +93,12 @@ async function mount(route: Route) {
           Effect.gen(function* () {
             yield* ctx.view.add({
               id: "identity",
-              list: Atom.make([{ id: "main", title: "Identity" }]),
+              title: "Identity",
               render: Identity,
             });
             yield* ctx.view.add({
               id: "other",
-              list: Atom.make([{ id: "main", title: "Other" }]),
+              title: "Other",
               render: Identity,
             });
           }),
@@ -141,28 +140,26 @@ Vitest.test(
     const view = await mount({
       kind: "view",
       target: { connectionId: "a", notebookId: "n" },
-      viewKey: "test/identity/main",
+      viewKey: "test/identity",
     });
     await vi.waitFor(() =>
       Vitest.expect(view.element.querySelector("h1")?.textContent).toBe("a:n"),
     );
     const picker = view.element.querySelector("select")!;
     await React.act(async () => {
-      picker.value = "test/other/main";
+      picker.value = "test/other";
       picker.dispatchEvent(new Event("change", { bubbles: true }));
     });
     Vitest.expect(view.router.state.location.search).toContain("view=test%2Fother");
-    Vitest.expect(view.element.querySelector("select")?.value).toBe("test/other/main");
+    Vitest.expect(view.element.querySelector("select")?.value).toBe("test/other");
     await React.act(async () => {
       await view.router.navigate(-1);
     });
-    Vitest.expect(view.element.querySelector("select")?.value).toBe(
-      "test/identity/main",
-    );
+    Vitest.expect(view.element.querySelector("select")?.value).toBe("test/identity");
     await React.act(async () => {
       await view.router.navigate(1);
     });
-    Vitest.expect(view.element.querySelector("select")?.value).toBe("test/other/main");
+    Vitest.expect(view.element.querySelector("select")?.value).toBe("test/other");
     Vitest.expect(view.notebooks).toHaveLength(4);
     Vitest.expect(new Set(view.notebooks).size).toBe(1);
     Vitest.expect(view.closed).toEqual([]);
@@ -207,7 +204,7 @@ Vitest.test(
     Vitest.expect(buttons[0].disabled).toBe(false);
     Vitest.expect(buttons[1].disabled).toBe(true);
     await React.act(async () => {
-      picker.value = "test/identity/main";
+      picker.value = "test/identity";
       picker.dispatchEvent(new Event("change", { bubbles: true }));
     });
     const links = [...element.querySelectorAll<HTMLAnchorElement>("a.notebook-open")];
@@ -219,15 +216,13 @@ Vitest.test(
       ["a", "b"].map((connectionId) => ({
         kind: "view",
         target: { connectionId, notebookId: "n" },
-        viewKey: "test/identity/main",
+        viewKey: "test/identity",
       })),
     );
     Vitest.expect(requests.some((path) => path.includes("/notebooks/"))).toBe(false);
     const next = await mount({ kind: "catalog" });
     await vi.waitFor(() =>
-      Vitest.expect(next.element.querySelector("select")?.value).toBe(
-        "test/identity/main",
-      ),
+      Vitest.expect(next.element.querySelector("select")?.value).toBe("test/identity"),
     );
   },
 );
@@ -237,7 +232,7 @@ Vitest.test(
   async () => {
     const route = parseRoute(
       new URL(
-        viewHref({ connectionId: "b", notebookId: "n" }, "test/identity/main"),
+        viewHref({ connectionId: "b", notebookId: "n" }, "test/identity"),
         "http://moku.test",
       ),
     );
@@ -246,9 +241,7 @@ Vitest.test(
       Vitest.expect(view.element.querySelector("h1")?.textContent).toBe("b:n"),
     );
     Vitest.expect(view.element.querySelector(".catalog-page")).toBeNull();
-    Vitest.expect(view.element.querySelector("select")?.value).toBe(
-      "test/identity/main",
-    );
+    Vitest.expect(view.element.querySelector("select")?.value).toBe("test/identity");
     Vitest.expect(view.element.querySelector('option[value="host"]')).toBeNull();
     Vitest.expect(view.element.querySelector(".view-notebook")?.textContent).toBe(
       "example.py",
@@ -297,7 +290,7 @@ Vitest.test(
   "view URLs preserve identifiers and malformed routes stay unavailable",
   () => {
     const target = { connectionId: "host +/&", notebookId: "notebook/%?雪" };
-    const viewKey = "plugin%2Fone/view/tab%2Fone";
+    const viewKey = "plugin%2Fone/view%2Fone";
     Vitest.expect(
       parseRoute(new URL(viewHref(target, viewKey), "http://moku.test")),
     ).toEqual({
@@ -321,10 +314,10 @@ Vitest.test(
 Vitest.test("existing notebook links resolve to the renamed plugins", () => {
   const target = { connectionId: "host", notebookId: "notebook" };
   for (const [previous, current] of [
-    ["dag/graph", "graph-explainer/graph/main"],
-    ["graph-explainer/graph", "graph-explainer/graph/main"],
-    ["editor/notebook", "notebook/notebook/main"],
-    ["notebook/notebook", "notebook/notebook/main"],
+    ["dag/graph", "graph-explainer/graph"],
+    ["graph-explainer/graph", "graph-explainer/graph"],
+    ["editor/notebook", "notebook/notebook"],
+    ["notebook/notebook", "notebook/notebook"],
   ]) {
     Vitest.expect(
       parseRoute(new URL(viewHref(target, previous), "http://moku.test")),
@@ -337,13 +330,13 @@ Vitest.test("existing notebook links resolve to the renamed plugins", () => {
 });
 
 Vitest.test(
-  "saved views and direct links select their original default tab",
+  "saved views and direct links retain their registered identity",
   async () => {
     localStorage.setItem("moku:open-with", "test/identity");
     const catalog = await mount({ kind: "catalog" });
     await vi.waitFor(() =>
       Vitest.expect(catalog.element.querySelector("select")?.value).toBe(
-        "test/identity/main",
+        "test/identity",
       ),
     );
     const view = await mount(

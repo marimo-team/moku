@@ -4,7 +4,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Workspace from "@moku/core/Workspace";
-import type { RegisteredView } from "./views.ts";
+import type { Plugin } from "@moku/plugin";
 import type { Runtime } from "./runtime.ts";
 import { viewHref } from "./routes.ts";
 import { LauncherBar, ViewPicker, rememberView } from "./LauncherBar.tsx";
@@ -18,7 +18,7 @@ export function ViewHeader({
 }: {
   target: Notebook.Target;
   viewKey: string;
-  views: readonly RegisteredView[];
+  views: readonly Plugin.RegisteredView[];
   runtime: Runtime;
   workspace: Workspace.Workspace;
 }) {

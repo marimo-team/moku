@@ -11,7 +11,7 @@ import { Plugin } from "@moku/plugin";
 
 const view = {
   id: "main",
-  list: Atom.make([{ id: "main", title: "Main" }]),
+  title: "Main",
   render: () => null,
 };
 
@@ -126,21 +126,19 @@ Vitest.test(
 );
 
 Vitest.test(
-  "a standalone host can change tabs and render a lazy plugin with a notebook",
+  "a standalone host can load and render a lazy plugin with a notebook",
   async () => {
     const loadView = vi.fn(async () => ({
-      default: ({ notebook, tab }: ViewProps) =>
-        `${notebook.target.notebookId}/${tab.id}`,
+      default: ({ notebook }: ViewProps) => notebook.target.notebookId,
     }));
     const LazyView = React.lazy(loadView);
-    const tabs = Atom.make([{ id: "identity", title: "Identity" }]);
     const f = await host([
       Plugin.define({
         id: "portable",
         effect: (ctx) =>
           ctx.view.add({
             id: "identity",
-            list: tabs,
+            title: "Identity",
             render: (props) => React.createElement(LazyView, props),
           }),
       }),
@@ -190,22 +188,19 @@ Vitest.test(
     );
     const view = f.state().views[0];
     Vitest.expect(view.key).toBe("portable/identity");
-    f.registry.set(tabs, [{ id: "second", title: "Second tab" }]);
-    const tab = f.registry.get(view.list)[0];
-    Vitest.expect(tab.id).toBe("second");
     Vitest.expect(loadView).not.toHaveBeenCalled();
     const render = () =>
       ReactDOMServer.renderToString(
         React.createElement(
           React.Suspense,
           { fallback: "Loading" },
-          view.render({ notebook, tab }),
+          view.render({ notebook }),
         ),
       );
     Vitest.expect(render()).toContain("Loading");
     await vi.waitFor(() => Vitest.expect(loadView).toHaveBeenCalledOnce());
     await loadView.mock.results[0].value;
-    Vitest.expect(render()).toContain("n/second");
+    Vitest.expect(render()).toContain("n");
     await f.close();
     Vitest.expect(closed).toBe(true);
     Vitest.expect(f.state().views).toEqual([]);
@@ -221,16 +216,16 @@ Vitest.test(
     class Suffix extends Context.Service<Suffix, { readonly value: string }>()(
       "test/Suffix",
     ) {}
-    const tabs = Atom.make<readonly Plugin.Tab[]>([]);
+    const labelState = Atom.make("");
     const first = Plugin.define({
       id: "first",
       effect: (ctx: Plugin.Context) =>
         Effect.gen(function* () {
           const label = yield* Label;
-          yield* Atom.mount(tabs);
+          yield* Atom.mount(labelState);
           const registry = yield* AtomRegistry.AtomRegistry;
-          registry.set(tabs, [{ id: "main", title: label.value }]);
-          yield* ctx.view.add({ ...view, list: tabs });
+          registry.set(labelState, label.value);
+          yield* ctx.view.add({ ...view, title: registry.get(labelState) });
         }),
     });
     const second = Plugin.define({
@@ -249,7 +244,7 @@ Vitest.test(
         Vitest.expect(registry.get(loaded.state).views.map((view) => view.key)).toEqual(
           ["first/main", "second/extra"],
         );
-        Vitest.expect(registry.get(tabs)[0].title).toBe("Injected");
+        Vitest.expect(registry.get(labelState)).toBe("Injected");
       }).pipe(
         Effect.scoped,
         Effect.provideService(AtomRegistry.AtomRegistry, registry),

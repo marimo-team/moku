@@ -430,7 +430,7 @@ Vitest.test(
     await f.stream();
     await f.run(
       handle.edit((tx) => {
-        tx.updateCell(cell, { code: "x = 2" });
+        tx.update(cell, { code: "x = 2" });
       }),
     );
     await f.run(handle.save(document, { decisions: { overwrite: "yes" } }));
@@ -729,11 +729,11 @@ Vitest.test(
     const handle = await f.attach();
     let created: typeof Protocol.CellId.Type | undefined;
     const edit = handle.edit((tx) => {
-      tx.updateCell(cell, { code: "x = 2", config: { hide_code: true } });
-      tx.updateCell(cell, { config: { disabled: true } });
-      created = tx.createCell({ code: "y = 3" });
-      tx.updateCell(created, { code: "y = 4" });
-      tx.setOrder(document, [created, cell.id]);
+      tx.update(cell, { code: "x = 2", config: { hide_code: true } });
+      tx.update(cell, { config: { disabled: true } });
+      created = tx.insert({ code: "y = 3" });
+      tx.update(created, { code: "y = 4" });
+      tx.reorder(document, [created, cell.id]);
     });
     f.respondEdits({
       document: { ...document, etag: "doc-2", version: 2 },
@@ -780,7 +780,7 @@ Vitest.test(
     const f = await fixture();
     const handle = await f.attach();
     const callback = vi.fn((tx: Notebook.Transaction) => {
-      tx.createCell({ code: "x = 1" });
+      tx.insert({ code: "x = 1" });
     });
     const operation = handle.edit(callback);
     f.lose();
@@ -823,16 +823,16 @@ Vitest.test(
     const handle = await f.attach();
     for (const callback of [
       (tx: Notebook.Transaction) => {
-        tx.createCell({ code: "discard" });
+        tx.insert({ code: "discard" });
         throw new Error("rollback");
       },
       async (tx: Notebook.Transaction) => {
-        tx.createCell({ code: "discard" });
+        tx.insert({ code: "discard" });
         await Promise.resolve();
         throw new Error("late failure");
       },
       (tx: Notebook.Transaction) =>
-        tx.updateCell(
+        tx.update(
           Schema.decodeUnknownSync(Protocol.Cell)({ ...cell, notebook_id: "other" }),
           { code: "wrong notebook" },
         ),
@@ -845,10 +845,10 @@ Vitest.test(
     await f.run(
       handle.edit((tx) => {
         escaped = tx;
-        tx.updateCell(cell, { code: "x = 2" });
+        tx.update(cell, { code: "x = 2" });
       }),
     );
-    Vitest.expect(() => escaped?.updateCell(cell, { code: "x = 3" })).toThrow("ended");
+    Vitest.expect(() => escaped?.update(cell, { code: "x = 3" })).toThrow("ended");
   },
 );
 
@@ -1089,18 +1089,18 @@ Vitest.test(
     await Vitest.expect(
       f.run(
         handle.edit((tx) => {
-          const anchor = tx.createCell({ code: "x = 1" });
-          tx.createCell({ code: "y = 2" }, { after: anchor });
-          tx.deleteCell(anchor);
+          const anchor = tx.insert({ code: "x = 1" });
+          tx.insert({ code: "y = 2" }, { after: anchor });
+          tx.remove(anchor);
         }),
       ),
     ).rejects.toMatchObject({ reason: "invalid-edit" });
     Vitest.expect(f.requests.every((request) => request.method === "GET")).toBe(true);
     await f.run(
       handle.edit((tx) => {
-        const cancelled = tx.createCell({ code: "discard" });
-        tx.setOrder(document, [cancelled, cell.id]);
-        tx.deleteCell(cancelled);
+        const cancelled = tx.insert({ code: "discard" });
+        tx.reorder(document, [cancelled, cell.id]);
+        tx.remove(cancelled);
       }),
     );
     Vitest.expect(await f.requests.at(-1)!.json()).toEqual({
@@ -1242,7 +1242,7 @@ Vitest.test(
     const f = await fixture();
     const handle = await f.attach();
     const callback = vi.fn((tx: Notebook.Transaction) => {
-      tx.createCell({ code: "x = 1" });
+      tx.insert({ code: "x = 1" });
     });
     const operation = handle.edit(callback);
     f.refuse(500);
@@ -1257,3 +1257,33 @@ Vitest.test(
     Vitest.expect(await requests[0].json()).toEqual(await requests[1].json());
   },
 );
+
+for (const updateFirst of [false, true]) {
+  Vitest.test(
+    `inserting a replacement preserves removal order (updated first: ${updateFirst})`,
+    async () => {
+      const f = await fixture();
+      const handle = await f.attach();
+      let replacement: typeof Protocol.CellId.Type | undefined;
+      await f.run(
+        handle.edit((tx) => {
+          if (updateFirst) tx.update(cell, { code: "discarded = 1" });
+          replacement = tx.insert({ code: "replacement = 1" }, { after: cell.id });
+          tx.remove(cell);
+        }),
+      );
+      const request = f.requests.find((request) => request.method === "POST")!;
+      Vitest.expect(await request.json()).toEqual({
+        changes: [
+          {
+            kind: "put_cell",
+            base_etag: null,
+            cell: { id: replacement, code: "replacement = 1" },
+            after: cell.id,
+          },
+          { kind: "delete_cell", id: cell.id, base_etag: cell.etag },
+        ],
+      });
+    },
+  );
+}

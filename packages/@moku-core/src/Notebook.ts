@@ -70,21 +70,21 @@ export interface Placement {
 /** Changes collected and submitted together by {@link Interface.edit}. */
 export interface Transaction {
   /** Updates an observed cell, or a cell created earlier in this transaction. */
-  updateCell(
+  update(
     cell: typeof Protocol.Cell.Type | typeof Protocol.CellId.Type,
     patch: CellPatch,
   ): void;
   /** Creates a cell and returns its ID before submission. An omitted ID is generated. */
-  createCell(
+  insert(
     cell: Omit<typeof Protocol.CellInput.Type, "id"> & {
       readonly id?: typeof Protocol.CellId.Type;
     },
     placement?: Placement,
   ): typeof Protocol.CellId.Type;
   /** Removes an observed cell, or a cell created earlier in this transaction. */
-  deleteCell(cell: typeof Protocol.Cell.Type | typeof Protocol.CellId.Type): void;
+  remove(cell: typeof Protocol.Cell.Type | typeof Protocol.CellId.Type): void;
   /** Reorders the complete document using the observed order's precondition. */
-  setOrder(
+  reorder(
     document: typeof Protocol.Document.Type,
     order: readonly (typeof Protocol.CellId.Type)[],
   ): void;

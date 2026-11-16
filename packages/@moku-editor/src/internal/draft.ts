@@ -436,7 +436,7 @@ export function toEdits(
     const base = Notebook.cellIndex(confirmed).get(id);
     if (local.kind === "delete") {
       if (base !== undefined) {
-        edits.push((tx) => tx.deleteCell(base));
+        edits.push((tx) => tx.remove(base));
         stagedOrder = stagedOrder.filter((other) => other !== id);
         stagedIds.delete(id);
       }
@@ -453,7 +453,7 @@ export function toEdits(
           ? undefined
           : Schema.decodeUnknownSync(Protocol.CellId)(placement.after);
       edits.push((tx) => {
-        tx.createCell(local.cell, { before, after });
+        tx.insert(local.cell, { before, after });
       });
       if (base === undefined) {
         stagedOrder = insertAt(stagedOrder, id, placement);
@@ -466,7 +466,7 @@ export function toEdits(
         if (code === null) {
           return null;
         }
-        edits.push((tx) => tx.updateCell(base, { ...cell, code }));
+        edits.push((tx) => tx.update(base, { ...cell, code }));
       }
     } else {
       return null;
@@ -478,7 +478,7 @@ export function toEdits(
     !sameOrder(order, stagedOrder)
   ) {
     const ids = Schema.decodeUnknownSync(Schema.Array(Protocol.CellId))(order);
-    edits.push((tx) => tx.setOrder(confirmed, ids));
+    edits.push((tx) => tx.reorder(confirmed, ids));
   }
   return edits;
 }

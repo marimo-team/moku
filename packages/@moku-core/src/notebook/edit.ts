@@ -42,7 +42,7 @@ export function build(
     return { key, previous };
   };
   const transaction: Notebook.Transaction = {
-    updateCell(cell, patch) {
+    update(cell, patch) {
       const { key, previous } = observed(cell);
       const base =
         previous?.kind === "put_cell"
@@ -78,7 +78,7 @@ export function build(
         cell: input,
       });
     },
-    createCell(input, placement = {}) {
+    insert(input, placement = {}) {
       check();
       if (placement.before !== undefined && placement.after !== undefined)
         invalid("Specify either before or after.");
@@ -101,7 +101,7 @@ export function build(
       });
       return cellId;
     },
-    deleteCell(cell) {
+    remove(cell) {
       const { key, previous } = observed(cell);
       deleted.add(key);
       if (order) order = { ...order, order: order.order.filter((id) => id !== key) };
@@ -111,9 +111,12 @@ export function build(
         return;
       }
       if (typeof cell === "string") return invalid("The cell is unavailable.");
+      // Removing an updated cell discards its patch, but the removal still happens
+      // here, after any intervening insertions that use the cell as an anchor.
+      changes.delete(key);
       changes.set(key, { kind: "delete_cell", id: cell.id, base_etag: cell.etag });
     },
-    setOrder(document, ids) {
+    reorder(document, ids) {
       check();
       if (document.notebook_id !== id)
         invalid("The document belongs to another notebook.");

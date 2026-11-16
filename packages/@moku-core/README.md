@@ -57,9 +57,9 @@ Use the same registry that acquired the notebook.
 const edited =
   yield *
   notebook.edit((tx) => {
-    tx.updateCell(cell, { code: "x = 42", config: { disabled: false } });
-    const id = tx.createCell({ code: "y = 2" });
-    tx.createCell({ code: "print(y)" }, { after: id });
+    tx.update(cell, { code: "x = 42", config: { disabled: false } });
+    const id = tx.insert({ code: "y = 2" });
+    tx.insert({ code: "print(y)" }, { after: id });
   });
 ```
 

@@ -7,7 +7,7 @@
  * @module
  */
 import { Effect, Stream } from "effect";
-import type * as Interaction from "@moku/core/Interaction";
+import * as Comm from "@moku/core/Comm";
 import type * as RendererSession from "./RendererSession.ts";
 import { loadRenderer } from "./renderer.ts";
 
@@ -19,7 +19,7 @@ export interface State {
   readonly error: Error | null;
 }
 interface Entry {
-  readonly interactions: Interaction.Interface;
+  readonly comm: Comm.Interface;
   readonly controller: AbortController;
   readonly listeners: Set<(state: State) => void>;
   state: State;
@@ -34,21 +34,22 @@ let active: Entry | undefined;
  * the page-wide registries while this one still has readers.
  */
 export function acquire(
-  interactions: Interaction.Interface,
+  comm: Comm.Interface,
+  assetUrl: (path: string) => string,
   listener: (state: State) => void,
 ): () => void {
-  if (active && active.interactions !== interactions)
+  if (active && active.comm !== comm)
     throw new Error("Interactive outputs currently support one notebook per page.");
   let entry = active;
   if (!entry) {
     entry = {
-      interactions,
+      comm,
       controller: new AbortController(),
       listeners: new Set(),
       state: { session: null, error: null },
     };
     active = entry;
-    void start(entry);
+    void start(entry, assetUrl);
   }
   const current = entry;
   current.listeners.add(listener);
@@ -68,8 +69,8 @@ function publish(entry: Entry, state: State) {
   for (const listener of entry.listeners) listener(state);
 }
 
-async function start(entry: Entry) {
-  const { interactions, controller } = entry;
+async function start(entry: Entry, assetUrl: (path: string) => string) {
+  const { comm, controller } = entry;
   const signal = controller.signal;
   function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
     if (signal.aborted)
@@ -80,7 +81,7 @@ async function start(entry: Entry) {
     const renderer = await loadRenderer();
     if (signal.aborted) return;
     await Effect.runPromise(
-      interactions.events.pipe(
+      comm.events.pipe(
         Stream.runForEach((event) =>
           Effect.tryPromise({
             try: async () => {
@@ -95,23 +96,33 @@ async function start(entry: Entry) {
                 const runtimeId = event.runtimeId;
                 const session = renderer.createSession({
                   runtimeId,
-                  assetUrl: interactions.assetUrl,
+                  assetUrl,
                   sendComponentValues: (request) =>
                     run(
-                      interactions.setUIValues({
-                        runtimeId,
-                        values: Object.fromEntries(
-                          request.objectIds.map((id, index) => [
-                            id,
-                            request.values[index],
-                          ]),
-                        ),
-                      }),
+                      comm.send(
+                        Comm.SetValues({
+                          runtimeId,
+                          values: Object.fromEntries(
+                            request.objectIds.map((id, index) => [
+                              id,
+                              request.values[index],
+                            ]),
+                          ),
+                        }),
+                      ),
                     ),
-                  invoke: (request) =>
-                    run(interactions.invoke({ ...request, runtimeId })),
+                  invoke: (request) => run(comm.invoke({ ...request, runtimeId })),
                   sendModelValue: (request) =>
-                    run(interactions.sendWidgetMessage({ ...request, runtimeId })),
+                    run(
+                      comm.send(
+                        Comm.Model({
+                          model: request.modelId,
+                          message: request.message,
+                          buffers: request.buffers,
+                          runtimeId,
+                        }),
+                      ),
+                    ),
                 });
                 entry.state = { session, error: null };
                 await session.handle(event.notification);

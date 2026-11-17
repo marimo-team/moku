@@ -1,6 +1,7 @@
 /** Observe and edit a notebook acquired with Host.notebooks.attach. @module */
 import { Schema, type Effect } from "effect";
 import type { AsyncResult, Atom } from "effect/reactivity";
+import type * as Comm from "./Comm.ts";
 import * as Protocol from "./Protocol.ts";
 import type { Client } from "./internal/client.ts";
 import { ModelError } from "./internal/client.ts";
@@ -108,6 +109,8 @@ export interface RunOptions {
 }
 /** Operations on a notebook's current runtime, valid across restarts. */
 export interface Runtime {
+  /** Exchanges widget messages and Python function calls with this notebook. */
+  readonly comm: Comm.Interface;
   /** Starts a runtime, optionally answering host startup decisions. */
   readonly start: (
     options?: StartOptions,

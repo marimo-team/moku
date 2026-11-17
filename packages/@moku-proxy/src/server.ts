@@ -259,6 +259,12 @@ export function createApi({
       if (body !== undefined) headers.set("Content-Type", "application/json");
       if (read) {
         headers.set("Accept", "text/event-stream");
+        if (
+          route.endpoint.identifier === "events" &&
+          path.startsWith("/notebooks/") &&
+          req.headers["example-widget-snapshot"] === "1"
+        )
+          headers.set("Example-Widget-Snapshot", "1");
         if (!headers.has("Marimo-Attachment-Kind"))
           headers.set("Marimo-Attachment-Kind", "browser");
         if (!headers.has("Marimo-Attachment-Name"))

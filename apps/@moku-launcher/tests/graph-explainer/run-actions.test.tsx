@@ -112,6 +112,9 @@ async function fixture() {
     edit: unused,
     save: unused,
     runtime: {
+      get comm(): never {
+        throw new Error("Unexpected comm access");
+      },
       start,
       restart: unused,
       execute: unused,

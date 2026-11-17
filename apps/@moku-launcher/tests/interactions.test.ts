@@ -1,3 +1,4 @@
+import type * as Native from "@moku/core/internal/native-comm";
 import * as Host from "@moku/core/Host";
 import { AsyncResult } from "effect/reactivity";
 import * as Vitest from "vite-plus/test";
@@ -6,7 +7,7 @@ import { Effect, Exit, Scope, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import * as Proxy from "../src/app/Proxy.ts";
 import * as Notebook from "../src/app/Notebook.ts";
-import type * as Interaction from "@moku/core/Interaction";
+import * as Comm from "@moku/core/Comm";
 
 const notebook = {
   id: "n",
@@ -29,7 +30,8 @@ interface Events {
   readonly send: (event: string, data: unknown) => void;
 }
 
-async function fixture() {
+async function fixture(operations: string[] = []) {
+  let notebookStreams = 0;
   const native: Events[] = [];
   const requests: {
     path: string;
@@ -46,6 +48,8 @@ async function fixture() {
     if (request.method === "POST") {
       const body = await request.json();
       requests.push({ path: url.pathname, body, signal: request.signal });
+      if (url.pathname.endsWith("/runtime/comm"))
+        return Response.json(current, { status: 202 });
       return Response.json(
         { success: true },
         { status: url.pathname.endsWith("/auth") && !authenticated ? 401 : 200 },
@@ -83,9 +87,25 @@ async function fixture() {
               },
             });
           } else if (url.pathname.endsWith("/notebooks/n/events")) {
+            notebookStreams++;
             host = events;
-            events.send("notebook", { notebook });
+            events.send("notebook", { notebook: { ...notebook, operations } });
             events.send("runtime", { runtime: current });
+            if (
+              operations.includes("runtime.comm") &&
+              request.headers.get("Example-Widget-Snapshot") === "1"
+            )
+              events.send("custom", {
+                custom: {
+                  type: "marimo.notification",
+                  data: {
+                    op: "send-ui-element-message",
+                    ui_element: "slider",
+                    message: { type: "marimo-ui-value-update", value: 45 },
+                  },
+                },
+                time: "2026-11-12T12:00:00Z",
+              });
             events.send("ready", {});
           } else {
             events.send("project", {
@@ -130,10 +150,10 @@ async function fixture() {
     Vitest.expect(AsyncResult.isSuccess(registry.get(model.state))).toBe(true),
   );
   const subscribe = () => {
-    const events: Interaction.Event[] = [];
+    const events: Comm.Event[] = [];
     const controller = new AbortController();
     const done = Effect.runPromise(
-      model.runtime.events.pipe(
+      model.runtime.comm.events.pipe(
         Stream.runForEach((event) =>
           Effect.sync(() => {
             events.push(event);
@@ -156,13 +176,19 @@ async function fixture() {
     native,
     close,
     subscribe,
+    notebookStreams: () => notebookStreams,
+    custom: (notification: Native.Notification) =>
+      host!.send("custom", {
+        custom: { type: "marimo.notification", data: notification },
+        time: "2026-11-12T12:00:00Z",
+      }),
     ready: () =>
       vi.waitFor(() =>
-        Vitest.expect(registry.get(model.runtime.state).connection._tag).toBe(
+        Vitest.expect(registry.get(model.runtime.comm.state).connection._tag).toBe(
           "Connected",
         ),
       ),
-    notify: (notification: Interaction.Notification) =>
+    notify: (notification: Native.Notification) =>
       native.at(-1)!.send("marimo", { marimo: notification }),
     authenticate: (value: boolean) => {
       authenticated = value;
@@ -181,7 +207,7 @@ Vitest.test(
   "readers share one lazy attachment and late readers receive current widget state",
   async () => {
     const f = await fixture();
-    Vitest.expect(Atom.isWritable(f.model.runtime.state)).toBe(false);
+    Vitest.expect(Atom.isWritable(f.model.runtime.comm.state)).toBe(false);
     Vitest.expect(f.native).toHaveLength(0);
     const first = f.subscribe();
     await f.ready();
@@ -243,7 +269,7 @@ Vitest.test(
   async () => {
     const f = await fixture();
     const invoked = Effect.runPromise(
-      f.model.runtime.invoke({
+      f.model.runtime.comm.invoke({
         namespace: "table",
         name: "fetch",
         args: { page: 1 },
@@ -276,15 +302,19 @@ Vitest.test(
     const reader = f.subscribe();
     await f.ready();
     await Effect.runPromise(
-      f.model.runtime.setUIValues({ runtimeId: "rt", values: { "a-0": 5 } }),
+      f.model.runtime.comm.send(
+        Comm.SetValues({ runtimeId: "rt", values: { "a-0": 5 } }),
+      ),
     );
     await Effect.runPromise(
-      f.model.runtime.sendWidgetMessage({
-        runtimeId: "rt",
-        modelId: "model",
-        message: { method: "update", state: { x: null }, bufferPaths: [["x"]] },
-        buffers: ["AQ=="],
-      }),
+      f.model.runtime.comm.send(
+        Comm.Model({
+          runtimeId: "rt",
+          model: "model",
+          message: { method: "update", state: { x: null }, bufferPaths: [["x"]] },
+          buffers: ["AQ=="],
+        }),
+      ),
     );
     Vitest.expect(f.requests.at(-2)?.body).toEqual({ objectIds: ["a-0"], values: [5] });
     Vitest.expect(f.requests.at(-1)?.body).toMatchObject({
@@ -303,7 +333,12 @@ Vitest.test(
     f.subscribe();
     await f.ready();
     const pending = Effect.runPromise(
-      f.model.runtime.invoke({ runtimeId: "rt", namespace: "n", name: "f", args: {} }),
+      f.model.runtime.comm.invoke({
+        runtimeId: "rt",
+        namespace: "n",
+        name: "f",
+        args: {},
+      }),
     ).catch((cause: unknown) => cause);
     await vi.waitFor(() =>
       Vitest.expect(
@@ -318,7 +353,9 @@ Vitest.test(
     const before = f.requests.length;
     await Vitest.expect(
       Effect.runPromise(
-        f.model.runtime.setUIValues({ runtimeId: "rt", values: { "a-0": 1 } }),
+        f.model.runtime.comm.send(
+          Comm.SetValues({ runtimeId: "rt", values: { "a-0": 1 } }),
+        ),
       ),
     ).rejects.toMatchObject({ code: "stale-runtime" });
     Vitest.expect(f.requests).toHaveLength(before);
@@ -326,7 +363,7 @@ Vitest.test(
     Vitest.expect(f.native[1].signal.aborted).toBe(true);
     await Vitest.expect(
       Effect.runPromise(
-        f.model.runtime.invoke({ namespace: "n", name: "f", args: {} }),
+        f.model.runtime.comm.invoke({ namespace: "n", name: "f", args: {} }),
       ),
     ).rejects.toMatchObject({ code: "closed" });
   },
@@ -339,23 +376,91 @@ Vitest.test(
     f.authenticate(false);
     f.subscribe();
     await vi.waitFor(() =>
-      Vitest.expect(f.registry.get(f.model.runtime.state).connection).toMatchObject({
+      Vitest.expect(
+        f.registry.get(f.model.runtime.comm.state).connection,
+      ).toMatchObject({
         _tag: "Failed",
         error: { code: "authentication" },
       }),
     );
     Vitest.expect(f.native).toHaveLength(0);
     f.authenticate(true);
-    await Effect.runPromise(f.model.runtime.retry);
+    await Effect.runPromise(f.model.runtime.comm.retry);
     await f.ready();
     f.wrongRuntime();
-    await Effect.runPromise(f.model.runtime.retry);
+    await Effect.runPromise(f.model.runtime.comm.retry);
     await vi.waitFor(() =>
-      Vitest.expect(f.registry.get(f.model.runtime.state).connection).toMatchObject({
+      Vitest.expect(
+        f.registry.get(f.model.runtime.comm.state).connection,
+      ).toMatchObject({
         _tag: "Failed",
         error: { code: "stale-runtime" },
       }),
     );
     Vitest.expect(f.native.at(-1)?.signal.aborted).toBe(true);
+  },
+);
+
+Vitest.test(
+  "comm hosts share the notebook stream for retained widgets and correlated replies",
+  async () => {
+    const f = await fixture(["runtime.comm"]);
+    const comm = f.model.runtime.comm;
+    const reader = f.subscribe();
+    await vi.waitFor(() =>
+      Vitest.expect(reader.events).toContainEqual({
+        kind: "notification",
+        runtimeId: "rt",
+        notification: {
+          op: "kernel-ready",
+          consumer_capabilities: { edit: false, interact: true },
+          ui_values: { slider: 45 },
+        },
+      }),
+    );
+    Vitest.expect(f.requests).toEqual([]);
+    await Effect.runPromise(
+      comm.send(Comm.SetValues({ values: { slider: 8 }, runtimeId: "rt" })),
+    );
+    Vitest.expect(f.requests.at(-1)?.body).toEqual({
+      _tag: "SetValues",
+      values: { slider: 8 },
+    });
+    await reader.stop();
+
+    const invoke = () =>
+      Effect.runPromise(comm.invoke({ namespace: "n", name: "f", args: {} }));
+    const answer = invoke();
+    await vi.waitFor(() => Vitest.expect(f.requests.at(-1)?.body._tag).toBe("Invoke"));
+    const call = String(f.requests.at(-1)?.body.call);
+    const result = {
+      op: "function-call-result",
+      status: { code: "ok", title: null, message: null },
+      found: true,
+    } as const;
+    f.custom({ ...result, function_call_id: "another-call", return_value: false });
+    f.custom({ ...result, function_call_id: call, return_value: 42 });
+    await Vitest.expect(answer).resolves.toBe(42);
+
+    const stale = Vitest.expect(invoke()).rejects.toMatchObject({
+      code: "stale-runtime",
+    });
+    await vi.waitFor(() => Vitest.expect(f.requests).toHaveLength(3));
+    f.restart("replacement");
+    await stale;
+    const late = f.subscribe();
+    await vi.waitFor(() =>
+      Vitest.expect(late.events).toContainEqual({
+        kind: "notification",
+        runtimeId: "replacement",
+        notification: {
+          op: "kernel-ready",
+          consumer_capabilities: { edit: false, interact: true },
+          ui_values: {},
+        },
+      }),
+    );
+    Vitest.expect(f.notebookStreams()).toBe(1);
+    Vitest.expect(f.native).toHaveLength(0);
   },
 );

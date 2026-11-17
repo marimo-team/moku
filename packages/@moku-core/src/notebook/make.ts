@@ -6,6 +6,7 @@ import type * as Notebook from "../Notebook.ts";
 import { makeCommands, ModelError, type Client } from "../internal/client.ts";
 import { observe } from "../internal/observe.ts";
 import { emptyNotebook, reduceNotebook } from "./state.ts";
+import * as Comm from "./comm.ts";
 import * as Edit from "./edit.ts";
 import type { NotebookEvent } from "../internal/api.ts";
 
@@ -21,8 +22,12 @@ export const make = Effect.fnUntraced(function* (
   const reserved = new Set<string>();
   let previous: ReturnType<typeof emptyNotebook>["confirmed"]["current"] = null;
   let document: Notebook.Document | null = null;
+  const comm = yield* Comm.make(client, id);
   const observation = yield* observe({
-    initial: emptyNotebook,
+    initial: () => {
+      comm.reset();
+      return emptyNotebook();
+    },
     reduce: (state, event: typeof NotebookEvent.Type) => {
       if ("_tag" in event) return state;
       if (event.event === "notebook" && event.data.notebook.id !== id)
@@ -37,7 +42,9 @@ export const make = Effect.fnUntraced(function* (
           throw new Error("Record belongs to another notebook.");
       }
       if (event.event === "cell") reserved.add(event.data.cell.id);
-      return reduceNotebook(state, event);
+      const next = reduceNotebook(state, event);
+      comm.receive(next, event);
+      return next;
     },
     resume: (state) => ({ ...state, phase: "replay" as const }),
     value: (state): Notebook.State => {
@@ -75,6 +82,7 @@ export const make = Effect.fnUntraced(function* (
   });
   const { state } = observation;
   const runtime: Notebook.Runtime = {
+    comm: comm.bind(state, observation.reconnect),
     start: (payload = {}) =>
       commands.mutation((idempotencyKey) =>
         client.Notebook.start({

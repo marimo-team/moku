@@ -1,10 +1,11 @@
 /** Compose a notebook model with launcher identity and native outputs. @module */
-import { Effect } from "effect";
+import { Deferred, Effect, Stream } from "effect";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import type * as Model from "@moku/core/Notebook";
 import type * as Host from "@moku/core/Host";
-import type * as Interaction from "@moku/core/Interaction";
+import type * as Comm from "@moku/core/Comm";
 import type * as Proxy from "./Proxy.ts";
-import * as NativeOutputs from "./native/interactions.ts";
+import * as NativeOutputs from "./native/comm.ts";
 
 /** A notebook selected through a launcher host connection. */
 export interface Target {
@@ -15,7 +16,8 @@ export interface Target {
 /** The complete notebook supplied to launcher views. */
 export interface Interface extends Model.Interface {
   readonly target: Target;
-  readonly runtime: Model.Interface["runtime"] & Interaction.Interface;
+  /** Resolves native output assets for the renderer. */
+  readonly assetUrl: (path: string) => string;
 }
 
 /** Acquire the model and output connection in the same scope. */
@@ -37,9 +39,31 @@ export const make = Effect.fnUntraced(function* (
     },
     notebook.state,
   );
+  const registry = yield* AtomRegistry.AtomRegistry;
+  const transport = Atom.readable((get) =>
+    AsyncResult.getOrElse(
+      get(notebook.state),
+      () => undefined,
+    )?.notebook?.operations.includes("runtime.comm")
+      ? notebook.runtime.comm
+      : outputs.comm,
+  );
+  const closed = yield* Deferred.make<void>();
+  yield* Effect.addFinalizer(() => Deferred.succeed(closed, undefined));
+  const comm: Comm.Interface = {
+    state: Atom.readable((get) => get(get(transport).state)),
+    events: AtomRegistry.toStream(registry, transport).pipe(
+      Stream.switchMap((selected) => selected.events),
+      Stream.interruptWhen(Deferred.await(closed)),
+    ),
+    send: (message) => Effect.suspend(() => registry.get(transport).send(message)),
+    invoke: (input) => Effect.suspend(() => registry.get(transport).invoke(input)),
+    retry: Effect.suspend(() => registry.get(transport).retry),
+  };
   return {
     ...notebook,
     target,
-    runtime: { ...notebook.runtime, ...outputs },
+    assetUrl: outputs.assetUrl,
+    runtime: { ...notebook.runtime, comm },
   } satisfies Interface;
 });

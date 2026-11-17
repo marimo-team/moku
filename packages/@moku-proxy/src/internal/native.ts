@@ -6,7 +6,11 @@
 import type * as NodeHttp from "node:http";
 import * as Forward from "./forward.ts";
 import { Schema } from "effect";
-import { ComponentValues, FunctionCall, ModelValue } from "@moku/core/Interaction";
+import {
+  ComponentValues,
+  FunctionCall,
+  ModelValue,
+} from "@moku/core/internal/native-comm";
 import { json, readBody } from "./http.ts";
 
 const routes = {

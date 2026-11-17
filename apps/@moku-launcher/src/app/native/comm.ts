@@ -4,38 +4,25 @@
  * Owns native authentication, runtime identity checks, retained widget state,
  * and function-call correlation. Readers and commands share the attachment.
  *
- * NB: Host-protocol support for these interactions is in progress. This legacy
- * adapter should be deprecated when the protocol client can provide them through
- * the notebook's injected Effect HttpClient.
- *
  * @module
  */
+import * as Native from "@moku/core/internal/native-comm";
 import * as MarimoClient from "@marimo-team/client";
 import { Effect, Queue, Schema, Stream } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import type * as Host from "@moku/core/Host";
 import type * as Notebook from "@moku/core/Notebook";
-import * as Interaction from "@moku/core/Interaction";
+import * as Comm from "@moku/core/Comm";
 import * as Protocol from "@moku/core/Protocol";
-import { Snapshot } from "./interaction-snapshot.ts";
 
 const Frame = Schema.Struct({ event: Schema.String, data: Schema.Unknown });
 const Envelope = Schema.Struct({ marimo: Schema.Unknown });
-const Operation = Schema.Struct({ op: Schema.String });
-const operations = new Set([
-  "kernel-ready",
-  "consumer-capabilities",
-  "send-ui-element-message",
-  "remove-ui-elements",
-  "function-call-result",
-  "model-lifecycle",
-]);
-const error = (code: Interaction.Error["code"], message: string) =>
-  new Interaction.Error({ code, message });
+const error = (code: Comm.Error["code"], message: string) =>
+  new Comm.Error({ code, message });
 const failure = (cause: unknown) =>
-  cause instanceof Interaction.Error
+  cause instanceof Comm.Error
     ? cause
-    : new Interaction.Error({
+    : new Comm.Error({
         code: "transport",
         message: "The output connection failed.",
         cause,
@@ -46,14 +33,11 @@ interface Connection {
   readonly sessionId: string;
   readonly controller: AbortController;
   readonly ready: ReturnType<typeof Promise.withResolvers<void>>;
-  readonly pending: Map<
-    string,
-    ReturnType<typeof Promise.withResolvers<Interaction.Json>>
-  >;
+  readonly pending: Map<string, ReturnType<typeof Promise.withResolvers<Comm.Json>>>;
   canInteract: boolean;
 }
 interface Listener {
-  readonly emit: (event: Interaction.Event) => void;
+  readonly emit: (event: Comm.Event) => void;
   readonly end: () => void;
 }
 
@@ -94,19 +78,19 @@ export const make = Effect.fnUntraced(function* (
   const lifetime = new AbortController();
   const base = options.baseUrl.pathname.replace(/\/$/, "");
   const urlFor = (path: string) => new URL(base + path, options.baseUrl).href;
-  const channel = Atom.make<Interaction.Connection>(Interaction.Connection.Idle());
+  const channel = Atom.make<Comm.Connection>(Comm.Connection.Idle());
   const unmount = registry.mount(channel);
-  const snapshot = new Snapshot();
+  const snapshot = new Native.Snapshot();
   const listeners = new Set<Listener>();
   let connection: Connection | undefined;
   let attempted: string | null = null;
   let references = 0;
   let unsubscribe: (() => void) | undefined;
 
-  const emit = (event: Interaction.Event) => {
+  const emit = (event: Comm.Event) => {
     for (const listener of listeners) listener.emit(event);
   };
-  const reset = (reason: Interaction.Error) => {
+  const reset = (reason: Comm.Error) => {
     const previous = connection;
     connection = undefined;
     previous?.controller.abort(reason);
@@ -120,7 +104,7 @@ export const make = Effect.fnUntraced(function* (
     if (connection !== current) return;
     const problem = failure(cause);
     reset(problem);
-    registry.set(channel, Interaction.Connection.Failed({ error: problem }));
+    registry.set(channel, Comm.Connection.Failed({ error: problem }));
   };
 
   async function request(path: string, init: RequestInit): Promise<Response> {
@@ -243,8 +227,10 @@ export const make = Effect.fnUntraced(function* (
           );
         if (frame.event !== "marimo") return;
         const raw = Schema.decodeUnknownSync(Envelope)(frame.data).marimo;
-        if (!operations.has(Schema.decodeUnknownSync(Operation)(raw).op)) return;
-        const notification = Schema.decodeUnknownSync(Interaction.Notification)(raw);
+        const notification = snapshot.recordNotification(raw, (cause) => {
+          throw cause;
+        });
+        if (!notification) return;
         if (
           nativeNotebook !== options.notebookId ||
           nativeRuntime !== current.runtimeId
@@ -260,7 +246,7 @@ export const make = Effect.fnUntraced(function* (
           current.canInteract = notification.consumer_capabilities?.interact === true;
           registry.set(
             channel,
-            Interaction.Connection.Connected({
+            Comm.Connection.Connected({
               canInteract: current.canInteract,
             }),
           );
@@ -281,7 +267,6 @@ export const make = Effect.fnUntraced(function* (
               ),
             );
         }
-        snapshot.accept(notification);
         emit({ kind: "notification", runtimeId: current.runtimeId, notification });
       } catch (cause) {
         fail(current, cause);
@@ -315,6 +300,7 @@ export const make = Effect.fnUntraced(function* (
       AsyncResult.isSuccess(state) &&
       !state.waiting &&
       notebook &&
+      !notebook.operations.includes("runtime.comm") &&
       runtime?.status === "running"
         ? `${runtime.id}:${notebook.path}`
         : null;
@@ -322,7 +308,7 @@ export const make = Effect.fnUntraced(function* (
     attempted = key;
     reset(error("stale-runtime", "The runtime or output connection changed."));
     if (!key || !notebook || !runtime) {
-      registry.set(channel, Interaction.Connection.Idle());
+      registry.set(channel, Comm.Connection.Idle());
       return;
     }
     const current: Connection = {
@@ -335,7 +321,7 @@ export const make = Effect.fnUntraced(function* (
     };
     void current.ready.promise.catch(() => {});
     connection = current;
-    registry.set(channel, Interaction.Connection.Connecting());
+    registry.set(channel, Comm.Connection.Connecting());
     const deadline = setTimeout(
       () =>
         fail(current, error("timeout", "The output connection did not become ready.")),
@@ -358,11 +344,11 @@ export const make = Effect.fnUntraced(function* (
       unsubscribe = undefined;
       attempted = null;
       reset(error("closed", "The output connection was released."));
-      registry.set(channel, Interaction.Connection.Idle());
+      registry.set(channel, Comm.Connection.Idle());
     };
   }
 
-  const events = Stream.callback<Interaction.Event>((queue) =>
+  const events = Stream.callback<Comm.Event>((queue) =>
     Effect.acquireRelease(
       Effect.sync(() => {
         const release = acquire();
@@ -393,7 +379,7 @@ export const make = Effect.fnUntraced(function* (
   );
 
   function interact<A>(
-    input: Interaction.Target,
+    input: Comm.Target,
     perform: (current: Connection, signal: AbortSignal) => Promise<A>,
   ) {
     return Effect.tryPromise({
@@ -458,15 +444,6 @@ export const make = Effect.fnUntraced(function* (
   );
 
   return {
-    state: Atom.readable((get): Interaction.State => ({
-      runtime: AsyncResult.getOrElse(get(observed), () => undefined)?.runtime ?? null,
-      connection: get(channel),
-    })),
-    events,
-    retry: Effect.sync(() => {
-      attempted = null;
-      synchronize();
-    }),
     assetUrl: (path: string) => {
       if (!/^(\.\/|\/)@file\//.test(path))
         throw new Error("Expected a marimo @file asset path.");
@@ -475,49 +452,62 @@ export const make = Effect.fnUntraced(function* (
         throw new Error("Invalid asset path.");
       return url.href;
     },
-    setUIValues: (input: Interaction.UIValues) =>
-      interact(input, (current, signal) =>
-        post(
-          "/api/kernel/set_ui_element_value",
-          {
-            objectIds: Object.keys(input.values),
-            values: Object.values(input.values),
-          },
-          signal,
-          current.sessionId,
-        ),
-      ),
-    sendWidgetMessage: (input: Interaction.WidgetMessage) =>
-      interact(input, (current, signal) =>
-        post(
-          "/api/kernel/set_model_value",
-          { modelId: input.modelId, message: input.message, buffers: input.buffers },
-          signal,
-          current.sessionId,
-        ),
-      ),
-    invoke: (input: Interaction.Invoke) =>
-      interact(input, async (current, signal) => {
-        const functionCallId = crypto.randomUUID();
-        const result = Promise.withResolvers<Interaction.Json>();
-        void result.promise.catch(() => {});
-        current.pending.set(functionCallId, result);
-        try {
-          await post(
-            "/api/kernel/function_call",
-            {
-              functionCallId,
-              namespace: input.namespace,
-              functionName: input.name,
-              args: input.args,
-            },
-            signal,
-            current.sessionId,
-          );
-          return await until(result.promise, signal);
-        } finally {
-          current.pending.delete(functionCallId);
-        }
+    comm: {
+      state: Atom.readable((get): Comm.State => ({
+        runtime: AsyncResult.getOrElse(get(observed), () => undefined)?.runtime ?? null,
+        connection: get(channel),
+      })),
+      events,
+      retry: Effect.sync(() => {
+        attempted = null;
+        synchronize();
       }),
+      send: (input: Comm.Message) =>
+        interact(input, (current, signal) =>
+          input._tag === "SetValues"
+            ? post(
+                "/api/kernel/set_ui_element_value",
+                {
+                  objectIds: Object.keys(input.values),
+                  values: Object.values(input.values),
+                },
+                signal,
+                current.sessionId,
+              )
+            : post(
+                "/api/kernel/set_model_value",
+                {
+                  modelId: input.model,
+                  message: input.message,
+                  buffers: input.buffers,
+                },
+                signal,
+                current.sessionId,
+              ),
+        ),
+      invoke: (input: Comm.Invoke) =>
+        interact(input, async (current, signal) => {
+          const functionCallId = crypto.randomUUID();
+          const result = Promise.withResolvers<Comm.Json>();
+          void result.promise.catch(() => {});
+          current.pending.set(functionCallId, result);
+          try {
+            await post(
+              "/api/kernel/function_call",
+              {
+                functionCallId,
+                namespace: input.namespace,
+                functionName: input.name,
+                args: input.args,
+              },
+              signal,
+              current.sessionId,
+            );
+            return await until(result.promise, signal);
+          } finally {
+            current.pending.delete(functionCallId);
+          }
+        }),
+    } satisfies Comm.Interface,
   };
 });

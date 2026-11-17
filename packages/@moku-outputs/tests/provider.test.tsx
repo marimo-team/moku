@@ -6,7 +6,7 @@ import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";
 import { Effect, Queue, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import * as Interaction from "@moku/core/Interaction";
+import * as Comm from "@moku/core/Comm";
 import { Provider, OutputContext, type Notebook } from "../src/Provider.tsx";
 import type * as RendererSession from "../src/internal/RendererSession.ts";
 
@@ -37,14 +37,14 @@ function fixture() {
       dispose,
     };
   });
-  let emit: (event: Interaction.Event) => void = () => {};
+  let emit: (event: Comm.Event) => void = () => {};
   let readers = 0;
-  const runtime: Notebook["runtime"] = {
+  const comm: Notebook["runtime"]["comm"] = {
     state: Atom.readable(() => ({
       runtime: null,
-      connection: Interaction.Connection.Connected({ canInteract: true }),
+      connection: Comm.Connection.Connected({ canInteract: true }),
     })),
-    events: Stream.callback<Interaction.Event>((queue) =>
+    events: Stream.callback<Comm.Event>((queue) =>
       Effect.acquireRelease(
         Effect.sync(() => {
           readers++;
@@ -59,16 +59,15 @@ function fixture() {
       ),
     ),
     invoke: vi.fn(() => Effect.succeed({ answer: 42 })),
-    setUIValues: vi.fn(() => Effect.void),
-    sendWidgetMessage: vi.fn(() => Effect.void),
-    assetUrl: (path) => path,
+    send: vi.fn(() => Effect.void),
     retry: Effect.void,
   };
   return {
-    runtime,
+    runtime: { comm },
+    assetUrl: (path: string) => path,
     sessions,
     readers: () => readers,
-    emit: (event: Interaction.Event) => emit(event),
+    emit: (event: Comm.Event) => emit(event),
     ready: (runtimeId: string) =>
       emit({
         kind: "notification",
@@ -160,7 +159,8 @@ Vitest.test(
     Vitest.expect(old.dispose).toHaveBeenCalledOnce();
     Vitest.expect(view.element.textContent).toBe("new");
     await old.options.sendComponentValues({ objectIds: ["a"], values: [7] });
-    Vitest.expect(f.runtime.setUIValues).toHaveBeenCalledWith({
+    Vitest.expect(f.runtime.comm.send).toHaveBeenCalledWith({
+      _tag: "SetValues",
       runtimeId: "old",
       values: { a: 7 },
     });
@@ -168,7 +168,7 @@ Vitest.test(
     Vitest.expect(
       await current.invoke({ namespace: "table", name: "fetch", args: {} }),
     ).toEqual({ answer: 42 });
-    Vitest.expect(f.runtime.invoke).toHaveBeenCalledWith({
+    Vitest.expect(f.runtime.comm.invoke).toHaveBeenCalledWith({
       runtimeId: "new",
       namespace: "table",
       name: "fetch",
@@ -179,9 +179,10 @@ Vitest.test(
       message: { method: "custom", content: {} },
       buffers: ["AQ=="],
     });
-    Vitest.expect(f.runtime.sendWidgetMessage).toHaveBeenCalledWith({
+    Vitest.expect(f.runtime.comm.send).toHaveBeenCalledWith({
+      _tag: "Model",
       runtimeId: "new",
-      modelId: "m",
+      model: "m",
       message: { method: "custom", content: {} },
       buffers: ["AQ=="],
     });

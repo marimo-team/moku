@@ -224,6 +224,37 @@ async function fixture(
 }
 
 Vitest.test(
+  "comm uses host credentials and negotiates retained widgets on the notebook stream",
+  async ({ onTestFinished }) => {
+    const { base, headers, received } = await fixture(onTestFinished);
+    const payload = {
+      _tag: "Model",
+      model: "slider",
+      message: { method: "custom", content: {} },
+      buffers: [],
+    };
+    const send = (body: unknown) =>
+      fetch(base + "/notebooks/n/runtime/comm", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+    Vitest.expect((await send({ ...payload, extra: true })).status).toBe(400);
+    Vitest.expect((await send(payload)).status).toBe(200);
+    Vitest.expect(received).toHaveLength(1);
+    Vitest.expect(received[0]).toMatchObject({
+      url: "/api/marimo/v1/notebooks/n/runtime/comm",
+      headers: { authorization: "Bearer local-secret" },
+    });
+    Vitest.expect(JSON.parse(received[0].body)).toEqual(payload);
+    await fetch(base + "/notebooks/n/events", {
+      headers: { ...headers, "Example-Widget-Snapshot": "1" },
+    });
+    Vitest.expect(received.at(-1)?.headers["example-widget-snapshot"]).toBe("1");
+  },
+);
+
+Vitest.test(
   "the real Host client uses proxy routes, responses, and typed failures without a host token",
   async ({ onTestFinished }) => {
     const notebook = {

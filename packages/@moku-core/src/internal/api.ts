@@ -5,6 +5,8 @@ import * as Host from "@marimo-team/host-protocol/Host";
 import * as Notebook from "@marimo-team/host-protocol/Notebook";
 import * as Analysis from "@marimo-team/host-protocol/experimental/Analysis";
 
+import { CommGroup } from "../Protocol.ts";
+
 const known = new Set<string>([
   "ready",
   "reset",
@@ -38,5 +40,5 @@ const UnknownEvent = Schema.Struct({
 export const CatalogEvent = Schema.Union([Host.Event, UnknownEvent]);
 export const NotebookEvent = Schema.Union([Analysis.NotebookEvent, UnknownEvent]);
 export const Api = HttpApi.make("Moku")
-  .add(Host.group(CatalogEvent), Notebook.group(NotebookEvent))
+  .add(Host.group(CatalogEvent), Notebook.group(NotebookEvent), CommGroup)
   .middleware(Host.HostToken);

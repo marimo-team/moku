@@ -4,7 +4,7 @@ import type * as Document from "@moku/editor/Document";
 
 /** Flush edits first so execution uses the source currently shown in the editor. */
 export function runCell(
-  notebook: Pick<ViewProps["notebook"], "runtime">,
+  notebook: { readonly runtime: Pick<ViewProps["notebook"]["runtime"], "run"> },
   document: Pick<Document.Interface, "flush">,
   cellId: string,
 ) {

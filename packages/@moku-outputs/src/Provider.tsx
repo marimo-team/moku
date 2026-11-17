@@ -8,11 +8,14 @@ import { useAtom, useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import * as RendererConnection from "./internal/RendererConnection.ts";
 import type * as RendererSession from "./internal/RendererSession.ts";
-import type * as Interaction from "@moku/core/Interaction";
+import type * as Comm from "@moku/core/Comm";
 
 /** The subset of a notebook needed by output renderers. */
 export interface Notebook {
-  readonly runtime: Interaction.Interface;
+  /** The channel shared by renderers of this notebook. */
+  readonly runtime: { readonly comm: Comm.Interface };
+  /** Resolves kernel-authored file references used in rendered output. */
+  readonly assetUrl: (path: string) => string;
 }
 export interface ProviderProps {
   readonly notebook: Notebook;
@@ -40,13 +43,11 @@ export const OutputContext = React.createContext<{
  * ```
  */
 export function Provider({ notebook, children }: ProviderProps) {
-  const interactions = notebook.runtime;
-  const connection = useAtomValue(interactions.state, (state) => state.connection);
+  const { comm } = notebook.runtime;
+  const { assetUrl } = notebook;
+  const connection = useAtomValue(comm.state, (state) => state.connection);
   const [reconnecting, reconnect] = useAtom(
-    React.useMemo(
-      () => Atom.fn(() => interactions.retry).pipe(Atom.setIdleTTL(0)),
-      [interactions],
-    ),
+    React.useMemo(() => Atom.fn(() => comm.retry).pipe(Atom.setIdleTTL(0)), [comm]),
   );
   const [state, setState] = React.useState<RendererConnection.State>({
     session: null,
@@ -54,14 +55,14 @@ export function Provider({ notebook, children }: ProviderProps) {
   });
   React.useEffect(() => {
     try {
-      return RendererConnection.acquire(interactions, setState);
+      return RendererConnection.acquire(comm, assetUrl, setState);
     } catch (cause) {
       setState({
         session: null,
         error: cause instanceof Error ? cause : new Error(String(cause)),
       });
     }
-  }, [interactions]);
+  }, [comm, assetUrl]);
   const error = state.error ?? (connection._tag === "Failed" ? connection.error : null);
   const canInteract = connection._tag === "Connected" && connection.canInteract;
   return (

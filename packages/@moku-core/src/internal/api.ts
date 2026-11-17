@@ -1,4 +1,4 @@
-/** Native protocol endpoints with forward-compatible event decoding. @module */
+/** Host protocol endpoints with forward-compatible event decoding. @module */
 import { Schema, SchemaGetter } from "effect";
 import { HttpApi } from "effect/http-api";
 import * as Host from "@marimo-team/host-protocol/Host";

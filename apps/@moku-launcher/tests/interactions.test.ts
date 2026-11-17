@@ -30,7 +30,7 @@ interface Events {
 
 async function fixture(operations: string[] = []) {
   let notebookStreams = 0;
-  const native: Events[] = [];
+  const marimoStreams: Events[] = [];
   const requests: {
     path: string;
     body: Record<string, unknown>;
@@ -73,7 +73,7 @@ async function fixture(operations: string[] = []) {
           });
           if (url.pathname.endsWith("/marimo/sse")) {
             Vitest.expect(url.searchParams.get("file")).toBe("/project/n.py");
-            native.push(events);
+            marimoStreams.push(events);
             events.send("notebook", { notebook });
             events.send("runtime", {
               runtime: wrongRuntime ? { ...current, id: "other" } : current,
@@ -177,7 +177,7 @@ async function fixture(operations: string[] = []) {
     model,
     registry,
     requests,
-    native,
+    marimoStreams,
     close,
     subscribe,
     notebookStreams: () => notebookStreams,
@@ -193,7 +193,7 @@ async function fixture(operations: string[] = []) {
         ).toBe("Connected"),
       ),
     notify: (notification: CommProtocol.Notification) =>
-      native.at(-1)!.send("marimo", { marimo: notification }),
+      marimoStreams.at(-1)!.send("marimo", { marimo: notification }),
     authenticate: (value: boolean) => {
       authenticated = value;
     },
@@ -213,7 +213,7 @@ Vitest.test(
   "readers share one lazy attachment and late readers receive current widget state",
   async () => {
     const f = await fixture();
-    Vitest.expect(f.native).toHaveLength(0);
+    Vitest.expect(f.marimoStreams).toHaveLength(0);
     const first = f.subscribe();
     await f.ready();
     f.notify({
@@ -261,11 +261,11 @@ Vitest.test(
         },
       },
     });
-    Vitest.expect(f.native).toHaveLength(1);
+    Vitest.expect(f.marimoStreams).toHaveLength(1);
     await first.stop();
-    Vitest.expect(f.native[0].signal.aborted).toBe(false);
+    Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(false);
     await second.stop();
-    Vitest.expect(f.native[0].signal.aborted).toBe(true);
+    Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(true);
   },
 );
 
@@ -297,7 +297,7 @@ Vitest.test(
     f.notify({ ...result, return_value: "unrelated" });
     f.notify({ ...result, function_call_id: String(call.body.functionCallId) });
     Vitest.expect(await invoked).toEqual([1, 2]);
-    Vitest.expect(f.native[0].signal.aborted).toBe(true);
+    Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(true);
     const reader = f.subscribe();
     await f.ready();
     await Effect.runPromise(
@@ -347,9 +347,9 @@ Vitest.test(
     );
     f.restart("rt2");
     Vitest.expect(await pending).toMatchObject({ code: "stale-runtime" });
-    await vi.waitFor(() => Vitest.expect(f.native).toHaveLength(2));
+    await vi.waitFor(() => Vitest.expect(f.marimoStreams).toHaveLength(2));
     await f.ready();
-    Vitest.expect(f.native[0].signal.aborted).toBe(true);
+    Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(true);
     const before = f.requests.length;
     await Vitest.expect(
       Effect.runPromise(
@@ -362,7 +362,7 @@ Vitest.test(
     ).rejects.toMatchObject({ code: "stale-runtime" });
     Vitest.expect(f.requests).toHaveLength(before);
     await f.close();
-    Vitest.expect(f.native[1].signal.aborted).toBe(true);
+    Vitest.expect(f.marimoStreams[1].signal.aborted).toBe(true);
     await Vitest.expect(
       Effect.runPromise(
         f.model.runtime.experimentalComm.invoke({
@@ -376,7 +376,7 @@ Vitest.test(
 );
 
 Vitest.test(
-  "native authentication failures stay visible until retry; an incorrect runtime never becomes interactive",
+  "marimo authentication failures stay visible until retry and a mismatched runtime stays disconnected",
   async () => {
     const f = await fixture();
     f.authenticate(false);
@@ -389,7 +389,7 @@ Vitest.test(
         error: { code: "authentication" },
       }),
     );
-    Vitest.expect(f.native).toHaveLength(0);
+    Vitest.expect(f.marimoStreams).toHaveLength(0);
     f.authenticate(true);
     await Effect.runPromise(f.model.runtime.experimentalComm.retry);
     await f.ready();
@@ -403,7 +403,7 @@ Vitest.test(
         error: { code: "stale-runtime" },
       }),
     );
-    Vitest.expect(f.native.at(-1)?.signal.aborted).toBe(true);
+    Vitest.expect(f.marimoStreams.at(-1)?.signal.aborted).toBe(true);
   },
 );
 
@@ -425,7 +425,7 @@ Vitest.test(
     );
     Vitest.expect(f.requests).toEqual([]);
     Vitest.expect(f.notebookStreams()).toBe(1);
-    Vitest.expect(f.native).toHaveLength(0);
+    Vitest.expect(f.marimoStreams).toHaveLength(0);
 
     await Effect.runPromise(
       f.model.runtime.experimentalComm.send({
@@ -452,7 +452,7 @@ Vitest.test(
     await f.ready();
 
     f.setOperations(["runtime.experimental.comm"]);
-    await vi.waitFor(() => Vitest.expect(f.native[0].signal.aborted).toBe(true));
+    await vi.waitFor(() => Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(true));
     const update = {
       op: "send-ui-element-message",
       ui_element: "slider",

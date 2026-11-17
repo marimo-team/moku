@@ -95,7 +95,7 @@ export interface Interface {
   }) => Effect.Effect<void, RequestError>;
 
   /**
-   * Stores native output credentials on the proxy, separately from host API credentials.
+   * Stores marimo server credentials on the proxy, separately from host API credentials.
    *
    * Retry the notebook's runtime connection after authorization succeeds.
    */

@@ -28,7 +28,7 @@ export const OutputContext = React.createContext<{
 }>({ session: null, canInteract: false });
 
 /**
- * Supplies native widgets, function calls, and assets to descendant outputs.
+ * Supplies widgets, function calls, and assets to descendant outputs.
  *
  * Outputs must include their producing `runtimeId` to enable interaction.
  * Providers for the same notebook share a connection. The embedded renderer

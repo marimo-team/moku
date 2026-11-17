@@ -1,5 +1,5 @@
 /**
- * Connect native interaction events to shared renderer sessions.
+ * Connect runtime events to shared renderer sessions.
  *
  * Consumers share one connection. Runtime changes replace its session, and the
  * last consumer's release stops observation and disposes the session.
@@ -11,7 +11,7 @@ import { Effect, Stream } from "effect";
 import type * as RendererSession from "./RendererSession.ts";
 import { loadRenderer } from "./renderer.ts";
 
-/** Renderer availability after applying native output notifications. */
+/** Renderer availability after applying output notifications. */
 export interface State {
   /** Null before kernel initialization, after a reset, or after release. */
   readonly session: RendererSession.Interface | null;

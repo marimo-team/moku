@@ -19,7 +19,7 @@ export interface Options {
  *
  * `server` launches a command without a shell. Its arguments must invoke
  * `marimo edit`; the plugin supplies a loopback port and headless mode, and
- * disables native token authentication. Host protocol credentials still come
+ * disables marimo server token authentication. Host protocol credentials still come
  * from discovery and stay on the Vite server.
  *
  * Startup waits up to 60 seconds for the managed host. Closing Vite terminates

@@ -64,7 +64,7 @@ export async function startServer(
   for (const arg of args)
     if (managedFlags.has(arg.split("=")[0]) || /^-p\d/.test(arg))
       throw new Error(
-        `The marimo plugin manages ${arg.split("=")[0]} and native authentication.`,
+        `The marimo plugin manages ${arg.split("=")[0]} and marimo server authentication.`,
       );
   const port = await availablePort();
   context.signal.throwIfAborted();

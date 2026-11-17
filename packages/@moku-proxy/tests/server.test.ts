@@ -301,7 +301,7 @@ Vitest.test(
             JSON.stringify(
               req.url?.endsWith("/open")
                 ? {
-                    url: "http://host.test/?file=demo.py&access_token=native-secret#cell-a",
+                    url: "http://host.test/?file=demo.py&access_token=marimo-secret#cell-a",
                   }
                 : notebook,
             ),
@@ -613,7 +613,7 @@ for (const shutdown of ["browser disconnect", "proxy shutdown"] as const) {
 }
 
 Vitest.test(
-  "native outputs keep credentials server-side and force an attach-only stream",
+  "marimo output routes keep credentials server-side and force an attach-only stream",
   async ({ onTestFinished }) => {
     const calls: {
       url: string;
@@ -645,20 +645,23 @@ Vitest.test(
         }
       })();
     });
-    const native = base + "/marimo";
+    const marimoUrl = base + "/marimo";
     const post = (path: string, body: unknown, supplied: HeadersInit = headers) =>
-      fetch(native + path, {
+      fetch(marimoUrl + path, {
         method: "POST",
         headers: supplied,
         body: JSON.stringify(body),
       });
-    NodeAssert.equal((await fetch(native + "/@file/code.js", { headers })).status, 401);
-    const authorized = await post("/auth", { token: "native-secret" });
+    NodeAssert.equal(
+      (await fetch(marimoUrl + "/@file/code.js", { headers })).status,
+      401,
+    );
+    const authorized = await post("/auth", { token: "marimo-secret" });
     NodeAssert.deepEqual(await authorized.json(), { success: true });
-    NodeAssert.equal(calls[0].headers.authorization, "Bearer native-secret");
+    NodeAssert.equal(calls[0].headers.authorization, "Bearer marimo-secret");
     NodeAssert.equal(calls[0].headers.cookie, undefined);
     const stream = await fetch(
-      native +
+      marimoUrl +
         "/sse?session_id=output-1&file=%2Fproject%2Fn.py&kiosk=false&types=cell&target=https://example.com",
       { headers },
     );
@@ -668,7 +671,7 @@ Vitest.test(
     NodeAssert.equal(url.searchParams.get("kiosk"), "true");
     NodeAssert.equal(url.searchParams.get("types"), "notebook,runtime,marimo");
     NodeAssert.equal(url.searchParams.get("target"), null);
-    NodeAssert.equal(calls[1].headers.authorization, "Bearer native-secret");
+    NodeAssert.equal(calls[1].headers.authorization, "Bearer marimo-secret");
     NodeAssert.equal(calls[1].headers["last-event-id"], undefined);
     const body = {
       modelId: "model",
@@ -688,7 +691,7 @@ Vitest.test(
     NodeAssert.equal(calls[2].headers["marimo-server-token"], "server-secret");
     NodeAssert.equal(calls[2].headers["marimo-session-id"], "output-1");
     NodeAssert.equal(calls[2].headers["idempotency-key"], undefined);
-    const asset = await fetch(native + "/@file/code.js", { headers });
+    const asset = await fetch(marimoUrl + "/@file/code.js", { headers });
     NodeAssert.equal(await asset.text(), "export default {};");
     NodeAssert.equal(asset.headers.get("content-type"), "text/javascript");
     NodeAssert.equal((await post("/api/kernel/set_model_value", body)).status, 400);
@@ -709,7 +712,7 @@ Vitest.test(
 );
 
 Vitest.test(
-  "closing the proxy releases native output streams",
+  "closing the proxy releases marimo output streams",
   async ({ onTestFinished }) => {
     const disconnected = Promise.withResolvers<void>();
     const { api, base, headers } = await fixture(onTestFinished, (req, res) => {
@@ -747,7 +750,7 @@ Vitest.test(
       forwarded = req.headers;
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
-        JSON.stringify({ url: "http://localhost:2718/?access_token=native-secret" }),
+        JSON.stringify({ url: "http://localhost:2718/?access_token=marimo-secret" }),
       );
     });
     const response = await fetch(`${base}/notebooks/n/open`, {

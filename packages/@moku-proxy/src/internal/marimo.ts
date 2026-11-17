@@ -1,5 +1,5 @@
 /**
- * Allowlisted native output routes with server-side marimo credentials.
+ * Forward selected marimo output routes using server-side credentials.
  *
  * @module
  */
@@ -20,7 +20,7 @@ const routes = {
 };
 const sessionPattern = /^[a-zA-Z0-9_-]{1,128}$/;
 
-export function createNative(
+export function create(
   requests: Map<AbortController, NodeHttp.ServerResponse>,
   clientName: string,
 ) {
@@ -42,9 +42,9 @@ export function createNative(
       const base = options.baseUrl.replace(/\/+$/, "");
       if (!base.endsWith("/api/marimo/v1"))
         return json(res, 400, {
-          error: "This host does not expose native marimo outputs.",
+          error: "This host does not expose marimo output routes.",
         });
-      const nativeBase = base.slice(0, -"/api/marimo/v1".length);
+      const marimoBase = base.slice(0, -"/api/marimo/v1".length);
       const auth = path === "/auth" && req.method === "POST";
       const stream = path === "/sse" && req.method === "GET";
       const asset = path.startsWith("/@file/") && req.method === "GET";
@@ -53,7 +53,9 @@ export function createNative(
         : undefined;
       const mutation = schema !== undefined && req.method === "POST";
       if (!(auth || stream || asset || mutation))
-        return json(res, 404, { error: "This native operation is not exposed." });
+        return json(res, 404, {
+          error: "The proxy does not expose this marimo route.",
+        });
       if ((auth || mutation) && req.headers.origin !== origin)
         return json(res, 403, {
           error: "An action must originate from the local app.",
@@ -72,7 +74,7 @@ export function createNative(
           if (input.token === undefined && credentials.has(connectionId))
             return json(res, 200, { success: true });
           const token = input.token ?? "";
-          const response = await fetch(nativeBase + "/", {
+          const response = await fetch(marimoBase + "/", {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
             redirect: "manual",
             signal: AbortSignal.any([forward.signal, AbortSignal.timeout(10_000)]),
@@ -100,7 +102,7 @@ export function createNative(
           return json(res, 401, {
             error: "Authorize interactions with the marimo server token.",
           });
-        const upstream = new URL(nativeBase + path);
+        const upstream = new URL(marimoBase + path);
         let body: string | undefined;
         const headers = new Headers();
         if (credential.token)
@@ -166,7 +168,7 @@ export function createNative(
       } catch {
         if (res.destroyed) return;
         if (res.headersSent) res.destroy();
-        else json(res, 502, { error: "Could not reach the native output session." });
+        else json(res, 502, { error: "Could not reach the marimo session." });
       }
     },
   };

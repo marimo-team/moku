@@ -59,7 +59,7 @@ Vitest.test(
 );
 
 Vitest.test(
-  "renderer sessions release native listeners and isolate historical widgets",
+  "renderer sessions release widget listeners and isolate historical widgets",
   async () => {
     const renderer = await loadRenderer();
     const sendComponentValues = vi.fn(async () => {});

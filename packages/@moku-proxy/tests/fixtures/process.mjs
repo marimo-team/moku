@@ -41,7 +41,7 @@ if (process.argv.includes("--wrapper")) {
     }),
     { mode: 0o600 },
   );
-  console.log("Native authentication disabled");
+  console.log("Server authentication disabled");
   process.on("SIGTERM", () => {
     void rm(path, { force: true }).then(() => http.close(() => process.exit(0)));
   });

@@ -1,4 +1,4 @@
-/** Compose a notebook model with launcher identity and native outputs. @module */
+/** Compose a notebook model with launcher identity and output assets. @module */
 import { Effect } from "effect";
 import type * as Model from "@moku/core/Notebook";
 import type * as Host from "@moku/core/Host";
@@ -13,7 +13,7 @@ export interface Target {
 /** The complete notebook supplied to launcher views. */
 export interface Interface extends Model.Interface {
   readonly target: Target;
-  /** Resolves native output assets for the renderer. */
+  /** Resolves output assets for the renderer. */
   readonly assetUrl: (path: string) => string;
 }
 

@@ -3,7 +3,7 @@
  *
  * Pass output records from your chosen execution. Components do not subscribe
  * to notebook state. Rich displays load the embedded marimo renderer on demand;
- * Provider connects native widgets and function calls to a notebook runtime.
+ * Provider connects widgets and function calls to a notebook runtime.
  *
  * ```tsx
  * import { DisplayView } from "@moku/outputs";

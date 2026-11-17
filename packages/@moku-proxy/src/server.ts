@@ -10,7 +10,7 @@ import * as Forward from "./internal/forward.ts";
 import * as MarimoNode from "@marimo-team/client/node";
 import { json, readBody } from "./internal/http.ts";
 import type { ManagedServer } from "./internal/managed.ts";
-import { createNative } from "./internal/native.ts";
+import * as Marimo from "./internal/marimo.ts";
 import type * as Discovery from "@marimo-team/client/protocol";
 import { Schema } from "effect";
 import * as Protocol from "@marimo-team/host-protocol/Schemas";
@@ -79,7 +79,7 @@ export function createApi({
   const cookieName = `moku_${NodeCrypto.randomBytes(8).toString("hex")}`;
   const manual = new Map<string, Connection>();
   const requests = new Map<AbortController, NodeHttp.ServerResponse>();
-  const native = createNative(requests, clientName);
+  const marimo = Marimo.create(requests, clientName);
   let known = new Map<string, Connection>();
   let discovering: Promise<Map<string, Connection>> | undefined;
   let closed = false;
@@ -212,7 +212,7 @@ export function createApi({
         res.destroy();
         return;
       }
-      return native.handle(req, res, {
+      return marimo.handle(req, res, {
         connectionId: match[1],
         baseUrl: host.summary.url,
         path: path.slice("/marimo".length),
@@ -275,7 +275,7 @@ export function createApi({
         const opened = Schema.decodeUnknownSync(Protocol.OpenNotebookResponse)(
           await response.json(),
         );
-        // The pinned host includes its native token despite the protocol contract.
+        // The pinned host includes the marimo server token despite the protocol contract.
         const target = new URL(opened.url);
         target.searchParams.delete("access_token");
         return json(res, response.status, { url: target.href });
@@ -302,7 +302,7 @@ export function createApi({
         request.abort();
         response.destroy();
       }
-      native.close();
+      marimo.close();
       manual.clear();
       known.clear();
     },

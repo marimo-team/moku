@@ -1,4 +1,4 @@
-/** Host and native marimo protocols used by the experimental output channel. @module */
+/** Host messages and marimo session messages for the experimental output channel. @module */
 import { Result, Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
 import * as S from "@marimo-team/host-protocol/Schemas";
@@ -20,7 +20,7 @@ const ModelState = {
 const Capabilities = Schema.Struct({ edit: Schema.Boolean, interact: Schema.Boolean });
 
 /**
- * Native UI values, widget lifecycle messages, capabilities, and function replies.
+ * UI values, widget lifecycle messages, capabilities, and function replies.
  *
  * These messages serve interactive outputs. Notebook documents, executions, and
  * console output are observed through the notebook model. The channel correlates function replies before forwarding them to readers.
@@ -68,7 +68,7 @@ const Notification = Schema.Union([
     ]),
   }),
 ]);
-/** A decoded native output notification. */
+/** A decoded output notification. */
 export type Notification = typeof Notification.Type;
 
 const decode = Schema.decodeUnknownResult(Notification);
@@ -84,7 +84,7 @@ export const ComponentValues = Schema.Struct({
   /** Replacement values in the same order as objectIds. */
   values: Schema.Array(Schema.Json),
 });
-/** A legacy function request whose result arrives on the native event stream. */
+/** A legacy function request whose result arrives on the marimo session stream. */
 export const FunctionCall = Schema.Struct({
   /** Correlates the eventual reply with a pending invocation. */
   functionCallId: Schema.String,
@@ -140,7 +140,7 @@ export class Snapshot {
    * Records a renderer notification in stream order and returns it for live delivery.
    *
    * Unknown operations are ignored. A transport can report malformed messages from
-   * its native stream while tolerating unrecognized custom event data.
+   * the marimo session stream while tolerating unrecognized custom event data.
    */
   recordNotification(
     raw: unknown,

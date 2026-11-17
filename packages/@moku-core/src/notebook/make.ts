@@ -1,4 +1,4 @@
-/** Acquire notebook state and commands from a native host-protocol client. @module */
+/** Acquire notebook state and commands from a host protocol client. @module */
 import { Effect, Queue, Schema, type Duration } from "effect";
 import { AsyncResult, AtomRegistry } from "effect/reactivity";
 import * as Protocol from "../Protocol.ts";

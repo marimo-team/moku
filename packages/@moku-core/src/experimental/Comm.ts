@@ -69,7 +69,7 @@ interface Target {
   /** Fails if the runtime has changed; omission deliberately targets the current one. */
   readonly runtimeId?: string;
 }
-/** Replacement values for native UI elements in one runtime. */
+/** Replacement values for marimo UI elements in one runtime. */
 interface UIValues extends Target {
   /** Values keyed by UI element ID; omitted elements are unchanged. */
   readonly values: Readonly<Record<string, Json>>;
@@ -95,13 +95,13 @@ interface WidgetMessage extends Target {
 
 /** A message accepted by the runtime without a correlated reply. */
 type Message = Data.TaggedEnum<{ SetValues: UIValues; Model: WidgetMessage }>;
-/** Native output transport availability and its connection-specific capabilities. */
+/** Output connection status and permissions. */
 type Connection = Data.TaggedEnum<{
   /** No output attachment is active, including when no runtime is running. */
   Idle: {};
-  /** Establishing the native stream and its runtime identity. */
+  /** Opening the session stream and confirming its runtime. */
   Connecting: {};
-  /** Receiving native notifications with host-granted permissions. */
+  /** Receiving output notifications with host-granted permissions. */
   Connected: {
     /** False for a read-only viewer that can receive updates but cannot send changes. */
     readonly canInteract: boolean;
@@ -119,7 +119,7 @@ const Connection = Data.taggedEnum<Connection>();
 interface State {
   /** The notebook's observed runtime, or null when none exists. */
   readonly runtime: typeof Protocol.Runtime.Type | null;
-  /** Native output transport state, independent of notebook observation. */
+  /** Output connection state, independent of notebook observation. */
   readonly connection: Connection;
 }
 
@@ -127,7 +127,7 @@ interface State {
  * A shared output connection owned by the notebook's Effect scope.
  *
  * Hosts advertising runtime.experimental.comm carry notifications on the notebook stream.
- * Native marimo attachments open on demand. Commands require a running kernel
+ * Marimo sessions open on demand. Commands require a running kernel
  * and permission to interact.
  * Closing the owner scope aborts requests and ends subscriptions.
  */
@@ -135,11 +135,11 @@ export interface Interface {
   /** Connection progress and permissions; observing this atom does not acquire a connection. */
   readonly state: Atom.Atom<State>;
   /**
-   * Subscribes to native output notifications and connection resets.
+   * Subscribes to output notifications and connection resets.
    *
    * New readers receive a reset followed by retained UI values and open widget
    * models. Transient custom messages and old function replies are not replayed.
-   * Readers share the notebook connection or a lazily acquired native attachment.
+   * Readers share the notebook connection or a marimo session opened on demand.
    * Connection failures are published through state so subscribers can await retry.
    */
   readonly events: Stream.Stream<Event, CommError>;
@@ -578,7 +578,10 @@ const makeMarimo = Effect.fnUntraced(function* (
     signal: AbortSignal,
   ) {
     if (notebook.path === null)
-      throw problem("unsupported", "Native outputs require a notebook file path.");
+      throw problem(
+        "unsupported",
+        "Opening a marimo session requires a notebook file path.",
+      );
     if (/^(\/|[A-Za-z]:[\\/])/.test(notebook.path)) return notebook.path;
     const project = Promise.withResolvers<string>();
     const stop = registry.subscribe(
@@ -618,8 +621,8 @@ const makeMarimo = Effect.fnUntraced(function* (
     const url = new URL(urlFor("/sse"));
     url.searchParams.set("session_id", current.sessionId);
     url.searchParams.set("file", file);
-    let nativeNotebook: string | undefined;
-    let nativeRuntime: string | undefined;
+    let sessionNotebookId: string | undefined;
+    let sessionRuntimeId: string | undefined;
     const receive = (input: unknown) => {
       if (connection !== current) return;
       try {
@@ -628,10 +631,10 @@ const makeMarimo = Effect.fnUntraced(function* (
           const record = Schema.decodeUnknownSync(
             Schema.Struct({ notebook: Schema.Unknown }),
           )(frame.data);
-          nativeNotebook = Schema.decodeUnknownSync(Protocol.Notebook)(
+          sessionNotebookId = Schema.decodeUnknownSync(Protocol.Notebook)(
             record.notebook,
           ).id;
-          if (nativeNotebook !== notebookId)
+          if (sessionNotebookId !== notebookId)
             throw problem(
               "stale-runtime",
               "The output connection belongs to another notebook.",
@@ -642,7 +645,7 @@ const makeMarimo = Effect.fnUntraced(function* (
             Schema.Struct({ runtime: Schema.Unknown }),
           )(frame.data);
           const runtime = Schema.decodeUnknownSync(Protocol.Runtime)(record.runtime);
-          nativeRuntime = runtime.id;
+          sessionRuntimeId = runtime.id;
           if (
             runtime.notebook_id !== notebookId ||
             runtime.id !== current.runtimeId ||
@@ -664,7 +667,7 @@ const makeMarimo = Effect.fnUntraced(function* (
           throw cause;
         });
         if (!notification) return;
-        if (nativeNotebook !== notebookId || nativeRuntime !== current.runtimeId)
+        if (sessionNotebookId !== notebookId || sessionRuntimeId !== current.runtimeId)
           throw problem(
             "stale-runtime",
             "The output connection did not confirm its runtime identity.",
@@ -713,7 +716,7 @@ const makeMarimo = Effect.fnUntraced(function* (
       },
       stop: (frame) =>
         frame.event === "close"
-          ? problem("unavailable", "The native output session closed.")
+          ? problem("unavailable", "The marimo session closed.")
           : undefined,
     })({ cursor: null, signal }, { open: () => {}, message: receive });
     if (!signal.aborted)

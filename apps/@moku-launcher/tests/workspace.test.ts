@@ -294,10 +294,10 @@ Vitest.test(
     await f.run(
       workspace.authorizeInteractions({
         connectionId: "host /a",
-        token: "native-token",
+        token: "marimo-token",
       }),
     );
-    Vitest.expect(await f.requests.at(-1)!.json()).toEqual({ token: "native-token" });
+    Vitest.expect(await f.requests.at(-1)!.json()).toEqual({ token: "marimo-token" });
     for (const request of f.requests) {
       Vitest.expect(request.credentials).toBe("same-origin");
       Vitest.expect(request.redirect).toBe("error");

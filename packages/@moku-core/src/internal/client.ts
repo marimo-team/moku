@@ -1,4 +1,4 @@
-/** Native protocol transport and scoped command lifetimes. @module */
+/** Host protocol transport and scoped command lifetimes. @module */
 import {
   Cause,
   Clock,

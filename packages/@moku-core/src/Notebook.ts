@@ -93,7 +93,7 @@ export interface Transaction {
 /** A synchronous edit callback. Retaining the transaction after return is invalid. */
 export type Edit = (transaction: Transaction) => void;
 type Method = Client["Notebook"][Exclude<keyof Client["Notebook"], "events">];
-/** Native transport, decoding, protocol, or local command failure. */
+/** Transport, decoding, protocol, or local command failure. */
 export type CommandError =
   | Effect.Error<ReturnType<Method>>
   | ModelError

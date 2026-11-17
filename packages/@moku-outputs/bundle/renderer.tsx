@@ -1,5 +1,5 @@
 /**
- * The embedded marimo renderer and its native interaction adapter.
+ * The embedded marimo renderer and its runtime callbacks.
  *
  * @module
  */

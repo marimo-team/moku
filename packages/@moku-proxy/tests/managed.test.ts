@@ -15,7 +15,7 @@ const fixture = NodeUrl.fileURLToPath(
 );
 
 Vitest.test(
-  "a wrapper's child starts without native authentication and exits on release",
+  "a wrapper's child starts without marimo server authentication and exits on release",
   async ({ onTestFinished }) => {
     const state = await NodeFs.mkdtemp(NodePath.join(NodeOs.tmpdir(), "moku-server-"));
     const controller = new AbortController();
@@ -78,13 +78,13 @@ Vitest.test(
     for (const token of [host.token, "existing-host-token"])
       Vitest.expect(raw).not.toContain(token);
     const base = `${origin}/api/hosts/${hosts.find((entry) => entry.url === host.url)!.id}`;
-    const native = await fetch(base + "/marimo/auth", {
+    const auth = await fetch(base + "/marimo/auth", {
       method: "POST",
       headers,
       body: "{}",
     });
-    Vitest.expect(native.status).toBe(200);
-    Vitest.expect(await native.json()).toEqual({ success: true });
+    Vitest.expect(auth.status).toBe(200);
+    Vitest.expect(await auth.json()).toEqual({ success: true });
     const events = await fetch(base + "/events", { headers });
     Vitest.expect(events.status).toBe(200);
     Vitest.expect(await events.text()).toContain("event: ready");
@@ -92,7 +92,7 @@ Vitest.test(
     Vitest.expect(
       logs.some((line) => line.startsWith("Ready at http://127.0.0.1:")),
     ).toBe(true);
-    Vitest.expect(logs.join("\n")).toContain("Native authentication disabled");
+    Vitest.expect(logs.join("\n")).toContain("Server authentication disabled");
     Vitest.expect(logs.join("\n")).not.toContain(host.token);
     await server.close();
     Vitest.expect(server.host).toBeUndefined();

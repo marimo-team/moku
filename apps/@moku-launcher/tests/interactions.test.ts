@@ -3,7 +3,7 @@ import type * as CommProtocol from "@moku/core/internal/comm-protocol";
 import * as Http from "./http.ts";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import { Cause, Effect, Exit, Scope, Stream } from "effect";
+import { Cause, Effect, Exit, Fiber, Scope, Stream } from "effect";
 import { AsyncResult, AtomRegistry } from "effect/reactivity";
 import * as Workspace from "../src/app/Workspace.ts";
 
@@ -39,6 +39,7 @@ async function fixture(operations: string[] = []) {
   let current = runtime;
   let authenticated = true;
   let wrongRuntime = false;
+  let kernelReady = true;
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const request = new Request(input, init);
     const url = new URL(request.url);
@@ -80,13 +81,14 @@ async function fixture(operations: string[] = []) {
             events.send("runtime", {
               runtime: wrongRuntime ? { ...current, id: "other" } : current,
             });
-            events.send("marimo", {
-              marimo: {
-                op: "kernel-ready",
-                ui_values: {},
-                consumer_capabilities: { edit: false, interact: true },
-              },
-            });
+            if (kernelReady)
+              events.send("marimo", {
+                marimo: {
+                  op: "kernel-ready",
+                  ui_values: {},
+                  consumer_capabilities: { edit: false, interact: true },
+                },
+              });
           } else if (url.pathname.endsWith("/notebooks/n/events")) {
             notebookStreams++;
             host = events;
@@ -195,6 +197,9 @@ async function fixture(operations: string[] = []) {
     authenticate: (value: boolean) => {
       authenticated = value;
     },
+    delayKernelReady: () => {
+      kernelReady = false;
+    },
     wrongRuntime: () => {
       wrongRuntime = true;
     },
@@ -264,6 +269,30 @@ Vitest.test(
     Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(false);
     await second.stop();
     Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(true);
+  },
+);
+
+Vitest.test(
+  "interrupting the only caller during startup releases its session",
+  async () => {
+    const f = await fixture();
+    f.delayKernelReady();
+    const fiber = Effect.runFork(
+      f.model.runtime.experimentalComm.invoke({
+        namespace: "table",
+        name: "rows",
+        args: {},
+      }),
+    );
+    await vi.waitFor(() => Vitest.expect(f.marimoStreams).toHaveLength(1));
+    await Effect.runPromise(Fiber.interrupt(fiber));
+    Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(true);
+    Vitest.expect(f.requests.map(({ path }) => path)).toEqual([
+      "/api/hosts/host/marimo/auth",
+    ]);
+    Vitest.expect(
+      f.registry.get(f.model.runtime.experimentalComm.state).connection._tag,
+    ).toBe("Idle");
   },
 );
 

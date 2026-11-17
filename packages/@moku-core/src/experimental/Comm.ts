@@ -13,7 +13,9 @@ import {
   Data,
   Deferred,
   Effect,
+  FiberSet,
   Queue,
+  RcRef,
   Schema,
   Stream,
 } from "effect";
@@ -205,6 +207,44 @@ export const make = Effect.fnUntraced(function* (
 const problem = (code: CommError["code"], message: string) =>
   new CommError({ code, message });
 
+type PendingCalls = Map<string, Deferred.Deferred<Json, CommError>>;
+
+const invoke = Effect.fnUntraced(function* (
+  calls: PendingCalls,
+  post: (call: string) => Effect.Effect<void, CommError>,
+) {
+  const call = crypto.randomUUID();
+  const reply = yield* Deferred.make<Json, CommError>();
+  calls.set(call, reply);
+  return yield* post(call).pipe(
+    Effect.andThen(Deferred.await(reply)),
+    Effect.ensuring(
+      Effect.sync(() => {
+        calls.delete(call);
+      }),
+    ),
+  );
+});
+
+function replyToCall(calls: PendingCalls, notification: CommProtocol.Notification) {
+  if (notification.op !== "function-call-result") return;
+  const reply = calls.get(notification.function_call_id);
+  if (reply)
+    Deferred.doneUnsafe(
+      reply,
+      notification.found && notification.status.code === "ok"
+        ? Effect.succeed(notification.return_value)
+        : Effect.fail(
+            problem(
+              "rpc",
+              notification.status.message ??
+                notification.status.title ??
+                "The kernel function failed.",
+            ),
+          ),
+    );
+}
+
 const makeHost = Effect.fnUntraced(function* (
   client: Client,
   notebookId: typeof Protocol.NotebookId.Type,
@@ -250,23 +290,7 @@ const makeHost = Effect.fnUntraced(function* (
           canInteract: notification.consumer_capabilities?.interact === true,
         }),
       );
-    if (notification.op === "function-call-result") {
-      const reply = calls.get(notification.function_call_id);
-      if (reply)
-        Deferred.doneUnsafe(
-          reply,
-          notification.found && notification.status.code === "ok"
-            ? Effect.succeed(notification.return_value)
-            : Effect.fail(
-                problem(
-                  "rpc",
-                  notification.status.message ??
-                    notification.status.title ??
-                    "The kernel function failed.",
-                ),
-              ),
-        );
-    }
+    replyToCall(calls, notification);
     emit({ kind: "notification", runtimeId, notification });
   }
   yield* Effect.addFinalizer(() =>
@@ -427,28 +451,15 @@ const makeHost = Effect.fnUntraced(function* (
           ),
         invoke: (input) =>
           request(input, (id) =>
-            Effect.gen(function* () {
-              const call = crypto.randomUUID();
-              const reply = yield* Effect.acquireRelease(
-                Effect.sync(() => {
-                  const result = Deferred.makeUnsafe<Json, CommError>();
-                  calls.set(call, result);
-                  return result;
-                }),
-                () =>
-                  Effect.sync(() => {
-                    calls.delete(call);
-                  }),
-              );
-              yield* post(id, {
+            invoke(calls, (call) =>
+              post(id, {
                 _tag: "Invoke",
                 call,
                 namespace: input.namespace,
                 name: input.name,
                 args: input.args,
-              });
-              return yield* Deferred.await(reply);
-            }).pipe(Effect.scoped),
+              }),
+            ),
           ),
       };
     },
@@ -475,30 +486,12 @@ const failure = (cause: unknown) =>
       });
 
 interface MarimoSession {
-  stream?: Promise<void>;
   readonly runtimeId: string;
   readonly sessionId: string;
-  readonly controller: AbortController;
-  readonly ready: ReturnType<typeof Promise.withResolvers<void>>;
-  readonly pending: Map<string, ReturnType<typeof Promise.withResolvers<Json>>>;
+  readonly ended: Deferred.Deferred<never, CommError>;
+  readonly ready: Deferred.Deferred<void>;
+  readonly pending: PendingCalls;
   canInteract: boolean;
-}
-interface Listener {
-  readonly emit: (event: Event) => void;
-  readonly end: () => void;
-}
-
-/** Wait without leaving an abort listener behind when the operation finishes. */
-async function until<A>(promise: Promise<A>, signal: AbortSignal): Promise<A> {
-  signal.throwIfAborted();
-  const aborted = Promise.withResolvers<never>();
-  const abort = () => aborted.reject(signal.reason);
-  signal.addEventListener("abort", abort, { once: true });
-  try {
-    return await Promise.race([promise, aborted.promise]);
-  } finally {
-    signal.removeEventListener("abort", abort);
-  }
 }
 
 /** Opens marimo's session stream on demand for notebooks without the host operation. */
@@ -508,7 +501,7 @@ const makeMarimo = Effect.fnUntraced(function* (
   observed: Notebook.Interface["state"],
 ) {
   const registry = yield* AtomRegistry.AtomRegistry;
-  const lifetime = new AbortController();
+  let closed = false;
   const http = (yield* HttpClient.HttpClient).pipe(
     HttpClient.mapRequest(
       HttpClientRequest.prependUrl(options.baseUrl.href.replace(/\/$/, "")),
@@ -533,102 +526,71 @@ const makeMarimo = Effect.fnUntraced(function* (
     ),
   );
   const channel = Atom.make<Connection>(Connection.Idle());
-  const unmount = registry.mount(channel);
+  yield* Atom.mount(channel);
   const snapshot = new CommProtocol.Snapshot();
-  const listeners = new Set<Listener>();
+  const readers = new Set<Queue.Queue<Event, Cause.Done>>();
   let connection: MarimoSession | undefined;
-  let attempted: string | null = null;
-  let references = 0;
-  let unsubscribe: (() => void) | undefined;
+  let retry: (() => void) | undefined;
 
   const emit = (event: Event) => {
-    for (const listener of listeners) listener.emit(event);
+    for (const reader of readers) Queue.offerUnsafe(reader, event);
   };
   const reset = (reason: CommError) => {
     const previous = connection;
     connection = undefined;
-    previous?.controller.abort(reason);
-    previous?.ready.reject(reason);
-    for (const pending of previous?.pending.values() ?? []) pending.reject(reason);
-    previous?.pending.clear();
+    if (previous) Deferred.doneUnsafe(previous.ended, Effect.fail(reason));
     snapshot.reset();
     emit({ kind: "reset", runtimeId: null });
-    return previous?.stream;
   };
-  const fail = (current: MarimoSession, cause: unknown) => {
-    if (connection !== current) return;
-    const causeOfFailure = failure(cause);
-    void reset(causeOfFailure);
-    registry.set(channel, Connection.Failed({ error: causeOfFailure }));
-  };
-
-  function post(path: string, body: unknown, signal: AbortSignal, sessionId?: string) {
-    return Effect.runPromise(
-      http
-        .post(path, {
-          body: HttpBody.jsonUnsafe(body),
-          headers: sessionId ? { "Marimo-Session-Id": sessionId } : undefined,
-        })
-        .pipe(
-          Effect.flatMap(HttpClientResponse.schemaBodyJson(Acknowledgement)),
-          Effect.flatMap(({ success }) =>
-            success
-              ? Effect.void
-              : Effect.fail(
-                  problem("transport", "Marimo did not accept the output request."),
-                ),
-          ),
-          Effect.scoped,
+  function post(path: string, body: unknown, sessionId?: string) {
+    return http
+      .post(path, {
+        body: HttpBody.jsonUnsafe(body),
+        headers: sessionId ? { "Marimo-Session-Id": sessionId } : undefined,
+      })
+      .pipe(
+        Effect.flatMap(HttpClientResponse.schemaBodyJson(Acknowledgement)),
+        Effect.flatMap(({ success }) =>
+          success
+            ? Effect.void
+            : Effect.fail(
+                problem("transport", "Marimo did not accept the output request."),
+              ),
         ),
-      { signal },
-    );
+        Effect.mapError(failure),
+        Effect.scoped,
+      );
   }
 
-  async function filePath(
+  const filePath = Effect.fnUntraced(function* (
     notebook: typeof Protocol.Notebook.Type,
-    signal: AbortSignal,
   ) {
     if (notebook.path === null)
-      throw problem(
+      return yield* problem(
         "unsupported",
         "Opening a marimo session requires a notebook file path.",
       );
     if (/^(\/|[A-Za-z]:[\\/])/.test(notebook.path)) return notebook.path;
-    const project = Promise.withResolvers<string>();
-    const stop = registry.subscribe(
-      options.catalog,
-      (result) => {
-        if (AsyncResult.isFailure(result) && !result.waiting)
-          project.reject(problem("unavailable", "The host catalog is unavailable."));
-        if (!AsyncResult.isSuccess(result) || result.waiting) return;
-        const root = result.value.projects[notebook.project_id]?.root;
-        if (root) project.resolve(root);
-        else
-          project.reject(
-            problem("unavailable", "The notebook's project is unavailable."),
-          );
-      },
-      { immediate: true },
+    const catalog = yield* AtomRegistry.getResult(registry, options.catalog, {
+      suspendOnWaiting: true,
+    }).pipe(
+      Effect.mapError(() => problem("unavailable", "The host catalog is unavailable.")),
     );
-    try {
-      const root = await until(project.promise, signal);
-      const separator = root.includes("\\") ? "\\" : "/";
-      return (
-        root.replace(/[\\/]$/, "") +
-        separator +
-        notebook.path.replaceAll("/", separator)
-      );
-    } finally {
-      stop();
-    }
-  }
+    const root = catalog.projects[notebook.project_id]?.root;
+    if (!root)
+      return yield* problem("unavailable", "The notebook's project is unavailable.");
+    const separator = root.includes("\\") ? "\\" : "/";
+    return (
+      root.replace(/[\\/]$/, "") + separator + notebook.path.replaceAll("/", separator)
+    );
+  });
 
-  async function open(current: MarimoSession, notebook: typeof Protocol.Notebook.Type) {
-    const signal = current.controller.signal;
-    const preparing = AbortSignal.any([signal, AbortSignal.timeout(10_000)]);
-    await post("/auth", {}, preparing);
-    const file = await filePath(notebook, preparing);
-    if (signal.aborted) return;
+  const open = Effect.fnUntraced(function* (
+    current: MarimoSession,
+    notebook: typeof Protocol.Notebook.Type,
+  ) {
+    yield* post("/auth", {});
+    const file = yield* filePath(notebook);
     let sessionNotebookId: string | undefined;
     let sessionRuntimeId: string | undefined;
     const receive = (frame: Sse.Event) => {
@@ -684,212 +646,193 @@ const makeMarimo = Effect.fnUntraced(function* (
             canInteract: current.canInteract,
           }),
         );
-        if (notification.op === "kernel-ready") current.ready.resolve();
+        if (notification.op === "kernel-ready")
+          Deferred.doneUnsafe(current.ready, Effect.void);
       }
-      if (notification.op === "function-call-result") {
-        const pending = current.pending.get(notification.function_call_id);
-        current.pending.delete(notification.function_call_id);
-        if (notification.found && notification.status.code === "ok")
-          pending?.resolve(notification.return_value);
-        else
-          pending?.reject(
-            problem(
-              "rpc",
-              notification.status.message ??
-                notification.status.title ??
-                "The kernel function failed.",
-            ),
-          );
-      }
+      replyToCall(current.pending, notification);
       emit({ kind: "notification", runtimeId: current.runtimeId, notification });
     };
-    await Effect.runPromise(
-      http
-        .get("/sse", {
-          urlParams: { session_id: current.sessionId, file },
-          headers: { Accept: "text/event-stream" },
-        })
-        .pipe(
-          Effect.flatMap((response) => {
-            if (
-              response.headers["content-type"]?.split(";")[0].trim().toLowerCase() !==
-              "text/event-stream"
-            )
-              return Effect.fail(
-                problem("transport", "Marimo did not return an event stream."),
-              );
-            return response.stream.pipe(
-              Stream.timeout("45 seconds"),
-              Stream.decodeText,
-              Stream.pipeThroughChannel(Sse.decode()),
-              Stream.runForEach((frame) =>
-                Effect.try({ try: () => receive(frame), catch: failure }),
-              ),
-            );
-          }),
-          Effect.scoped,
-        ),
-      { signal },
+    const response = yield* http.get("/sse", {
+      urlParams: { session_id: current.sessionId, file },
+      headers: { Accept: "text/event-stream" },
+    });
+    if (
+      response.headers["content-type"]?.split(";")[0].trim().toLowerCase() !==
+      "text/event-stream"
+    )
+      return yield* problem("transport", "Marimo did not return an event stream.");
+    yield* response.stream.pipe(
+      Stream.timeout("45 seconds"),
+      Stream.decodeText,
+      Stream.pipeThroughChannel(Sse.decode()),
+      Stream.runForEach((frame) =>
+        Effect.try({ try: () => receive(frame), catch: failure }),
+      ),
     );
-    if (!signal.aborted)
-      throw problem("transport", "The output connection ended. Reconnect to continue.");
-  }
+    return yield* problem(
+      "transport",
+      "The output connection ended. Reconnect to continue.",
+    );
+  }, Effect.scoped);
 
-  function synchronize() {
-    const state = registry.get(observed);
-    const notebook = AsyncResult.getOrElse(state, () => undefined)?.notebook;
-    const runtime = AsyncResult.getOrElse(state, () => undefined)?.runtime;
-    const key =
-      !lifetime.signal.aborted &&
-      references > 0 &&
-      AsyncResult.isSuccess(state) &&
-      !state.waiting &&
-      notebook &&
-      !notebook.operations.includes(CommProtocol.operation) &&
-      runtime?.status === "running"
-        ? `${runtime.id}:${notebook.path}`
-        : null;
-    if (key === attempted) return;
-    attempted = key;
-    void reset(problem("stale-runtime", "The runtime or output connection changed."));
-    if (!key || !notebook || !runtime) {
-      registry.set(channel, Connection.Idle());
-      return;
-    }
-    const current: MarimoSession = {
-      runtimeId: runtime.id,
-      sessionId: crypto.randomUUID(),
-      controller: new AbortController(),
-      ready: Promise.withResolvers<void>(),
-      pending: new Map(),
-      canInteract: false,
-    };
-    void current.ready.promise.catch(() => {});
-    connection = current;
-    registry.set(channel, Connection.Connecting());
-    const deadline = setTimeout(
-      () =>
-        fail(
-          current,
-          problem("timeout", "The output connection did not become ready."),
-        ),
-      10_000,
-    );
-    void current.ready.promise.then(
-      () => clearTimeout(deadline),
-      () => clearTimeout(deadline),
-    );
-    current.stream = open(current, notebook).catch((cause) => fail(current, cause));
-  }
-  function acquire() {
-    if (lifetime.signal.aborted) throw problem("closed", "The notebook is closed.");
-    references++;
-    if (references === 1)
-      unsubscribe = registry.subscribe(observed, synchronize, { immediate: true });
-    return async () => {
-      if (--references !== 0) return;
-      unsubscribe?.();
-      unsubscribe = undefined;
-      attempted = null;
-      const stream = reset(problem("closed", "The output connection was released."));
-      registry.set(channel, Connection.Idle());
-      await stream;
-    };
-  }
+  const attachment = yield* RcRef.make({
+    acquire: Effect.gen(function* () {
+      const runSession = yield* FiberSet.makeRuntime();
+      let attempted: string | null = null;
+      function synchronize() {
+        const state = registry.get(observed);
+        const notebook = AsyncResult.getOrElse(state, () => undefined)?.notebook;
+        const runtime = AsyncResult.getOrElse(state, () => undefined)?.runtime;
+        const key =
+          !closed &&
+          AsyncResult.isSuccess(state) &&
+          !state.waiting &&
+          notebook &&
+          !notebook.operations.includes(CommProtocol.operation) &&
+          runtime?.status === "running"
+            ? `${runtime.id}:${notebook.path}`
+            : null;
+        if (key === attempted) return;
+        attempted = key;
+        reset(problem("stale-runtime", "The runtime or output connection changed."));
+        if (!key || !notebook || !runtime) {
+          registry.set(channel, Connection.Idle());
+          return;
+        }
+        const current: MarimoSession = {
+          runtimeId: runtime.id,
+          sessionId: crypto.randomUUID(),
+          ended: Deferred.makeUnsafe(),
+          ready: Deferred.makeUnsafe(),
+          pending: new Map(),
+          canInteract: false,
+        };
+        connection = current;
+        registry.set(channel, Connection.Connecting());
+        const readinessDeadline = Deferred.await(current.ready).pipe(
+          Effect.timeoutOrElse({
+            duration: "10 seconds",
+            orElse: () =>
+              Effect.fail(
+                problem("timeout", "The output connection did not become ready."),
+              ),
+          }),
+          Effect.andThen(Effect.never),
+        );
+        runSession(
+          open(current, notebook).pipe(
+            Effect.raceFirst(readinessDeadline),
+            Effect.raceFirst(Deferred.await(current.ended)),
+            Effect.catch((cause) =>
+              Effect.sync(() => {
+                if (connection !== current) return;
+                const error = failure(cause);
+                reset(error);
+                registry.set(channel, Connection.Failed({ error }));
+              }),
+            ),
+          ),
+        );
+      }
+
+      const unsubscribe = registry.subscribe(observed, synchronize, {
+        immediate: true,
+      });
+      retry = () => {
+        attempted = null;
+        synchronize();
+      };
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          unsubscribe();
+          retry = undefined;
+          reset(problem("closed", "The output connection was released."));
+          registry.set(channel, Connection.Idle());
+        }),
+      );
+    }),
+  });
 
   const events = Stream.callback<Event>((queue) =>
-    Effect.acquireRelease(
-      Effect.sync(() => {
-        const release = acquire();
-        const listener: Listener = {
-          emit: (event) => {
-            Queue.offerUnsafe(queue, event);
-          },
-          end: () => {
-            Queue.endUnsafe(queue);
-          },
-        };
-        listener.emit({ kind: "reset", runtimeId: connection?.runtimeId ?? null });
-        if (connection)
-          for (const notification of snapshot.messages())
-            listener.emit({
-              kind: "notification",
-              runtimeId: connection.runtimeId,
-              notification,
-            });
-        listeners.add(listener);
-        return () => {
-          listeners.delete(listener);
-          return release();
-        };
-      }),
-      (release) => Effect.promise(release),
-    ),
+    Effect.gen(function* () {
+      if (closed) {
+        yield* Queue.end(queue);
+        return;
+      }
+      yield* RcRef.get(attachment);
+      Queue.offerUnsafe(queue, {
+        kind: "reset",
+        runtimeId: connection?.runtimeId ?? null,
+      });
+      if (connection)
+        for (const notification of snapshot.messages())
+          Queue.offerUnsafe(queue, {
+            kind: "notification",
+            runtimeId: connection.runtimeId,
+            notification,
+          });
+      readers.add(queue);
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          readers.delete(queue);
+        }),
+      );
+    }),
   );
 
-  function interact<A>(
+  const interact = Effect.fnUntraced(function* <A>(
     input: Target,
-    perform: (current: MarimoSession, signal: AbortSignal) => Promise<A>,
+    perform: (current: MarimoSession) => Effect.Effect<A, CommError>,
   ) {
-    return Effect.tryPromise({
-      try: async (caller) => {
-        const runtime = AsyncResult.getOrElse(
-          registry.get(observed),
-          () => undefined,
-        )?.runtime;
-        if (lifetime.signal.aborted) throw problem("closed", "The notebook is closed.");
-        if (input.runtimeId !== undefined && input.runtimeId !== runtime?.id)
-          throw problem("stale-runtime", "This output belongs to an earlier runtime.");
-        if (runtime?.status !== "running")
-          throw problem(
-            "unavailable",
-            "Start the notebook runtime to interact with outputs.",
-          );
-        const release = acquire();
-        try {
-          const current = connection;
-          if (!current) {
-            const state = registry.get(channel);
-            throw state._tag === "Failed"
-              ? state.error
-              : problem("unavailable", "The output connection is unavailable.");
-          }
-          const signal = AbortSignal.any([
-            caller,
-            lifetime.signal,
-            current.controller.signal,
-            AbortSignal.timeout(30_000),
-          ]);
-          await until(current.ready.promise, signal);
-          if (connection !== current || current.runtimeId !== runtime.id)
-            throw problem("stale-runtime", "The output runtime changed.");
-          if (!current.canInteract)
-            throw problem(
-              "unsupported",
-              "This connection does not permit output interactions.",
-            );
-          return await until(perform(current, signal), signal);
-        } finally {
-          await release();
-        }
-      },
-      catch: (cause) =>
-        cause instanceof DOMException && cause.name === "TimeoutError"
-          ? problem("timeout", "The output interaction timed out.")
-          : failure(cause),
-    });
-  }
+    const runtime = AsyncResult.getOrElse(
+      registry.get(observed),
+      () => undefined,
+    )?.runtime;
+    if (closed) return yield* problem("closed", "The notebook is closed.");
+    if (input.runtimeId !== undefined && input.runtimeId !== runtime?.id)
+      return yield* problem(
+        "stale-runtime",
+        "This output belongs to an earlier runtime.",
+      );
+    if (runtime?.status !== "running")
+      return yield* problem(
+        "unavailable",
+        "Start the notebook runtime to interact with outputs.",
+      );
+    yield* RcRef.get(attachment);
+    const current = connection;
+    if (!current) {
+      const state = registry.get(channel);
+      return yield* state._tag === "Failed"
+        ? state.error
+        : problem("unavailable", "The output connection is unavailable.");
+    }
+    return yield* Effect.gen(function* () {
+      yield* Deferred.await(current.ready);
+      if (connection !== current || current.runtimeId !== runtime.id)
+        return yield* problem("stale-runtime", "The output runtime changed.");
+      if (!current.canInteract)
+        return yield* problem(
+          "unsupported",
+          "This connection does not permit output interactions.",
+        );
+      return yield* perform(current);
+    }).pipe(
+      Effect.raceFirst(Deferred.await(current.ended)),
+      Effect.timeoutOrElse({
+        duration: "30 seconds",
+        orElse: () =>
+          Effect.fail(problem("timeout", "The output interaction timed out.")),
+      }),
+    );
+  }, Effect.scoped);
 
   yield* Effect.addFinalizer(() =>
-    Effect.promise(async () => {
-      lifetime.abort(problem("closed", "The notebook is closed."));
-      unsubscribe?.();
-      unsubscribe = undefined;
-      const stream = reset(problem("closed", "The notebook is closed."));
-      for (const listener of listeners) listener.end();
-      listeners.clear();
-      unmount();
-      await stream;
+    Effect.sync(() => {
+      closed = true;
+      reset(problem("closed", "The notebook is closed."));
+      for (const reader of readers) Queue.endUnsafe(reader);
+      readers.clear();
     }),
   );
 
@@ -899,12 +842,9 @@ const makeMarimo = Effect.fnUntraced(function* (
       connection: get(channel),
     })),
     events,
-    retry: Effect.sync(() => {
-      attempted = null;
-      synchronize();
-    }),
+    retry: Effect.sync(() => retry?.()),
     send: (input: Message) =>
-      interact(input, (current, signal) =>
+      interact(input, (current) =>
         input._tag === "SetValues"
           ? post(
               "/api/kernel/set_ui_element_value",
@@ -912,7 +852,6 @@ const makeMarimo = Effect.fnUntraced(function* (
                 objectIds: Object.keys(input.values),
                 values: Object.values(input.values),
               },
-              signal,
               current.sessionId,
             )
           : post(
@@ -922,18 +861,13 @@ const makeMarimo = Effect.fnUntraced(function* (
                 message: input.message,
                 buffers: input.buffers,
               },
-              signal,
               current.sessionId,
             ),
       ),
     invoke: (input: Invoke) =>
-      interact(input, async (current, signal) => {
-        const functionCallId = crypto.randomUUID();
-        const result = Promise.withResolvers<Json>();
-        void result.promise.catch(() => {});
-        current.pending.set(functionCallId, result);
-        try {
-          await post(
+      interact(input, (current) =>
+        invoke(current.pending, (functionCallId) =>
+          post(
             "/api/kernel/function_call",
             {
               functionCallId,
@@ -941,13 +875,9 @@ const makeMarimo = Effect.fnUntraced(function* (
               functionName: input.name,
               args: input.args,
             },
-            signal,
             current.sessionId,
-          );
-          return await until(result.promise, signal);
-        } finally {
-          current.pending.delete(functionCallId);
-        }
-      }),
+          ),
+        ),
+      ),
   } satisfies Interface;
 });

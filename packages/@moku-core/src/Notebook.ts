@@ -109,7 +109,7 @@ export interface RunOptions {
 }
 /** Operations on a notebook's current runtime, valid across restarts. */
 export interface Runtime {
-  /** Experimental channel for widget messages and Python function calls. */
+  /** Temporary access for the output renderer until it can read widget state directly. @internal */
   readonly experimentalComm: Comm.Interface;
   /** Starts a runtime, optionally answering host startup decisions. */
   readonly start: (

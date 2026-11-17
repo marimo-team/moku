@@ -1,10 +1,11 @@
 /**
  * Experimental messaging for interactive notebook outputs.
  *
- * TODO: Delete this module when the host protocol defines runtime messaging
- * and supported marimo servers implement it. Until then, keep the experimental
- * host operation, marimo session fallback, and choice between them here.
- * Callers reach them through the notebook runtime.
+ * TODO: Remove this module once outputs can read current widget state directly
+ * from the notebook runtime. For now, we reconstruct that state from messages
+ * so a widget mounted after execution can still render its current value.
+ * `experimentalComm` gives the renderer access to that state and lets it send
+ * interactions back to the runtime that produced the output.
  *
  * @module
  */

@@ -85,24 +85,6 @@ Running fails if an observed cell has changed. The call returns when the run is
 accepted, and callers may follow execution through `notebook.state` using the
 accepted `run.id`.
 
-## Experimental output messaging
-
-Renderers can send UI values and widget messages to a running kernel. Moku uses
-the notebook stream when the host advertises `runtime.experimental.comm`. For
-other hosts, `Host.make` accepts a `marimo` base URL and fetch function to open
-a marimo session on demand. Pass the runtime ID that produced the
-output so a callback from an old renderer fails after a kernel restart.
-
-```ts
-const comm = notebook.runtime.experimentalComm;
-yield * comm.send({ _tag: "SetValues", runtimeId, values: { [sliderId]: 45 } });
-const rows = yield * comm.invoke({ runtimeId, namespace, name: "get_rows", args: {} });
-```
-
-Sending completes when the host accepts the message. Invoking a function waits
-for its matching reply on the notebook stream. Renderers can subscribe to
-`comm.events` to receive the current widget state and subsequent notifications.
-
 ## Read the host catalog
 
 ```ts

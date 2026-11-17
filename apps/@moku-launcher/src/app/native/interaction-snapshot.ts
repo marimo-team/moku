@@ -9,12 +9,12 @@ type ModelEvent = Extract<Interaction.Notification, { op: "model-lifecycle" }>;
 type ModelOpen = Extract<ModelEvent["message"], { method: "open" }>;
 
 export class Snapshot {
-  private values: Record<string, Interaction.Json> = {};
+  private values = new Map<string, Interaction.Json>();
   private models = new Map<string, ModelOpen>();
   private ready: Extract<Interaction.Notification, { op: "kernel-ready" }> | undefined;
 
   reset() {
-    this.values = {};
+    this.values.clear();
     this.models.clear();
     this.ready = undefined;
   }
@@ -23,7 +23,7 @@ export class Snapshot {
     switch (message.op) {
       case "kernel-ready":
         this.ready = message;
-        this.values = { ...message.ui_values };
+        this.values = new Map(Object.entries(message.ui_values ?? {}));
         break;
       case "consumer-capabilities":
         if (this.ready)
@@ -37,11 +37,11 @@ export class Snapshot {
           message.message.type === "marimo-ui-value-update" &&
           "value" in message.message
         )
-          this.values[message.ui_element] = message.message.value;
+          this.values.set(message.ui_element, message.message.value);
         break;
       case "remove-ui-elements":
-        for (const id of Object.keys(this.values))
-          if (id.startsWith(`${message.cell_id}-`)) delete this.values[id];
+        for (const id of this.values.keys())
+          if (id.startsWith(`${message.cell_id}-`)) this.values.delete(id);
         break;
       case "model-lifecycle": {
         const next = message.message;
@@ -50,10 +50,12 @@ export class Snapshot {
         if (next.method !== "update") break;
         const previous = this.models.get(message.model_id);
         if (!previous) break;
+        const changed = new Set([
+          ...Object.keys(next.state),
+          ...next.buffer_paths.map((path) => String(path[0])),
+        ]);
         const kept = previous.buffer_paths.flatMap((path, i) =>
-          Object.hasOwn(next.state, String(path[0]))
-            ? []
-            : [{ path, buffer: previous.buffers[i] }],
+          changed.has(String(path[0])) ? [] : [{ path, buffer: previous.buffers[i] }],
         );
         this.models.set(message.model_id, {
           method: "open",
@@ -68,7 +70,9 @@ export class Snapshot {
 
   messages(): Interaction.Notification[] {
     return [
-      ...(this.ready ? [{ ...this.ready, ui_values: { ...this.values } }] : []),
+      ...(this.ready
+        ? [{ ...this.ready, ui_values: Object.fromEntries(this.values) }]
+        : []),
       ...[...this.models].map(([model_id, message]): ModelEvent => ({
         op: "model-lifecycle",
         model_id,

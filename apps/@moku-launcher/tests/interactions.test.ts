@@ -203,7 +203,12 @@ Vitest.test(
     f.notify({
       op: "model-lifecycle",
       model_id: "model",
-      message: { method: "update", state: { y: 2 }, buffer_paths: [], buffers: [] },
+      message: {
+        method: "update",
+        state: { y: 2 },
+        buffer_paths: [["x"]],
+        buffers: ["Ag=="],
+      },
     });
     await vi.waitFor(() =>
       Vitest.expect(
@@ -220,7 +225,7 @@ Vitest.test(
         message: {
           method: "open",
           state: { x: null, y: 2 },
-          buffers: ["AQ=="],
+          buffers: ["Ag=="],
           buffer_paths: [["x"]],
         },
       },

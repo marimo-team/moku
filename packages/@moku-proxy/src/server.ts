@@ -80,10 +80,12 @@ export function createApi({
   const manual = new Map<string, Connection>();
   const requests = new Map<AbortController, NodeHttp.ServerResponse>();
   const native = createNative(requests, clientName);
+  let known = new Map<string, Connection>();
+  let discovering: Promise<Map<string, Connection>> | undefined;
   let closed = false;
 
-  async function connections() {
-    const found = new Map(manual);
+  async function scan() {
+    const found = new Map<string, Connection>();
     const add = (host: Discovery.HostRecordOutput) => {
       const id = hostId(`${host.url}:${host.process.pid}:${host.process.started_at}`);
       found.set(id, {
@@ -99,7 +101,18 @@ export function createApi({
     };
     if (server?.host) add(server.host);
     for await (const host of discover()) add(host);
+    if (!closed) known = found;
     return found;
+  }
+
+  function discovered() {
+    return (discovering ??= scan().finally(() => {
+      discovering = undefined;
+    }));
+  }
+
+  async function connection(id: string) {
+    return manual.get(id) ?? known.get(id) ?? (await discovered()).get(id);
   }
 
   async function handle(req: NodeHttp.IncomingMessage, res: NodeHttp.ServerResponse) {
@@ -147,10 +160,11 @@ export function createApi({
       return json(res, 200, { authenticated: true });
     }
     if (url.pathname === "/api/hosts" && req.method === "GET") {
+      const local = await discovered();
       return json(
         res,
         200,
-        [...(await connections()).values()].map((host) => host.summary),
+        [...manual.values(), ...local.values()].map((host) => host.summary),
       );
     }
     if (url.pathname === "/api/hosts" && req.method === "POST") {
@@ -188,7 +202,7 @@ export function createApi({
     const match = /^\/api\/hosts\/([a-f0-9]{24})(\/.*)$/.exec(url.pathname);
     const path = match?.[2] ?? "";
     if (match && path.startsWith("/marimo/")) {
-      const host = (await connections()).get(match[1]);
+      const host = await connection(match[1]);
       if (!host)
         return json(res, 404, {
           code: "host-unavailable",
@@ -219,7 +233,7 @@ export function createApi({
     if (!read && req.headers.origin !== expected) {
       return json(res, 403, { error: "An action must originate from the local app." });
     }
-    const host = (await connections()).get(match[1]);
+    const host = await connection(match[1]);
     if (!host) {
       return json(res, 404, {
         code: "host-unavailable",
@@ -268,6 +282,8 @@ export function createApi({
       }
       forward.pipe(response, "application/json");
     } catch {
+      if (!forward.signal.aborted && known.get(match[1]) === host)
+        known.delete(match[1]);
       if (!res.destroyed) {
         if (res.headersSent) res.destroy();
         else
@@ -288,6 +304,7 @@ export function createApi({
       }
       native.close();
       manual.clear();
+      known.clear();
     },
     handle: (req: NodeHttp.IncomingMessage, res: NodeHttp.ServerResponse) => {
       void handle(req, res).catch(() => {

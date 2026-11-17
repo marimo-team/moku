@@ -710,3 +710,77 @@ Vitest.test(
     NodeAssert.equal(forwarded["idempotency-key"], "request-1");
   },
 );
+
+Vitest.test(
+  "a request for a host already found does not discover hosts again",
+  async ({ onTestFinished }) => {
+    const upstream = NodeHttp.createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "text/event-stream" });
+      res.end("event: ready\nid: cursor-1\ndata: {}\n\n");
+    });
+    await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+    onTestFinished(() => {
+      upstream.closeAllConnections();
+      upstream.close();
+    });
+    const upstreamAddress = upstream.address();
+    if (!upstreamAddress || typeof upstreamAddress === "string")
+      throw new Error("Missing address");
+    let discoveries = 0;
+    let origin = "";
+    const api = createApi({
+      origin: () => origin,
+      clientName: "fixture",
+      discover: async function* () {
+        discoveries++;
+        yield {
+          version: 1,
+          name: "test host",
+          url: `http://127.0.0.1:${upstreamAddress.port}`,
+          token: "secret",
+          process: { pid: 123, started_at: "2026-11-05T12:00:00Z" },
+        } satisfies HostRecordOutput;
+      },
+    });
+    const server = NodeHttp.createServer(api.handle);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    onTestFinished(() => {
+      server.closeAllConnections();
+      server.close();
+    });
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Missing address");
+    origin = `http://127.0.0.1:${address.port}`;
+    const session = await fetch(`${origin}/api/session`, {
+      method: "POST",
+      headers: { Origin: origin, Authorization: `Bearer ${api.launchKey}` },
+    });
+    const cookie = session.headers.get("set-cookie")!.split(";")[0];
+    const listed = () => fetch(`${origin}/api/hosts`, { headers: { Cookie: cookie } });
+    const hosts: { id: string }[] = await (await listed()).json();
+    const events = (id: string) =>
+      fetch(`${origin}/api/hosts/${id}/events`, { headers: { Cookie: cookie } });
+    NodeAssert.equal(discoveries, 1);
+
+    // Requests sent in quick succession, as a dragged slider sends them.
+    for (let sent = 0; sent < 5; sent++) {
+      const response = await events(hosts[0].id);
+      NodeAssert.equal(response.status, 200);
+      await response.text();
+    }
+    NodeAssert.equal(discoveries, 1);
+
+    // Listing hosts always looks again, and so does a host not yet known.
+    await (await listed()).text();
+    NodeAssert.equal(discoveries, 2);
+    NodeAssert.equal((await events("0".repeat(24))).status, 404);
+    NodeAssert.equal(discoveries, 3);
+
+    // A host that cannot be reached is looked for again on the next request.
+    upstream.closeAllConnections();
+    await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    NodeAssert.equal((await events(hosts[0].id)).status, 502);
+    await (await events(hosts[0].id)).text();
+    NodeAssert.equal(discoveries, 4);
+  },
+);

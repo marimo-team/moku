@@ -22,7 +22,7 @@ export function make(options: {
   const proxy = Proxy.make(options.baseUrl, { fetch: options.fetch });
   const runtime = Atom.runtime(proxy.http);
   const workspace = runtime
-    .atom(Workspace.make({ launchKey: options.launchKey }))
+    .atom(Workspace.make({ launchKey: options.launchKey, marimo: proxy.marimo }))
     .pipe(Atom.setIdleTTL(0));
   const notebooks = Atom.family((target: Target) =>
     runtime

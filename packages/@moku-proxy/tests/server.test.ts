@@ -6,7 +6,6 @@ import type { HostRecordOutput } from "@marimo-team/client/protocol";
 import { Effect, Schema, Stream } from "effect";
 import { AtomRegistry } from "effect/reactivity";
 import { FetchHttpClient } from "effect/http";
-import * as Comm from "@moku/core/experimental/Comm";
 import * as Host from "@moku/core/Host";
 import * as Protocol from "@marimo-team/host-protocol/Schemas";
 
@@ -366,9 +365,11 @@ Vitest.test(
             }),
           );
           Vitest.expect(invalid.status).toBe(400);
-          yield* attached.runtime.experimentalComm.send(
-            Comm.Model({ ...model, runtimeId: "rt" }),
-          );
+          yield* attached.runtime.experimentalComm.send({
+            _tag: "Model",
+            ...model,
+            runtimeId: "rt",
+          });
           yield* host.notebooks.delete("n");
           authenticated = false;
           const error = yield* Effect.flip(host.notebooks.open("n"));

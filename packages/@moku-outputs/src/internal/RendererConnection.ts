@@ -6,8 +6,8 @@
  *
  * @module
  */
+import type * as Notebook from "@moku/core/Notebook";
 import { Effect, Stream } from "effect";
-import * as Comm from "@moku/core/experimental/Comm";
 import type * as RendererSession from "./RendererSession.ts";
 import { loadRenderer } from "./renderer.ts";
 
@@ -19,7 +19,7 @@ export interface State {
   readonly error: Error | null;
 }
 interface Entry {
-  readonly comm: Comm.Interface;
+  readonly comm: Notebook.Runtime["experimentalComm"];
   readonly controller: AbortController;
   readonly listeners: Set<(state: State) => void>;
   state: State;
@@ -34,7 +34,7 @@ let active: Entry | undefined;
  * the page-wide registries while this one still has readers.
  */
 export function acquire(
-  comm: Comm.Interface,
+  comm: Notebook.Runtime["experimentalComm"],
   assetUrl: (path: string) => string,
   listener: (state: State) => void,
 ): () => void {
@@ -99,29 +99,27 @@ async function start(entry: Entry, assetUrl: (path: string) => string) {
                   assetUrl,
                   sendComponentValues: (request) =>
                     run(
-                      comm.send(
-                        Comm.SetValues({
-                          runtimeId,
-                          values: Object.fromEntries(
-                            request.objectIds.map((id, index) => [
-                              id,
-                              request.values[index],
-                            ]),
-                          ),
-                        }),
-                      ),
+                      comm.send({
+                        _tag: "SetValues",
+                        runtimeId,
+                        values: Object.fromEntries(
+                          request.objectIds.map((id, index) => [
+                            id,
+                            request.values[index],
+                          ]),
+                        ),
+                      }),
                     ),
                   invoke: (request) => run(comm.invoke({ ...request, runtimeId })),
                   sendModelValue: (request) =>
                     run(
-                      comm.send(
-                        Comm.Model({
-                          model: request.modelId,
-                          message: request.message,
-                          buffers: request.buffers,
-                          runtimeId,
-                        }),
-                      ),
+                      comm.send({
+                        _tag: "Model",
+                        model: request.modelId,
+                        message: request.message,
+                        buffers: request.buffers,
+                        runtimeId,
+                      }),
                     ),
                 });
                 entry.state = { session, error: null };

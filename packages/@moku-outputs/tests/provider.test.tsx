@@ -6,7 +6,6 @@ import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";
 import { Effect, Queue, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import * as Comm from "@moku/core/experimental/Comm";
 import { Provider, OutputContext, type Notebook } from "../src/Provider.tsx";
 import type * as RendererSession from "../src/internal/RendererSession.ts";
 
@@ -21,6 +20,8 @@ Vitest.afterEach(async () => {
   renderer.createSession.mockReset();
   document.body.replaceChildren();
 });
+
+type CommEvent = Stream.Success<Notebook["runtime"]["experimentalComm"]["events"]>;
 
 function fixture() {
   const sessions: {
@@ -37,15 +38,15 @@ function fixture() {
       dispose,
     };
   });
-  let emit: (event: Comm.Event) => void = () => {};
+  let emit: (event: CommEvent) => void = () => {};
   let readers = 0;
   const executeCall = vi.fn(() => ({ answer: 42 }));
   const comm: Notebook["runtime"]["experimentalComm"] = {
     state: Atom.readable(() => ({
       runtime: null,
-      connection: Comm.Connection.Connected({ canInteract: true }),
+      connection: { _tag: "Connected" as const, canInteract: true },
     })),
-    events: Stream.callback<Comm.Event>((queue) =>
+    events: Stream.callback<CommEvent>((queue) =>
       Effect.acquireRelease(
         Effect.sync(() => {
           readers++;
@@ -69,7 +70,7 @@ function fixture() {
     assetUrl: (path: string) => path,
     sessions,
     readers: () => readers,
-    emit: (event: Comm.Event) => emit(event),
+    emit: (event: CommEvent) => emit(event),
     ready: (runtimeId: string) =>
       emit({
         kind: "notification",

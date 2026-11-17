@@ -3,17 +3,17 @@
  *
  * @module
  */
+import type * as Model from "@moku/core/Notebook";
 import * as React from "react";
 import { useAtom, useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import * as RendererConnection from "./internal/RendererConnection.ts";
 import type * as RendererSession from "./internal/RendererSession.ts";
-import type * as Comm from "@moku/core/experimental/Comm";
 
 /** The subset of a notebook needed by output renderers. */
 export interface Notebook {
   /** The channel shared by renderers of this notebook. */
-  readonly runtime: { readonly experimentalComm: Comm.Interface };
+  readonly runtime: Pick<Model.Runtime, "experimentalComm">;
   /** Resolves kernel-authored file references used in rendered output. */
   readonly assetUrl: (path: string) => string;
 }

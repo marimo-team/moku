@@ -36,6 +36,13 @@ export interface Options {
   readonly baseUrl: string | URL;
   /** Bearer credential supplied with requests to this host. */
   readonly token?: Redacted.Redacted<string>;
+  /** Optional marimo session transport for interactive outputs on hosts without runtime.experimental.comm. */
+  readonly marimo?: {
+    /** Base URL for marimo's authentication, event stream, and kernel routes. */
+    readonly baseUrl: URL;
+    /** Fetch implementation authorized for that marimo server. */
+    readonly fetch: typeof globalThis.fetch;
+  };
   /** Maximum retry interval after an uncertain response. Defaults to 60 seconds; use a value shorter than the host's documented retention window. */
   readonly retryWindow?: Duration.Input;
 }
@@ -173,12 +180,6 @@ export const make = Effect.fnUntraced(function* (
     }),
   );
   const commands = yield* makeCommands(options.retryWindow);
-  const notebooks = yield* RcMap.make({
-    lookup: (id: string) =>
-      NotebookModel.make(client, id, options.retryWindow).pipe(
-        Effect.provideService(AtomRegistry.AtomRegistry, registry),
-      ),
-  });
   const observation = yield* observe({
     initial: empty,
     reduce,
@@ -189,6 +190,15 @@ export const make = Effect.fnUntraced(function* (
         query: {},
         headers: cursor === undefined ? {} : { cursor },
       }),
+  });
+  const notebooks = yield* RcMap.make({
+    lookup: (id: string) =>
+      NotebookModel.make(
+        client,
+        id,
+        options.retryWindow,
+        options.marimo && { ...options.marimo, catalog: observation.state },
+      ).pipe(Effect.provideService(AtomRegistry.AtomRegistry, registry)),
   });
   const params = (id: string) =>
     Schema.decodeUnknownEffect(Protocol.NotebookId)(id).pipe(

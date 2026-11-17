@@ -6,8 +6,9 @@
  *
  * @module
  */
+import type * as Notebook from "@moku/core/Notebook";
+import type { Schema } from "effect";
 import type * as CommProtocol from "@moku/core/internal/comm-protocol";
-import type * as Comm from "@moku/core/experimental/Comm";
 import type { DisplayViewProps } from "../types.ts";
 
 /** Runtime-bound callbacks installed into the native renderer's registries. */
@@ -21,7 +22,12 @@ export interface Options {
     request: typeof CommProtocol.ComponentValues.Type,
   ) => Promise<void>;
   /** Resolves with the function's result after its reply arrives on the native stream. */
-  readonly invoke: (request: Omit<Comm.Invoke, "runtimeId">) => Promise<Comm.Json>;
+  readonly invoke: (
+    request: Omit<
+      Parameters<Notebook.Runtime["experimentalComm"]["invoke"]>[0],
+      "runtimeId"
+    >,
+  ) => Promise<typeof Schema.Json.Type>;
   /** Submits a widget state patch or custom message with its binary attachments. */
   readonly sendModelValue: (
     request: typeof CommProtocol.ModelValue.Type,

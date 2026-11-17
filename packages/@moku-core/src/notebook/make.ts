@@ -6,7 +6,7 @@ import type * as Notebook from "../Notebook.ts";
 import { makeCommands, ModelError, type Client } from "../internal/client.ts";
 import { observe } from "../internal/observe.ts";
 import { emptyNotebook, reduceNotebook } from "./state.ts";
-import * as Comm from "./comm.ts";
+import * as Comm from "../experimental/Comm.ts";
 import * as Edit from "./edit.ts";
 import type { NotebookEvent } from "../internal/api.ts";
 
@@ -14,6 +14,7 @@ export const make = Effect.fnUntraced(function* (
   client: Client,
   notebookId: string,
   retryWindow?: Duration.Input,
+  marimo?: Comm.Marimo,
 ) {
   const id = yield* Schema.decodeUnknownEffect(Protocol.NotebookId)(notebookId);
   const params = { notebookId: id };
@@ -22,7 +23,7 @@ export const make = Effect.fnUntraced(function* (
   const reserved = new Set<string>();
   let previous: ReturnType<typeof emptyNotebook>["confirmed"]["current"] = null;
   let document: Notebook.Document | null = null;
-  const comm = yield* Comm.make(client, id);
+  const comm = yield* Comm.make(client, id, marimo);
   const observation = yield* observe({
     initial: () => {
       comm.reset();
@@ -82,7 +83,7 @@ export const make = Effect.fnUntraced(function* (
   });
   const { state } = observation;
   const runtime: Notebook.Runtime = {
-    experimentalComm: comm.bind(state, observation.reconnect),
+    experimentalComm: yield* comm.bind(state, observation.reconnect),
     start: (payload = {}) =>
       commands.mutation((idempotencyKey) =>
         client.Notebook.start({

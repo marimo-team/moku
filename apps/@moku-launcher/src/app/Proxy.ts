@@ -29,7 +29,10 @@ export function make(
     Layer.provide(Layer.succeed(HttpClient.TracerPropagationEnabled, false)),
   );
   return {
-    fetch,
+    marimo: (connectionId: string) => ({
+      baseUrl: url(`/api/hosts/${encodeURIComponent(connectionId)}/marimo`),
+      fetch,
+    }),
     url,
     http,
   };

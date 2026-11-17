@@ -15,6 +15,7 @@ import {
 } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Host from "@moku/core/Host";
+import type * as Proxy from "./Proxy.ts";
 import { RequestError } from "./request.ts";
 import { HttpBody, HttpClient, HttpClientResponse } from "effect/http";
 
@@ -141,7 +142,9 @@ const checkResponse = Effect.fnUntraced(function* (
  *
  * The supplied HttpClient handles the base URL and request credentials.
  */
-export const make = Effect.fnUntraced(function* (options: { launchKey?: string } = {}) {
+export const make = Effect.fnUntraced(function* (
+  options: { launchKey?: string; marimo?: Proxy.Interface["marimo"] } = {},
+) {
   const transport = yield* HttpClient.HttpClient;
   const http = transport.pipe(
     HttpClient.transformResponse(Effect.flatMap(checkResponse)),
@@ -213,6 +216,7 @@ export const make = Effect.fnUntraced(function* (options: { launchKey?: string }
     lookup: (connectionId: string) =>
       Host.make({
         baseUrl: `/api/hosts/${encodeURIComponent(connectionId)}`,
+        marimo: options.marimo?.(connectionId),
       }).pipe(Effect.provideService(HttpClient.HttpClient, transport)),
   });
   const host = (connectionId: string) => RcMap.get(hosts, connectionId);

@@ -6,7 +6,6 @@ import { Cause, Effect, Exit, Scope, Stream } from "effect";
 import { AsyncResult, AtomRegistry } from "effect/reactivity";
 import * as Proxy from "../src/app/Proxy.ts";
 import * as Notebook from "../src/app/Notebook.ts";
-import * as Comm from "@moku/core/experimental/Comm";
 
 const notebook = {
   id: "n",
@@ -130,7 +129,10 @@ async function fixture(operations: string[] = []) {
   const proxy = Proxy.make("http://moku.test", { fetch });
   const model = await Effect.runPromise(
     Effect.gen(function* () {
-      const host = yield* Host.make({ baseUrl: proxy.url("/api/hosts/host") });
+      const host = yield* Host.make({
+        baseUrl: proxy.url("/api/hosts/host"),
+        marimo: proxy.marimo("host"),
+      });
       return yield* Notebook.make(proxy, host, {
         connectionId: "host",
         notebookId: "n",
@@ -150,7 +152,7 @@ async function fixture(operations: string[] = []) {
     Vitest.expect(AsyncResult.isSuccess(registry.get(model.state))).toBe(true),
   );
   const subscribe = () => {
-    const events: Comm.Event[] = [];
+    const events: Stream.Success<typeof model.runtime.experimentalComm.events>[] = [];
     const controller = new AbortController();
     const done = Effect.runPromiseExit(
       model.runtime.experimentalComm.events.pipe(
@@ -198,6 +200,8 @@ async function fixture(operations: string[] = []) {
     wrongRuntime: () => {
       wrongRuntime = true;
     },
+    setOperations: (operations: string[]) =>
+      host!.send("notebook", { notebook: { ...notebook, operations } }),
     restart: (id: string) => {
       current = { ...runtime, id };
       host!.send("runtime", { runtime: current });
@@ -297,19 +301,20 @@ Vitest.test(
     const reader = f.subscribe();
     await f.ready();
     await Effect.runPromise(
-      f.model.runtime.experimentalComm.send(
-        Comm.SetValues({ runtimeId: "rt", values: { "a-0": 5 } }),
-      ),
+      f.model.runtime.experimentalComm.send({
+        _tag: "SetValues",
+        runtimeId: "rt",
+        values: { "a-0": 5 },
+      }),
     );
     await Effect.runPromise(
-      f.model.runtime.experimentalComm.send(
-        Comm.Model({
-          runtimeId: "rt",
-          model: "model",
-          message: { method: "update", state: { x: null }, bufferPaths: [["x"]] },
-          buffers: ["AQ=="],
-        }),
-      ),
+      f.model.runtime.experimentalComm.send({
+        _tag: "Model",
+        runtimeId: "rt",
+        model: "model",
+        message: { method: "update", state: { x: null }, bufferPaths: [["x"]] },
+        buffers: ["AQ=="],
+      }),
     );
     Vitest.expect(f.requests.at(-2)?.body).toEqual({ objectIds: ["a-0"], values: [5] });
     Vitest.expect(f.requests.at(-1)?.body).toMatchObject({
@@ -348,9 +353,11 @@ Vitest.test(
     const before = f.requests.length;
     await Vitest.expect(
       Effect.runPromise(
-        f.model.runtime.experimentalComm.send(
-          Comm.SetValues({ runtimeId: "rt", values: { "a-0": 1 } }),
-        ),
+        f.model.runtime.experimentalComm.send({
+          _tag: "SetValues",
+          runtimeId: "rt",
+          values: { "a-0": 1 },
+        }),
       ),
     ).rejects.toMatchObject({ code: "stale-runtime" });
     Vitest.expect(f.requests).toHaveLength(before);
@@ -421,15 +428,48 @@ Vitest.test(
     Vitest.expect(f.native).toHaveLength(0);
 
     await Effect.runPromise(
-      f.model.runtime.experimentalComm.send(
-        Comm.SetValues({ runtimeId: "rt", values: { slider: 8 } }),
-      ),
+      f.model.runtime.experimentalComm.send({
+        _tag: "SetValues",
+        runtimeId: "rt",
+        values: { slider: 8 },
+      }),
     );
     Vitest.expect(f.requests).toEqual([
       {
         path: "/api/hosts/host/notebooks/n/runtime/experimental/comm",
         body: { _tag: "SetValues", values: { slider: 8 } },
       },
+    ]);
+  },
+);
+
+Vitest.test(
+  "an attached renderer follows a change in the notebook's comm capability",
+  async () => {
+    const f = await fixture();
+    const comm = f.model.runtime.experimentalComm;
+    const reader = f.subscribe();
+    await f.ready();
+
+    f.setOperations(["runtime.experimental.comm"]);
+    await vi.waitFor(() => Vitest.expect(f.native[0].signal.aborted).toBe(true));
+    const update = {
+      op: "send-ui-element-message",
+      ui_element: "slider",
+      message: { type: "marimo-ui-value-update", value: 13 },
+    } as const;
+    f.custom(update);
+    await vi.waitFor(() =>
+      Vitest.expect(reader.events).toContainEqual({
+        kind: "notification",
+        runtimeId: "rt",
+        notification: update,
+      }),
+    );
+    await Effect.runPromise(comm.send({ _tag: "SetValues", values: { slider: 14 } }));
+    Vitest.expect(f.requests.map(({ path }) => path)).toEqual([
+      "/api/hosts/host/marimo/auth",
+      "/api/hosts/host/notebooks/n/runtime/experimental/comm",
     ]);
   },
 );
@@ -497,7 +537,7 @@ Vitest.test(
     );
     await Vitest.expect(
       Effect.runPromise(
-        comm.send(Comm.SetValues({ runtimeId: "rt", values: { slider: 9 } })),
+        comm.send({ _tag: "SetValues", runtimeId: "rt", values: { slider: 9 } }),
       ),
     ).rejects.toMatchObject({ code: "stale-runtime" });
     Vitest.expect(f.requests).toHaveLength(1);

@@ -87,15 +87,15 @@ accepted `run.id`.
 
 ## Experimental output messaging
 
-When a notebook advertises `runtime.experimental.comm`, a renderer can send UI values and
-widget messages to its running kernel. Pass the runtime ID that produced the
+Renderers can send UI values and widget messages to a running kernel. Moku uses
+the notebook stream when the host advertises `runtime.experimental.comm`. For
+other hosts, `Host.make` accepts a `marimo` base URL and fetch function to open
+a marimo session on demand. Pass the runtime ID that produced the
 output so a callback from an old renderer fails after a kernel restart.
 
 ```ts
-import * as Comm from "@moku/core/experimental/Comm";
-
 const comm = notebook.runtime.experimentalComm;
-yield * comm.send(Comm.SetValues({ runtimeId, values: { [sliderId]: 45 } }));
+yield * comm.send({ _tag: "SetValues", runtimeId, values: { [sliderId]: 45 } });
 const rows = yield * comm.invoke({ runtimeId, namespace, name: "get_rows", args: {} });
 ```
 

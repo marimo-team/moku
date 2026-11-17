@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import type * as CommProtocol from "@moku/core/internal/comm-protocol";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
@@ -128,7 +129,7 @@ async function fixture(operations: string[] = []) {
   const scope = Effect.runSync(Scope.make());
   const model = await Effect.runPromise(
     Effect.gen(function* () {
-      const workspace = yield* Workspace.make({ baseUrl: "http://moku.test", fetch });
+      const workspace = yield* Workspace.make({ fetch });
       return yield* workspace.attach({
         connectionId: "host",
         notebookId: "n",

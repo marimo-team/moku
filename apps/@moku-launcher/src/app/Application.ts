@@ -13,7 +13,6 @@ class Target extends Data.Class<Notebook.Target> {}
 
 /** Creates application state for views that share an atom registry. */
 export function make(options: {
-  baseUrl: string | URL;
   launchKey?: string;
   plugins: readonly Plugin.Interface[];
   fetch?: typeof globalThis.fetch;

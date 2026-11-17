@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import { AsyncResult, AtomRegistry } from "effect/reactivity";
@@ -47,7 +48,6 @@ Vitest.test(
     const registry = AtomRegistry.make();
     Vitest.onTestFinished(() => registry.dispose());
     const application = Application.make({
-      baseUrl: "http://moku.test",
       plugins: [],
       fetch,
     });

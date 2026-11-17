@@ -120,12 +120,11 @@ const checkResponse = Effect.fnUntraced(function* (
 
 /** Opens a launcher session and shares host connections between catalogs and notebook views. */
 export const make = Effect.fnUntraced(function* (options: {
-  baseUrl: string | URL;
   launchKey?: string;
   fetch?: typeof globalThis.fetch;
 }) {
-  const sessionUrl = new URL("/api/session", options.baseUrl).href;
-  const hostsUrl = new URL("/api/hosts", options.baseUrl).href;
+  const sessionUrl = new URL("/api/session", location.origin).href;
+  const hostsUrl = new URL("/api/hosts", location.origin).href;
   const hostUrl = (id: string) => hostsUrl + "/" + encodeURIComponent(id);
   const marimoUrl = (id: string) => new URL(hostUrl(id) + "/marimo");
   const send = options.fetch ?? globalThis.fetch;

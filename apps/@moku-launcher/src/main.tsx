@@ -17,7 +17,6 @@ if (launchKey) {
   history.replaceState(null, "", location.pathname + location.search);
 }
 const application = Application.make({
-  baseUrl: location.origin,
   launchKey,
   plugins: [GraphExplainerPlugin, NotebookEditorPlugin, BasicPlugin, MinimapPlugin],
 });

@@ -80,7 +80,6 @@ async function mount(route: Route) {
     );
   };
   const application = Application.make({
-    baseUrl: "http://moku.test",
     fetch,
     plugins: [
       Plugin.define({

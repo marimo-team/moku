@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import { Effect, Exit, Scope } from "effect";
@@ -99,9 +100,7 @@ async function fixture(launchKey?: string) {
   });
   return {
     run,
-    workspace: await run(
-      Workspace.make({ baseUrl: "http://moku.test", fetch, launchKey }),
-    ),
+    workspace: await run(Workspace.make({ fetch, launchKey })),
     registry,
     requests,
     streams,

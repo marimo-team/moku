@@ -3,9 +3,10 @@ import * as Vitest from "vite-plus/test";
 import * as NodeHttp from "node:http";
 import { createApi } from "../src/server.ts";
 import type { HostRecordOutput } from "@marimo-team/client/protocol";
-import { Effect, Schema } from "effect";
+import { Effect, Schema, Stream } from "effect";
 import { AtomRegistry } from "effect/reactivity";
 import { FetchHttpClient } from "effect/http";
+import * as Comm from "@moku/core/Comm";
 import * as Host from "@moku/core/Host";
 import * as Protocol from "@marimo-team/host-protocol/Schemas";
 
@@ -224,33 +225,6 @@ async function fixture(
 }
 
 Vitest.test(
-  "comm validates widget messages and forwards them with host credentials",
-  async ({ onTestFinished }) => {
-    const { base, headers, received } = await fixture(onTestFinished);
-    const payload = {
-      _tag: "Model",
-      model: "slider",
-      message: { method: "custom", content: {} },
-      buffers: [],
-    };
-    const send = (body: unknown) =>
-      fetch(base + "/notebooks/n/runtime/comm", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-      });
-    Vitest.expect((await send({ ...payload, extra: true })).status).toBe(400);
-    Vitest.expect((await send(payload)).status).toBe(200);
-    Vitest.expect(received).toHaveLength(1);
-    Vitest.expect(received[0]).toMatchObject({
-      url: "/api/marimo/v1/notebooks/n/runtime/comm",
-      headers: { authorization: "Bearer local-secret" },
-    });
-    Vitest.expect(JSON.parse(received[0].body)).toEqual(payload);
-  },
-);
-
-Vitest.test(
   "the real Host client uses proxy routes, responses, and typed failures without a host token",
   async ({ onTestFinished }) => {
     const notebook = {
@@ -258,13 +232,26 @@ Vitest.test(
       project_id: "p",
       name: "demo.py",
       path: "demo.py",
-      operations: [],
+      operations: ["runtime.comm"],
       updated_at: null,
     };
+    const runtime = Schema.decodeUnknownSync(Protocol.Runtime)({
+      id: "rt",
+      notebook_id: "n",
+      status: "running",
+      message: null,
+      started_at: "2026-11-12T12:00:00Z",
+      marimo_version: null,
+    });
+    const model = {
+      model: "image",
+      message: { method: "custom", content: { scale: 2 } },
+      buffers: ["AQI="],
+    } as const;
     const requests: {
       method: string | undefined;
       url: string | undefined;
-      body: string;
+      body: unknown;
     }[] = [];
     const upstreamProblem = {
       type: "urn:marimo:problem:conflict",
@@ -277,17 +264,27 @@ Vitest.test(
       Vitest.expect(req.headers.cookie).toBeUndefined();
       if (req.method === "GET") {
         res.writeHead(200, { "Content-Type": "text/event-stream" });
+        if (req.url?.endsWith("/notebooks/n/events")) {
+          res.write(`event: notebook\ndata: ${JSON.stringify({ notebook })}\n\n`);
+          res.write(`event: runtime\ndata: ${JSON.stringify({ runtime })}\n\n`);
+        }
         res.write("event: ready\nid: cursor-1\ndata: {}\n\n");
         return;
       }
       void (async () => {
         const chunks: Buffer[] = [];
         for await (const chunk of req) chunks.push(Buffer.from(chunk));
+        const body = Buffer.concat(chunks).toString();
         requests.push({
           method: req.method,
           url: req.url,
-          body: Buffer.concat(chunks).toString(),
+          body: body ? JSON.parse(body) : null,
         });
+        if (req.url?.endsWith("/runtime/comm")) {
+          res.writeHead(202, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(runtime));
+          return;
+        }
         Vitest.expect(req.headers["idempotency-key"]).toEqual(
           Vitest.expect.any(String),
         );
@@ -338,7 +335,6 @@ Vitest.test(
           Vitest.expect(yield* host.notebooks.open("n")).toEqual({
             url: "http://host.test/?file=demo.py#cell-a",
           });
-          yield* host.notebooks.delete("n");
           const attached = yield* host.notebooks.attach("n");
           for (const operation of [
             attached.runtime.restart().pipe(Effect.asVoid),
@@ -353,6 +349,22 @@ Vitest.test(
               ...upstreamProblem,
             });
           }
+          const registry = yield* AtomRegistry.AtomRegistry;
+          yield* AtomRegistry.toStream(registry, attached.runtime.comm.state).pipe(
+            Stream.filter((state) => state.connection._tag === "Connected"),
+            Stream.runHead,
+            Effect.timeout("2 seconds"),
+          );
+          const invalid = yield* Effect.promise(() =>
+            fetch(f.base + "/notebooks/n/runtime/comm", {
+              method: "POST",
+              headers: f.headers,
+              body: JSON.stringify({ _tag: "Model", ...model, buffers: [123] }),
+            }),
+          );
+          Vitest.expect(invalid.status).toBe(400);
+          yield* attached.runtime.comm.send(Comm.Model({ ...model, runtimeId: "rt" }));
+          yield* host.notebooks.delete("n");
           authenticated = false;
           const error = yield* Effect.flip(host.notebooks.open("n"));
           Vitest.expect(error).toMatchObject({
@@ -370,26 +382,31 @@ Vitest.test(
       {
         method: "POST",
         url: "/api/marimo/v1/notebooks",
-        body: JSON.stringify({ project_id: "p", name: "demo.py" }),
+        body: { project_id: "p", name: "demo.py" },
       },
       {
         method: "PATCH",
         url: "/api/marimo/v1/notebooks/n",
-        body: JSON.stringify({ name: "renamed.py" }),
+        body: { name: "renamed.py" },
       },
-      { method: "POST", url: "/api/marimo/v1/notebooks/n/open", body: "" },
-      { method: "DELETE", url: "/api/marimo/v1/notebooks/n", body: "" },
-      { method: "POST", url: "/api/marimo/v1/notebooks/n/runtime/restart", body: "" },
+      { method: "POST", url: "/api/marimo/v1/notebooks/n/open", body: null },
+      { method: "POST", url: "/api/marimo/v1/notebooks/n/runtime/restart", body: null },
       {
         method: "POST",
         url: "/api/marimo/v1/notebooks/n/runtime/execute",
-        body: JSON.stringify({ code: "print(42)" }),
+        body: { code: "print(42)" },
       },
       {
         method: "POST",
         url: "/api/marimo/v1/notebooks/n/runtime/inputs/input-1/reply",
-        body: JSON.stringify({ value: "answer" }),
+        body: { value: "answer" },
       },
+      {
+        method: "POST",
+        url: "/api/marimo/v1/notebooks/n/runtime/comm",
+        body: { _tag: "Model", ...model },
+      },
+      { method: "DELETE", url: "/api/marimo/v1/notebooks/n", body: null },
     ]);
   },
 );

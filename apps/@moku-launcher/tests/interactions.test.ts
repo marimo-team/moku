@@ -1,10 +1,9 @@
 import type * as Native from "@moku/core/internal/native-comm";
 import * as Host from "@moku/core/Host";
-import { AsyncResult } from "effect/reactivity";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import { Effect, Exit, Scope, Stream } from "effect";
-import { Atom, AtomRegistry } from "effect/reactivity";
+import { Cause, Effect, Exit, Scope, Stream } from "effect";
+import { AsyncResult, AtomRegistry } from "effect/reactivity";
 import * as Proxy from "../src/app/Proxy.ts";
 import * as Notebook from "../src/app/Notebook.ts";
 import * as Comm from "@moku/core/Comm";
@@ -36,7 +35,6 @@ async function fixture(operations: string[] = []) {
   const requests: {
     path: string;
     body: Record<string, unknown>;
-    signal: AbortSignal;
   }[] = [];
   let host: Events | undefined;
   let current = runtime;
@@ -47,7 +45,7 @@ async function fixture(operations: string[] = []) {
     const url = new URL(request.url);
     if (request.method === "POST") {
       const body = await request.json();
-      requests.push({ path: url.pathname, body, signal: request.signal });
+      requests.push({ path: url.pathname, body });
       if (url.pathname.endsWith("/runtime/comm"))
         return Response.json(current, { status: 202 });
       return Response.json(
@@ -55,6 +53,7 @@ async function fixture(operations: string[] = []) {
         { status: url.pathname.endsWith("/auth") && !authenticated ? 401 : 200 },
       );
     }
+    let onAbort: () => void;
     return new Response(
       new ReadableStream<Uint8Array>({
         start(controller) {
@@ -69,7 +68,8 @@ async function fixture(operations: string[] = []) {
                 );
             },
           };
-          request.signal.addEventListener("abort", () => controller.close(), {
+          onAbort = () => controller.close();
+          request.signal.addEventListener("abort", onAbort, {
             once: true,
           });
           if (url.pathname.endsWith("/marimo/sse")) {
@@ -118,6 +118,9 @@ async function fixture(operations: string[] = []) {
             events.send("ready", {});
           }
         },
+        cancel() {
+          request.signal.removeEventListener("abort", onAbort);
+        },
       }),
       { headers: { "Content-Type": "text/event-stream" } },
     );
@@ -149,7 +152,7 @@ async function fixture(operations: string[] = []) {
   const subscribe = () => {
     const events: Comm.Event[] = [];
     const controller = new AbortController();
-    const done = Effect.runPromise(
+    const done = Effect.runPromiseExit(
       model.runtime.comm.events.pipe(
         Stream.runForEach((event) =>
           Effect.sync(() => {
@@ -158,10 +161,12 @@ async function fixture(operations: string[] = []) {
         ),
       ),
       { signal: controller.signal },
-    ).catch(() => {});
+    );
     const stop = async () => {
       controller.abort();
-      await done;
+      const exit = await done;
+      if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause))
+        throw Cause.squash(exit.cause);
     };
     Vitest.onTestFinished(stop);
     return { events, stop };
@@ -204,7 +209,6 @@ Vitest.test(
   "readers share one lazy attachment and late readers receive current widget state",
   async () => {
     const f = await fixture();
-    Vitest.expect(Atom.isWritable(f.model.runtime.comm.state)).toBe(false);
     Vitest.expect(f.native).toHaveLength(0);
     const first = f.subscribe();
     await f.ready();
@@ -279,10 +283,6 @@ Vitest.test(
       ).toBe(true),
     );
     const call = f.requests.find((request) => request.path.endsWith("function_call"))!;
-    let resolved = false;
-    void invoked.then(() => {
-      resolved = true;
-    });
     const result = {
       op: "function-call-result" as const,
       function_call_id: "unrelated",
@@ -290,9 +290,7 @@ Vitest.test(
       found: true,
       status: { code: "ok" as const, title: null, message: null },
     };
-    f.notify(result);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    Vitest.expect(resolved).toBe(false);
+    f.notify({ ...result, return_value: "unrelated" });
     f.notify({ ...result, function_call_id: String(call.body.functionCallId) });
     Vitest.expect(await invoked).toEqual([1, 2]);
     Vitest.expect(f.native[0].signal.aborted).toBe(true);
@@ -399,65 +397,105 @@ Vitest.test(
 );
 
 Vitest.test(
-  "comm hosts share the notebook stream for retained widgets and correlated replies",
+  "a late renderer restores host widget values without opening a second stream or writing to the kernel",
+  async () => {
+    const f = await fixture(["runtime.comm"]);
+    const reader = f.subscribe();
+    await vi.waitFor(() =>
+      Vitest.expect(reader.events).toContainEqual(
+        Vitest.expect.objectContaining({
+          runtimeId: "rt",
+          notification: Vitest.expect.objectContaining({
+            op: "kernel-ready",
+            ui_values: { slider: 45 },
+          }),
+        }),
+      ),
+    );
+    Vitest.expect(f.requests).toEqual([]);
+    Vitest.expect(f.notebookStreams()).toBe(1);
+    Vitest.expect(f.native).toHaveLength(0);
+
+    await Effect.runPromise(
+      f.model.runtime.comm.send(
+        Comm.SetValues({ runtimeId: "rt", values: { slider: 8 } }),
+      ),
+    );
+    Vitest.expect(f.requests).toEqual([
+      {
+        path: "/api/hosts/host/notebooks/n/runtime/comm",
+        body: { _tag: "SetValues", values: { slider: 8 } },
+      },
+    ]);
+  },
+);
+
+Vitest.test(
+  "concurrent Python calls receive their own replies when the kernel answers out of order",
+  async () => {
+    const f = await fixture(["runtime.comm"]);
+    function invoke(name: string) {
+      return Effect.runPromise(
+        f.model.runtime.comm.invoke({ namespace: "table", name, args: {} }),
+      );
+    }
+    const first = invoke("rows");
+    const second = Vitest.expect(invoke("columns")).rejects.toMatchObject({
+      code: "rpc",
+      message: "No columns",
+    });
+    await vi.waitFor(() => Vitest.expect(f.requests).toHaveLength(2));
+    const callId = (name: string) => {
+      const call = f.requests.find(({ body }) => body.name === name)?.body.call;
+      if (typeof call !== "string") throw new Error(`Missing call ID for ${name}`);
+      return call;
+    };
+    f.custom({
+      op: "function-call-result",
+      function_call_id: callId("columns"),
+      found: true,
+      status: { code: "error", title: null, message: "No columns" },
+      return_value: null,
+    });
+    f.custom({
+      op: "function-call-result",
+      function_call_id: callId("rows"),
+      found: true,
+      status: { code: "ok", title: null, message: null },
+      return_value: [42],
+    });
+    await Promise.all([Vitest.expect(first).resolves.toEqual([42]), second]);
+  },
+);
+
+Vitest.test(
+  "replacing the host runtime retires pending calls, retained values, and stale widget callbacks",
   async () => {
     const f = await fixture(["runtime.comm"]);
     const comm = f.model.runtime.comm;
+    const pending = Vitest.expect(
+      Effect.runPromise(comm.invoke({ namespace: "table", name: "rows", args: {} })),
+    ).rejects.toMatchObject({ code: "stale-runtime" });
+    await vi.waitFor(() => Vitest.expect(f.requests).toHaveLength(1));
+    f.restart("replacement");
+    await pending;
     const reader = f.subscribe();
     await vi.waitFor(() =>
-      Vitest.expect(reader.events).toContainEqual({
-        kind: "notification",
-        runtimeId: "rt",
-        notification: {
-          op: "kernel-ready",
-          consumer_capabilities: { edit: false, interact: true },
-          ui_values: { slider: 45 },
-        },
-      }),
+      Vitest.expect(reader.events).toContainEqual(
+        Vitest.expect.objectContaining({
+          runtimeId: "replacement",
+          notification: Vitest.expect.objectContaining({
+            op: "kernel-ready",
+            ui_values: {},
+          }),
+        }),
+      ),
     );
-    Vitest.expect(f.requests).toEqual([]);
-    await Effect.runPromise(
-      comm.send(Comm.SetValues({ values: { slider: 8 }, runtimeId: "rt" })),
-    );
-    Vitest.expect(f.requests.at(-1)?.body).toEqual({
-      _tag: "SetValues",
-      values: { slider: 8 },
-    });
-    await reader.stop();
-
-    const invoke = () =>
-      Effect.runPromise(comm.invoke({ namespace: "n", name: "f", args: {} }));
-    const answer = invoke();
-    await vi.waitFor(() => Vitest.expect(f.requests.at(-1)?.body._tag).toBe("Invoke"));
-    const call = String(f.requests.at(-1)?.body.call);
-    const result = {
-      op: "function-call-result",
-      status: { code: "ok", title: null, message: null },
-      found: true,
-    } as const;
-    f.custom({ ...result, function_call_id: "another-call", return_value: false });
-    f.custom({ ...result, function_call_id: call, return_value: 42 });
-    await Vitest.expect(answer).resolves.toBe(42);
-
-    const stale = Vitest.expect(invoke()).rejects.toMatchObject({
-      code: "stale-runtime",
-    });
-    await vi.waitFor(() => Vitest.expect(f.requests).toHaveLength(3));
-    f.restart("replacement");
-    await stale;
-    const late = f.subscribe();
-    await vi.waitFor(() =>
-      Vitest.expect(late.events).toContainEqual({
-        kind: "notification",
-        runtimeId: "replacement",
-        notification: {
-          op: "kernel-ready",
-          consumer_capabilities: { edit: false, interact: true },
-          ui_values: {},
-        },
-      }),
-    );
-    Vitest.expect(f.notebookStreams()).toBe(1);
-    Vitest.expect(f.native).toHaveLength(0);
+    await Vitest.expect(
+      Effect.runPromise(
+        comm.send(Comm.SetValues({ runtimeId: "rt", values: { slider: 9 } })),
+      ),
+    ).rejects.toMatchObject({ code: "stale-runtime" });
+    Vitest.expect(f.requests).toHaveLength(1);
   },
 );

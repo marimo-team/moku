@@ -39,6 +39,7 @@ function fixture() {
   });
   let emit: (event: Comm.Event) => void = () => {};
   let readers = 0;
+  const executeCall = vi.fn(() => ({ answer: 42 }));
   const comm: Notebook["runtime"]["comm"] = {
     state: Atom.readable(() => ({
       runtime: null,
@@ -58,12 +59,13 @@ function fixture() {
           }),
       ),
     ),
-    invoke: vi.fn(() => Effect.succeed({ answer: 42 })),
+    invoke: vi.fn(() => Effect.sync(executeCall)),
     send: vi.fn(() => Effect.void),
     retry: Effect.void,
   };
   return {
     runtime: { comm },
+    executeCall,
     assetUrl: (path: string) => path,
     sessions,
     readers: () => readers,
@@ -189,7 +191,8 @@ Vitest.test(
     await view.render(null);
     await Vitest.expect(
       current.invoke({ namespace: "table", name: "fetch", args: {} }),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow("session has ended");
+    Vitest.expect(f.executeCall).toHaveBeenCalledTimes(1);
   },
 );
 

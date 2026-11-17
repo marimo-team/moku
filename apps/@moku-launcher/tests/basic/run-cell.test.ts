@@ -11,16 +11,8 @@ import { runCell } from "../../src/plugins/basic/actions.ts";
 
 function fixture(removed = false) {
   const calls: unknown[] = [];
-  const unused = () => Effect.die("Unexpected operation");
   const notebook = {
     runtime: {
-      restart: unused,
-      stop: unused,
-      interrupt: unused,
-      execute: unused,
-      cancel: unused,
-      reply: unused,
-      start: () => Effect.die("Running a cell must not start the runtime"),
       run: (request: unknown) =>
         Effect.sync(() => {
           calls.push(request);

@@ -14,13 +14,16 @@ import {
   ComponentValues,
   FunctionCall,
   ModelValue,
+  LegacyViewerApi,
+  ViewerCredentials,
 } from "@moku/core/internal/comm-protocol";
 import { json, readBody } from "./http.ts";
 
+const { endpoints } = LegacyViewerApi.groups.LegacyViewer;
 const routes = {
-  "/api/kernel/set_ui_element_value": ComponentValues,
-  "/api/kernel/function_call": FunctionCall,
-  "/api/kernel/set_model_value": ModelValue,
+  [endpoints.setValues.path]: ComponentValues,
+  [endpoints.invoke.path]: FunctionCall,
+  [endpoints.setModel.path]: ModelValue,
 };
 const sessionPattern = /^[a-zA-Z0-9_-]{1,128}$/;
 
@@ -49,7 +52,8 @@ export function create(
           error: "This host does not expose marimo output routes.",
         });
       const marimoBase = base.slice(0, -"/api/marimo/v1".length);
-      const auth = path === "/auth" && req.method === "POST";
+      const auth =
+        path === endpoints.authorize.path && req.method === endpoints.authorize.method;
       const stream = path === "/sse" && req.method === "GET";
       const asset = path.startsWith("/@file/") && req.method === "GET";
       const schema = Object.hasOwn(routes, path)
@@ -69,9 +73,7 @@ export function create(
         if (auth) {
           let input: { readonly token?: string };
           try {
-            input = Schema.decodeUnknownSync(
-              Schema.Struct({ token: Schema.optionalKey(Schema.String) }),
-            )(await readBody(req));
+            input = Schema.decodeUnknownSync(ViewerCredentials)(await readBody(req));
           } catch {
             return json(res, 400, { error: "Invalid interaction credentials." });
           }

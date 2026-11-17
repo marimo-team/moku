@@ -2,12 +2,9 @@
 import { Data, Effect, Schema, Stream } from "effect";
 import { Sse } from "effect/encoding";
 import { AtomRegistry } from "effect/reactivity";
-import {
-  HttpBody,
-  HttpClient,
-  HttpClientRequest,
-  HttpClientResponse,
-} from "effect/http";
+import { HttpClient, HttpClientRequest } from "effect/http";
+import { HttpApiClient } from "effect/http-api";
+import { LegacyViewerApi } from "../internal/comm-protocol.ts";
 import type * as Host from "../Host.ts";
 import type { Client, ModelError } from "../internal/client.ts";
 import { NotebookEvent } from "../internal/api.ts";
@@ -55,8 +52,6 @@ export interface Options {
   readonly catalog: Host.Interface["state"];
 }
 
-const Acknowledgement = Schema.Struct({ success: Schema.Boolean });
-
 const problem = (code: ViewerError["code"], message: string) =>
   new ViewerError({ code, message });
 const failure = (cause: unknown) =>
@@ -99,25 +94,7 @@ export const session = Effect.fnUntraced(function* (
       ),
     ),
   );
-  function post(path: string, body: unknown, sessionId?: string) {
-    return http
-      .post(path, {
-        body: HttpBody.jsonUnsafe(body),
-        headers: sessionId ? { "Marimo-Session-Id": sessionId } : undefined,
-      })
-      .pipe(
-        Effect.flatMap(HttpClientResponse.schemaBodyJson(Acknowledgement)),
-        Effect.flatMap(({ success }) =>
-          success
-            ? Effect.void
-            : Effect.fail(
-                problem("transport", "Marimo did not accept the output request."),
-              ),
-        ),
-        Effect.mapError(failure),
-        Effect.scoped,
-      );
-  }
+  const client = yield* HttpApiClient.makeWith(LegacyViewerApi, { httpClient: http });
 
   const filePath = Effect.fnUntraced(function* (
     notebook: typeof Protocol.Notebook.Type,
@@ -209,44 +186,57 @@ export const session = Effect.fnUntraced(function* (
     current: Identity,
     notebook: typeof Protocol.Notebook.Type,
   ) {
-    yield* post("/auth", {});
+    yield* client.LegacyViewer.authorize({ payload: {} }).pipe(
+      Effect.mapError(failure),
+      Effect.scoped,
+    );
     const file = yield* filePath(notebook);
     return yield* withSnapshot(viewer(notebook.id, current, file));
   });
 
-  return {
-    open,
-    post(sessionId: string, input: Parameters<Client["Comm"]["send"]>[0]["payload"]) {
+  const post = Effect.fnUntraced(
+    function* (
+      sessionId: string,
+      input: Parameters<Client["Comm"]["send"]>[0]["payload"],
+    ) {
+      const headers = { sessionId };
       switch (input._tag) {
         case "SetValues":
-          return post(
-            "/api/kernel/set_ui_element_value",
-            {
+          yield* client.LegacyViewer.setValues({
+            headers,
+            payload: {
               objectIds: Object.keys(input.values),
               values: Object.values(input.values),
             },
-            sessionId,
-          );
+          });
+          break;
         case "Model":
-          return post(
-            "/api/kernel/set_model_value",
-            { modelId: input.model, message: input.message, buffers: input.buffers },
-            sessionId,
-          );
+          yield* client.LegacyViewer.setModel({
+            headers,
+            payload: {
+              modelId: input.model,
+              message: input.message,
+              buffers: input.buffers,
+            },
+          });
+          break;
         case "Invoke":
-          return post(
-            "/api/kernel/function_call",
-            {
+          yield* client.LegacyViewer.invoke({
+            headers,
+            payload: {
               functionCallId: input.call,
               namespace: input.namespace,
               functionName: input.name,
               args: input.args,
             },
-            sessionId,
-          );
+          });
+          break;
       }
     },
-  };
+    Effect.mapError(failure),
+    Effect.scoped,
+  );
+  return { open, post };
 });
 
 /** Commands bound to the viewer supplying the notebook stream. */

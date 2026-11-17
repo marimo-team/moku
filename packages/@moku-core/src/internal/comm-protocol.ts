@@ -1,6 +1,6 @@
 /** Host messages and marimo session messages for the experimental output channel. @module */
 import { Result, Schema } from "effect";
-import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
 import * as S from "@marimo-team/host-protocol/Schemas";
 import * as Problems from "@marimo-team/host-protocol/Problems";
 
@@ -110,6 +110,41 @@ export const ModelValue = Schema.Struct({
   /** Encoded binary attachments; empty when the message has none. */
   buffers: Buffers,
 });
+
+const SessionHeaders = Schema.Struct({ sessionId: Schema.String }).pipe(
+  Schema.encodeKeys({ sessionId: "marimo-session-id" }),
+);
+const Acknowledgement = Schema.Struct({ success: Schema.Literal(true) });
+
+/** Credentials supplied to the local proxy when attaching to an older marimo host. */
+export const ViewerCredentials = Schema.Struct({
+  token: Schema.optionalKey(Schema.String),
+});
+
+/** Widget POSTs used when the notebook lacks the host comm operation. */
+export const LegacyViewerApi = HttpApi.make("MarimoSession").add(
+  HttpApiGroup.make("LegacyViewer").add(
+    HttpApiEndpoint.post("authorize", "/auth", {
+      payload: ViewerCredentials,
+      success: Acknowledgement,
+    }),
+    HttpApiEndpoint.post("setValues", "/api/kernel/set_ui_element_value", {
+      headers: SessionHeaders,
+      payload: ComponentValues,
+      success: Acknowledgement,
+    }),
+    HttpApiEndpoint.post("setModel", "/api/kernel/set_model_value", {
+      headers: SessionHeaders,
+      payload: ModelValue,
+      success: Acknowledgement,
+    }),
+    HttpApiEndpoint.post("invoke", "/api/kernel/function_call", {
+      headers: SessionHeaders,
+      payload: FunctionCall,
+      success: Acknowledgement,
+    }),
+  ),
+);
 
 type ModelEvent = Extract<Notification, { op: "model-lifecycle" }>;
 type ModelOpen = Extract<ModelEvent["message"], { method: "open" }>;

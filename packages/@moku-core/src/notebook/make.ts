@@ -94,7 +94,7 @@ export const make = Effect.fnUntraced(function* (
       reconnect: observation.reconnect,
       events: Stream.fromQueue(updates),
       send: (payload) => client.Comm.send({ params, payload }),
-      viewer: marimo && (yield* Events.session(marimo, observation.withSnapshot)),
+      viewer: marimo && Events.session(marimo, observation.withSnapshot),
     }),
     start: (payload = {}) =>
       commands.mutation((idempotencyKey) =>

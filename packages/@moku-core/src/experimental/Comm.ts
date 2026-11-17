@@ -8,14 +8,16 @@
  * @module
  */
 import {
-  type Cause,
+  Cause,
   Data,
   Deferred,
   Effect,
+  Exit,
   FiberSet,
   Queue,
   RcRef,
   Schema,
+  Scope,
   Stream,
 } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
@@ -24,7 +26,6 @@ import * as CommProtocol from "../internal/comm-protocol.ts";
 import type { Client } from "../internal/client.ts";
 import type * as Notebook from "../Notebook.ts";
 import * as Protocol from "../Protocol.ts";
-import type { NotebookState } from "../notebook/state.ts";
 
 type Json = typeof Schema.Json.Type;
 /** Output notifications and the resets that invalidate previously received state. */
@@ -151,55 +152,129 @@ interface Observation {
   readonly send: (
     payload: Parameters<Client["Comm"]["send"]>[0]["payload"],
   ) => Effect.Effect<typeof Protocol.Runtime.Type, Notebook.CommandError>;
-  readonly viewer?: Events.Session | undefined;
+  readonly viewer?: ReturnType<typeof Events.session> | undefined;
 }
 
-/** Follow the attached notebook's events for the lifetime of its widget state. */
+interface Implementation extends Interface {
+  readonly receive: (update: Events.Update) => void;
+}
+
+/** Keep one comm implementation for the capabilities advertised by the attached notebook. */
 export const make = Effect.fnUntraced(function* (notebook: Observation) {
-  const host = yield* makeHost(notebook);
-  const fallback = notebook.viewer
-    ? yield* makeMarimo(notebook.viewer, notebook.state)
-    : undefined;
+  const registry = yield* AtomRegistry.AtomRegistry;
+  const owner = yield* Effect.scope;
+  const closed = yield* Deferred.make<void>();
+  const openHost = makeHostComm(notebook);
+  const openLegacy = notebook.viewer?.pipe(
+    Effect.flatMap((viewer) => makeLegacyComm(viewer, notebook.state)),
+  );
+  type Open = typeof openHost | NonNullable<typeof openLegacy>;
+  const selected = Atom.make<
+    { open: Open; scope: Scope.Closeable; comm: Implementation } | undefined
+  >(undefined);
+  yield* Atom.mount(selected);
+
+  const select = Effect.fnUntraced(function* (open: Open | undefined) {
+    const previous = registry.get(selected);
+    if (previous?.open === open) return;
+    if (previous) {
+      registry.set(selected, undefined);
+      yield* Scope.close(
+        previous.scope,
+        Exit.fail(problem("stale-runtime", "The notebook's comm capability changed.")),
+      );
+    }
+    if (!open) return;
+    const scope = yield* Scope.fork(owner);
+    const comm = yield* Scope.provide(scope)(open);
+    registry.set(selected, { open, scope, comm });
+  });
+
   yield* notebook.events.pipe(
-    Stream.runForEach(({ state, event }) =>
-      Effect.sync(() => {
-        if (!event) return host.reset();
-        if ("_tag" in event) return;
-        if (event.event === "marimo") {
-          fallback?.receive(event.sessionId, event.data.marimo);
-        } else {
-          host.receive(state, event);
+    Stream.runForEach(
+      Effect.fnUntraced(function* (update) {
+        const { event, state } = update;
+        if (event && !("_tag" in event)) {
+          if (event.event === "notebook") {
+            yield* select(
+              event.data.notebook.operations.includes(CommProtocol.operation)
+                ? openHost
+                : openLegacy,
+            );
+          } else if (
+            !state.notebook &&
+            (event.event === "notebook.removed" || event.event === "ready")
+          ) {
+            yield* select(undefined);
+          }
         }
+        registry.get(selected)?.comm.receive(update);
       }),
     ),
     Effect.forkScoped,
   );
-  if (!fallback) return host.comm;
-  const registry = yield* AtomRegistry.AtomRegistry;
-  const selected = Atom.readable((get) =>
-    AsyncResult.getOrElse(
-      get(notebook.state),
-      () => undefined,
-    )?.notebook?.operations.includes(CommProtocol.operation)
-      ? host.comm
-      : fallback,
-  );
-  const closed = yield* Deferred.make<void>();
   yield* Effect.addFinalizer(() => Deferred.succeed(closed, undefined));
+  const request = <A>(run: (comm: Interface) => Effect.Effect<A, CommError>) =>
+    Effect.suspend(() => {
+      if (Deferred.isDoneUnsafe(closed))
+        return Effect.fail(problem("closed", "The notebook is closed."));
+      const active = registry.get(selected);
+      if (active) return run(active.comm);
+      const result = registry.get(notebook.state);
+      return Effect.fail(
+        AsyncResult.isSuccess(result) &&
+          !result.waiting &&
+          result.value.notebook &&
+          !notebook.viewer &&
+          !result.value.notebook.operations.includes(CommProtocol.operation)
+          ? problem(
+              "unsupported",
+              "The notebook does not offer runtime.experimental.comm.",
+            )
+          : problem("unavailable", "The output connection is unavailable."),
+      );
+    });
   return {
-    state: Atom.readable((get) => get(get(selected).state)),
+    state: Atom.readable((get): State => {
+      const active = get(selected);
+      if (active) return get(active.comm.state);
+      const result = get(notebook.state);
+      return {
+        runtime: AsyncResult.getOrElse(result, () => undefined)?.runtime ?? null,
+        connection: result.waiting
+          ? Connection.Connecting()
+          : AsyncResult.isFailure(result)
+            ? Connection.Failed({
+                error: problem("transport", "The notebook event stream failed."),
+              })
+            : Connection.Idle(),
+      };
+    }),
     events: AtomRegistry.toStream(registry, selected).pipe(
-      Stream.switchMap((comm) => comm.events),
+      Stream.switchMap((active) =>
+        active
+          ? active.comm.events
+          : Stream.succeed<Event>({ kind: "reset", runtimeId: null }),
+      ),
       Stream.interruptWhen(Deferred.await(closed)),
     ),
-    send: (message) => Effect.suspend(() => registry.get(selected).send(message)),
-    invoke: (request) => Effect.suspend(() => registry.get(selected).invoke(request)),
-    retry: Effect.suspend(() => registry.get(selected).retry),
+    send: (message) => request((comm) => comm.send(message)),
+    invoke: (input) => request((comm) => comm.invoke(input)),
+    retry: Effect.suspend(
+      () => registry.get(selected)?.comm.retry ?? notebook.reconnect,
+    ),
   } satisfies Interface;
 });
 
 const problem = (code: CommError["code"], message: string) =>
   new CommError({ code, message });
+
+function closeReason(exit: Exit.Exit<unknown, unknown>) {
+  const reason = Exit.isFailure(exit) && Cause.squash(exit.cause);
+  return reason instanceof CommError
+    ? reason
+    : problem("closed", "The notebook is closed.");
+}
 
 type PendingCalls = Map<string, Deferred.Deferred<Json, CommError>>;
 
@@ -239,7 +314,7 @@ function replyToCall(calls: PendingCalls, notification: CommProtocol.Notificatio
     );
 }
 
-const makeHost = Effect.fnUntraced(function* (notebook: Observation) {
+const makeHostComm = Effect.fnUntraced(function* (notebook: Observation) {
   const registry = yield* AtomRegistry.AtomRegistry;
   const snapshot = new CommProtocol.Snapshot();
   const readers = new Set<Queue.Queue<Event, Cause.Done>>();
@@ -252,16 +327,9 @@ const makeHost = Effect.fnUntraced(function* (notebook: Observation) {
   function emit(event: Event) {
     for (const reader of readers) Queue.offerUnsafe(reader, event);
   }
-  function reset() {
+  function reset(reason = problem("stale-runtime", "The runtime changed.")) {
     if (!active) return;
-    Deferred.doneUnsafe(
-      active.ended,
-      Effect.fail(
-        closed
-          ? problem("closed", "The notebook is closed.")
-          : problem("stale-runtime", "The runtime changed."),
-      ),
-    );
+    Deferred.doneUnsafe(active.ended, Effect.fail(reason));
     active = undefined;
     calls.clear();
     snapshot.reset();
@@ -284,10 +352,10 @@ const makeHost = Effect.fnUntraced(function* (notebook: Observation) {
     replyToCall(calls, notification);
     emit({ kind: "notification", runtimeId, notification });
   }
-  yield* Effect.addFinalizer(() =>
+  yield* Effect.addFinalizer((exit) =>
     Effect.sync(() => {
       closed = true;
-      reset();
+      reset(closeReason(exit));
       for (const queue of readers) Queue.endUnsafe(queue);
       readers.clear();
     }),
@@ -316,12 +384,10 @@ const makeHost = Effect.fnUntraced(function* (notebook: Observation) {
     ),
   );
 
-  function receive(state: NotebookState, event: Protocol.NotebookEvent) {
-    const id =
-      state.notebook?.operations.includes(CommProtocol.operation) &&
-      state.runtime?.status === "running"
-        ? state.runtime.id
-        : undefined;
+  function receive({ state, event }: Events.Update) {
+    if (!event) return reset();
+    if ("_tag" in event) return;
+    const id = state.runtime?.status === "running" ? state.runtime.id : undefined;
     if (id !== active?.id) {
       reset();
       if (id) {
@@ -442,7 +508,7 @@ const makeHost = Effect.fnUntraced(function* (notebook: Observation) {
         ),
       ),
   };
-  return { comm, reset, receive };
+  return { ...comm, receive } satisfies Implementation;
 });
 
 const failure = (cause: unknown) =>
@@ -466,7 +532,7 @@ interface MarimoSession {
   canInteract: boolean;
 }
 
-const makeMarimo = Effect.fnUntraced(function* (
+const makeLegacyComm = Effect.fnUntraced(function* (
   viewer: Events.Session,
   observed: Notebook.Interface["state"],
 ) {
@@ -489,10 +555,11 @@ const makeMarimo = Effect.fnUntraced(function* (
     snapshot.reset();
     emit({ kind: "reset", runtimeId: null });
   };
-  function receive(sessionId: string | undefined, raw: unknown) {
+  function receive({ event }: Events.Update) {
+    if (!event || "_tag" in event || event.event !== "marimo") return;
     const current = connection;
-    if (!current || current.sessionId !== sessionId) return;
-    const notification = snapshot.recordNotification(raw);
+    if (!current || current.sessionId !== event.sessionId) return;
+    const notification = snapshot.recordNotification(event.data.marimo);
     if (!notification) return;
     if (
       notification.op === "kernel-ready" ||
@@ -664,10 +731,10 @@ const makeMarimo = Effect.fnUntraced(function* (
     );
   }, Effect.scoped);
 
-  yield* Effect.addFinalizer(() =>
+  yield* Effect.addFinalizer((exit) =>
     Effect.sync(() => {
       closed = true;
-      reset(problem("closed", "The notebook is closed."));
+      reset(closeReason(exit));
       for (const reader of readers) Queue.endUnsafe(reader);
       readers.clear();
     }),
@@ -711,5 +778,5 @@ const makeMarimo = Effect.fnUntraced(function* (
             .pipe(Effect.mapError(failure)),
         ),
       ),
-  } satisfies Interface & { receive: typeof receive };
+  } satisfies Implementation;
 });

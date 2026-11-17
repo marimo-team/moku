@@ -575,6 +575,44 @@ Vitest.test(
 );
 
 Vitest.test(
+  "switching to legacy comm retires the pending host call and keeps the mounted reader",
+  async () => {
+    const f = await fixture(["runtime.experimental.comm"]);
+    const comm = f.model.runtime.experimentalComm;
+    const reader = f.subscribe();
+    const pending = Vitest.expect(
+      Effect.runPromise(comm.invoke({ namespace: "table", name: "rows", args: {} })),
+    ).rejects.toMatchObject({ code: "stale-runtime" });
+    await vi.waitFor(() => Vitest.expect(f.requests).toHaveLength(1));
+    const send = comm.send({ _tag: "SetValues", values: { slider: 9 } });
+
+    f.setOperations([]);
+    await pending;
+    await vi.waitFor(() => Vitest.expect(f.marimoStreams).toHaveLength(1));
+    await f.ready();
+    await Effect.runPromise(send);
+    Vitest.expect(f.requests.at(-1)).toEqual({
+      path: "/api/hosts/host/marimo/api/kernel/set_ui_element_value",
+      body: { objectIds: ["slider"], values: [9] },
+    });
+    const notification = {
+      op: "send-ui-element-message",
+      ui_element: "slider",
+      message: { type: "marimo-ui-value-update", value: 9 },
+    } as const;
+    f.notify(notification);
+    await vi.waitFor(() =>
+      Vitest.expect(reader.events).toContainEqual({
+        kind: "notification",
+        runtimeId: "rt",
+        notification,
+      }),
+    );
+    Vitest.expect(f.peakNotebookStreams()).toBe(1);
+  },
+);
+
+Vitest.test(
   "concurrent Python calls receive their own replies when the kernel answers out of order",
   async () => {
     const f = await fixture(["runtime.experimental.comm"]);

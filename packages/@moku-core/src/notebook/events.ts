@@ -4,7 +4,7 @@ import { Sse } from "effect/encoding";
 import { AtomRegistry } from "effect/reactivity";
 import { HttpClient, HttpClientRequest } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
-import { LegacyViewerApi } from "../internal/comm-protocol.ts";
+import { LegacyCommApi } from "../internal/comm-protocol.ts";
 import type * as Host from "../Host.ts";
 import type { Client, ModelError } from "../internal/client.ts";
 import { NotebookEvent } from "../internal/api.ts";
@@ -94,7 +94,7 @@ export const session = Effect.fnUntraced(function* (
       ),
     ),
   );
-  const client = yield* HttpApiClient.makeWith(LegacyViewerApi, { httpClient: http });
+  const client = yield* HttpApiClient.makeWith(LegacyCommApi, { httpClient: http });
 
   const filePath = Effect.fnUntraced(function* (
     notebook: typeof Protocol.Notebook.Type,
@@ -186,10 +186,9 @@ export const session = Effect.fnUntraced(function* (
     current: Identity,
     notebook: typeof Protocol.Notebook.Type,
   ) {
-    yield* client.LegacyViewer.authorize({ payload: {} }).pipe(
-      Effect.mapError(failure),
-      Effect.scoped,
-    );
+    yield* client
+      .authorize({ payload: {} })
+      .pipe(Effect.mapError(failure), Effect.scoped);
     const file = yield* filePath(notebook);
     return yield* withSnapshot(viewer(notebook.id, current, file));
   });
@@ -202,7 +201,7 @@ export const session = Effect.fnUntraced(function* (
       const headers = { sessionId };
       switch (input._tag) {
         case "SetValues":
-          yield* client.LegacyViewer.setValues({
+          yield* client.setValues({
             headers,
             payload: {
               objectIds: Object.keys(input.values),
@@ -211,7 +210,7 @@ export const session = Effect.fnUntraced(function* (
           });
           break;
         case "Model":
-          yield* client.LegacyViewer.setModel({
+          yield* client.setModel({
             headers,
             payload: {
               modelId: input.model,
@@ -221,7 +220,7 @@ export const session = Effect.fnUntraced(function* (
           });
           break;
         case "Invoke":
-          yield* client.LegacyViewer.invoke({
+          yield* client.invoke({
             headers,
             payload: {
               functionCallId: input.call,

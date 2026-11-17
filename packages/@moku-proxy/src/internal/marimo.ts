@@ -14,12 +14,12 @@ import {
   ComponentValues,
   FunctionCall,
   ModelValue,
-  LegacyViewerApi,
+  LegacyCommApi,
   ViewerCredentials,
 } from "@moku/core/internal/comm-protocol";
 import { json, readBody } from "./http.ts";
 
-const { endpoints } = LegacyViewerApi.groups.LegacyViewer;
+const { endpoints } = LegacyCommApi.groups.LegacyComm;
 const routes = {
   [endpoints.setValues.path]: ComponentValues,
   [endpoints.invoke.path]: FunctionCall,

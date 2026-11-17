@@ -122,8 +122,8 @@ export const ViewerCredentials = Schema.Struct({
 });
 
 /** Widget POSTs used when the notebook lacks the host comm operation. */
-export const LegacyViewerApi = HttpApi.make("MarimoSession").add(
-  HttpApiGroup.make("LegacyViewer").add(
+export const LegacyCommApi = HttpApi.make("MarimoSession").add(
+  HttpApiGroup.make("LegacyComm", { topLevel: true }).add(
     HttpApiEndpoint.post("authorize", "/auth", {
       payload: ViewerCredentials,
       success: Acknowledgement,

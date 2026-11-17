@@ -28,15 +28,20 @@ interface Events {
   readonly send: (event: string, data: unknown) => void;
 }
 
-async function fixture(operations: string[] = []) {
+async function fixture(
+  operations: string[] = [],
+  initialRuntime: typeof runtime | null = runtime,
+) {
   let notebookStreams = 0;
+  let peakNotebookStreams = 0;
+  const activeStreams = new Set<Events>();
   const marimoStreams: Events[] = [];
   const requests: {
     path: string;
     body: Record<string, unknown>;
   }[] = [];
   let host: Events | undefined;
-  let current = runtime;
+  let current = initialRuntime;
   let authenticated = true;
   let wrongRuntime = false;
   let kernelReady = true;
@@ -56,6 +61,7 @@ async function fixture(operations: string[] = []) {
       );
     }
     let onAbort: () => void;
+    let release = () => {};
     return new Response(
       new ReadableStream<Uint8Array>({
         start(controller) {
@@ -70,17 +76,32 @@ async function fixture(operations: string[] = []) {
                 );
             },
           };
-          onAbort = () => controller.close();
+          if (
+            url.pathname.endsWith("/marimo/sse") ||
+            url.pathname.endsWith("/notebooks/n/events")
+          ) {
+            activeStreams.add(events);
+            peakNotebookStreams = Math.max(peakNotebookStreams, activeStreams.size);
+            release = () => {
+              activeStreams.delete(events);
+            };
+            host = events;
+          }
+          onAbort = () => {
+            release();
+            controller.close();
+          };
           request.signal.addEventListener("abort", onAbort, {
             once: true,
           });
           if (url.pathname.endsWith("/marimo/sse")) {
             Vitest.expect(url.searchParams.get("file")).toBe("/project/n.py");
             marimoStreams.push(events);
-            events.send("notebook", { notebook });
+            events.send("notebook", { notebook: { ...notebook, operations } });
             events.send("runtime", {
               runtime: wrongRuntime ? { ...current, id: "other" } : current,
             });
+            events.send("ready", {});
             if (kernelReady)
               events.send("marimo", {
                 marimo: {
@@ -93,7 +114,7 @@ async function fixture(operations: string[] = []) {
             notebookStreams++;
             host = events;
             events.send("notebook", { notebook: { ...notebook, operations } });
-            events.send("runtime", { runtime: current });
+            if (current) events.send("runtime", { runtime: current });
             if (operations.includes("runtime.experimental.comm"))
               events.send("custom", {
                 custom: {
@@ -122,6 +143,7 @@ async function fixture(operations: string[] = []) {
           }
         },
         cancel() {
+          release();
           request.signal.removeEventListener("abort", onAbort);
         },
       }),
@@ -181,6 +203,7 @@ async function fixture(operations: string[] = []) {
     close,
     subscribe,
     notebookStreams: () => notebookStreams,
+    peakNotebookStreams: () => peakNotebookStreams,
     custom: (notification: CommProtocol.Notification) =>
       host!.send("custom", {
         custom: { type: "marimo.notification", data: notification },
@@ -203,8 +226,10 @@ async function fixture(operations: string[] = []) {
     wrongRuntime: () => {
       wrongRuntime = true;
     },
-    setOperations: (operations: string[]) =>
-      host!.send("notebook", { notebook: { ...notebook, operations } }),
+    setOperations: (next: string[]) => {
+      operations = next;
+      host!.send("notebook", { notebook: { ...notebook, operations } });
+    },
     restart: (id: string) => {
       current = { ...runtime, id };
       host!.send("runtime", { runtime: current });
@@ -268,7 +293,31 @@ Vitest.test(
     await first.stop();
     Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(false);
     await second.stop();
+    await vi.waitFor(() => Vitest.expect(f.notebookStreams()).toBe(2));
+    Vitest.expect(f.peakNotebookStreams()).toBe(1);
     Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(true);
+  },
+);
+
+Vitest.test(
+  "an idle notebook observes startup and then follows notebook edits on the viewer stream",
+  async () => {
+    const f = await fixture([], null);
+    const reader = f.subscribe();
+    await vi.waitFor(() => Vitest.expect(reader.events).toHaveLength(1));
+    Vitest.expect(f.marimoStreams).toHaveLength(0);
+    f.restart("started");
+    await f.ready();
+    f.marimoStreams[0].send("notebook", {
+      notebook: { ...notebook, name: "renamed.py" },
+    });
+    await vi.waitFor(() => {
+      const state = f.registry.get(f.model.state);
+      Vitest.expect(AsyncResult.isSuccess(state) && state.value.notebook?.name).toBe(
+        "renamed.py",
+      );
+    });
+    Vitest.expect(f.peakNotebookStreams()).toBe(1);
   },
 );
 

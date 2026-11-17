@@ -49,45 +49,53 @@ export const observe = Effect.fnUntraced(function* <
   );
   const owner = yield* Effect.scope;
   const lock = yield* Semaphore.make(1);
-  const run = Effect.gen(function* () {
+  function reader() {
     let state = options.initial();
     let cursor: string | undefined;
     let attempt = 0;
-    while (true) {
+    const consume = <X>(stream: Stream.Stream<Event, X>) => {
       if (!cursor) state = options.initial();
       else state = options.resume(state);
       publish(AsyncResult.waiting(registry.get(current)));
       let ready = false;
+      return Stream.runForEach(stream, (event) =>
+        Effect.try({
+          try: () => {
+            if (event.event === "reset") {
+              cursor = undefined;
+              ready = false;
+              state = options.initial();
+              publish(AsyncResult.initial(true));
+            }
+            state = options.reduce(state, event);
+            if (event.event === "ready") {
+              ready = true;
+              attempt = 0;
+            }
+            // Replay mutates the retained state too. Resume after the last
+            // applied event, even if this connection ends before ready.
+            if (event.id !== undefined && (ready || cursor !== undefined))
+              cursor = event.id;
+            if (ready) publish(AsyncResult.success(options.value(state)));
+          },
+          catch: (cause) =>
+            new ModelError({ reason: "invalid-state", message: String(cause) }),
+        }),
+      );
+    };
+    return {
+      consume,
+      get cursor() {
+        return cursor;
+      },
+      nextAttempt: () => attempt++,
+    };
+  }
+  const run = Effect.gen(function* () {
+    const snapshot = reader();
+    while (true) {
       const result = yield* Effect.exit(
-        Effect.scoped(
-          Effect.gen(function* () {
-            const stream = yield* options.open(cursor);
-            yield* Stream.runForEach(stream, (event) =>
-              Effect.try({
-                try: () => {
-                  if (event.event === "reset") {
-                    cursor = undefined;
-                    ready = false;
-                    state = options.initial();
-                    publish(AsyncResult.initial(true));
-                  }
-                  state = options.reduce(state, event);
-                  if (event.event === "ready") {
-                    ready = true;
-                    attempt = 0;
-                  }
-                  // Replay mutates the retained state too. Resume after the last
-                  // applied event, even if this connection ends before ready.
-                  if (event.id !== undefined && (ready || cursor !== undefined))
-                    cursor = event.id;
-                  if (ready) publish(AsyncResult.success(options.value(state)));
-                },
-                catch: (cause) =>
-                  new ModelError({ reason: "invalid-state", message: String(cause) }),
-              }),
-            );
-          }),
-        ),
+        snapshot.consume(Stream.unwrap(options.open(snapshot.cursor))),
       );
       let retryDelay: number | undefined;
       if (Exit.isFailure(result)) {
@@ -111,23 +119,54 @@ export const observe = Effect.fnUntraced(function* <
         }
       }
       publish(AsyncResult.waiting(registry.get(current)));
-      yield* Effect.sleep(retryDelay ?? Math.min(250 * 2 ** attempt++, 10_000));
+      yield* Effect.sleep(
+        retryDelay ?? Math.min(250 * 2 ** snapshot.nextAttempt(), 10_000),
+      );
     }
   });
-  let fiber = yield* Effect.forkIn(run, owner);
+  let fiber: Fiber.Fiber<unknown, unknown> = yield* Effect.forkIn(run, owner);
+  const replace = Effect.fnUntraced(function* <X>(next: Effect.Effect<void, X>) {
+    yield* Fiber.interrupt(fiber);
+    publish(AsyncResult.waiting(registry.get(current)));
+    const started = yield* Effect.forkIn(next, owner);
+    fiber = started;
+    return started;
+  });
   const reconnect = lock
-    .withPermit(
-      Effect.gen(function* () {
-        yield* Fiber.interrupt(fiber);
-        publish(AsyncResult.waiting(registry.get(current)));
-        fiber = yield* Effect.forkIn(run, owner);
-      }),
-    )
-    .pipe(Effect.uninterruptible);
+    .withPermit(replace(run))
+    .pipe(Effect.asVoid, Effect.uninterruptible);
+
+  // A viewer supplies a full notebook snapshot, with cursors local to its session.
+  // Stop the previous reader before opening it, then resume ordinary observation on release.
+  const withSnapshot = <X>(stream: Stream.Stream<Event, X>) =>
+    Effect.acquireUseRelease(
+      lock.withPermit(replace(Effect.suspend(() => reader().consume(stream)))),
+      (active) =>
+        Fiber.await(active).pipe(
+          Effect.flatMap((exit) => {
+            if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause))
+              return Effect.failCause(exit.cause);
+            return Effect.fail(
+              new ModelError({
+                reason: "closed",
+                message: "The notebook event stream ended.",
+              }),
+            );
+          }),
+        ),
+      (active) =>
+        lock.withPermit(
+          Effect.suspend(() =>
+            fiber === active && owner.state._tag !== "Closed"
+              ? replace(run).pipe(Effect.asVoid)
+              : Effect.void,
+          ),
+        ),
+    );
   const state = Atom.readable((get) => {
     if (get.registry !== registry)
       throw new Error("Use the registry that acquired this model.");
     return get(current);
   });
-  return { state, reconnect };
+  return { state, reconnect, withSnapshot };
 });

@@ -669,7 +669,7 @@ Vitest.test(
     const url = new URL(calls[1].url, "http://upstream");
     NodeAssert.equal(url.pathname, "/sse");
     NodeAssert.equal(url.searchParams.get("kiosk"), "true");
-    NodeAssert.equal(url.searchParams.get("types"), "notebook,runtime,marimo");
+    NodeAssert.equal(url.searchParams.has("types"), false);
     NodeAssert.equal(url.searchParams.get("target"), null);
     NodeAssert.equal(calls[1].headers.authorization, "Bearer marimo-secret");
     NodeAssert.equal(calls[1].headers["last-event-id"], undefined);

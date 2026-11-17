@@ -38,7 +38,16 @@ const UnknownEvent = Schema.Struct({
 );
 
 export const CatalogEvent = Schema.Union([Host.Event, UnknownEvent]);
-export const NotebookEvent = Schema.Union([Analysis.NotebookEvent, UnknownEvent]);
+const MarimoEvent = Schema.Struct({
+  event: Schema.Literal("marimo"),
+  id: Schema.optionalKey(Schema.String),
+  data: Schema.Struct({ marimo: Schema.Unknown }),
+});
+export const NotebookEvent = Schema.Union([
+  Analysis.NotebookEvent,
+  MarimoEvent,
+  UnknownEvent,
+]);
 export const Api = HttpApi.make("Moku")
   .add(Host.group(CatalogEvent), Notebook.group(NotebookEvent), CommGroup)
   .middleware(Host.HostToken);

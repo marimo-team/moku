@@ -9,7 +9,6 @@
  */
 import {
   type Cause,
-  type Scope,
   Data,
   Deferred,
   Effect,
@@ -20,16 +19,9 @@ import {
   Stream,
 } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
-import { Sse } from "effect/encoding";
-import {
-  HttpBody,
-  HttpClient,
-  HttpClientRequest,
-  HttpClientResponse,
-} from "effect/http";
+import * as Events from "../notebook/events.ts";
 import * as CommProtocol from "../internal/comm-protocol.ts";
 import type { Client } from "../internal/client.ts";
-import type * as Host from "../Host.ts";
 import type * as Notebook from "../Notebook.ts";
 import * as Protocol from "../Protocol.ts";
 import type { NotebookState } from "../notebook/state.ts";
@@ -151,57 +143,59 @@ export interface Interface {
   readonly retry: Effect.Effect<void>;
 }
 
-/** The marimo session route and catalog used to resolve notebook paths. */
-export interface Marimo {
-  readonly baseUrl: URL;
-  /** Supplies project roots for relative notebook paths. */
-  readonly catalog: Host.Interface["state"];
+interface Observation {
+  readonly state: Notebook.Interface["state"];
+  readonly events: Stream.Stream<Events.Update>;
+  readonly reconnect: Effect.Effect<void>;
+  readonly id: typeof Protocol.NotebookId.Type;
+  readonly send: (
+    payload: Parameters<Client["Comm"]["send"]>[0]["payload"],
+  ) => Effect.Effect<typeof Protocol.Runtime.Type, Notebook.CommandError>;
+  readonly viewer?: Events.Session | undefined;
 }
 
-/** Connects notebook observation and chooses the output transport as capabilities change. */
-export const make = Effect.fnUntraced(function* (
-  client: Client,
-  notebookId: typeof Protocol.NotebookId.Type,
-  marimo?: Marimo,
-) {
-  const host = yield* makeHost(client, notebookId);
+/** Follow the attached notebook's events for the lifetime of its widget state. */
+export const make = Effect.fnUntraced(function* (notebook: Observation) {
+  const host = yield* makeHost(notebook);
+  const fallback = notebook.viewer
+    ? yield* makeMarimo(notebook.viewer, notebook.state)
+    : undefined;
+  yield* notebook.events.pipe(
+    Stream.runForEach(({ state, event }) =>
+      Effect.sync(() => {
+        if (!event) return host.reset();
+        if ("_tag" in event) return;
+        if (event.event === "marimo") {
+          fallback?.receive(event.sessionId, event.data.marimo);
+        } else {
+          host.receive(state, event);
+        }
+      }),
+    ),
+    Effect.forkScoped,
+  );
+  if (!fallback) return host.comm;
+  const registry = yield* AtomRegistry.AtomRegistry;
+  const selected = Atom.readable((get) =>
+    AsyncResult.getOrElse(
+      get(notebook.state),
+      () => undefined,
+    )?.notebook?.operations.includes(CommProtocol.operation)
+      ? host.comm
+      : fallback,
+  );
+  const closed = yield* Deferred.make<void>();
+  yield* Effect.addFinalizer(() => Deferred.succeed(closed, undefined));
   return {
-    ...host,
-    bind: Effect.fnUntraced(function* (
-      observed: Notebook.Interface["state"],
-      retry: Effect.Effect<void>,
-    ): Effect.fn.Return<
-      Interface,
-      never,
-      HttpClient.HttpClient | AtomRegistry.AtomRegistry | Scope.Scope
-    > {
-      const channel = host.bind(observed, retry);
-      if (!marimo) return channel;
-      const fallback = yield* makeMarimo(marimo, notebookId, observed);
-      const registry = yield* AtomRegistry.AtomRegistry;
-      const selected = Atom.readable((get) =>
-        AsyncResult.getOrElse(
-          get(observed),
-          () => undefined,
-        )?.notebook?.operations.includes(CommProtocol.operation)
-          ? channel
-          : fallback,
-      );
-      const closed = yield* Deferred.make<void>();
-      yield* Effect.addFinalizer(() => Deferred.succeed(closed, undefined));
-      return {
-        state: Atom.readable((get) => get(get(selected).state)),
-        events: AtomRegistry.toStream(registry, selected).pipe(
-          Stream.switchMap((comm) => comm.events),
-          Stream.interruptWhen(Deferred.await(closed)),
-        ),
-        send: (message) => Effect.suspend(() => registry.get(selected).send(message)),
-        invoke: (request) =>
-          Effect.suspend(() => registry.get(selected).invoke(request)),
-        retry: Effect.suspend(() => registry.get(selected).retry),
-      };
-    }),
-  };
+    state: Atom.readable((get) => get(get(selected).state)),
+    events: AtomRegistry.toStream(registry, selected).pipe(
+      Stream.switchMap((comm) => comm.events),
+      Stream.interruptWhen(Deferred.await(closed)),
+    ),
+    send: (message) => Effect.suspend(() => registry.get(selected).send(message)),
+    invoke: (request) => Effect.suspend(() => registry.get(selected).invoke(request)),
+    retry: Effect.suspend(() => registry.get(selected).retry),
+  } satisfies Interface;
 });
 
 const problem = (code: CommError["code"], message: string) =>
@@ -245,10 +239,7 @@ function replyToCall(calls: PendingCalls, notification: CommProtocol.Notificatio
     );
 }
 
-const makeHost = Effect.fnUntraced(function* (
-  client: Client,
-  notebookId: typeof Protocol.NotebookId.Type,
-) {
+const makeHost = Effect.fnUntraced(function* (notebook: Observation) {
   const registry = yield* AtomRegistry.AtomRegistry;
   const snapshot = new CommProtocol.Snapshot();
   const readers = new Set<Queue.Queue<Event, Cause.Done>>();
@@ -325,163 +316,144 @@ const makeHost = Effect.fnUntraced(function* (
     ),
   );
 
-  return {
-    reset,
-    receive(state: NotebookState, event: Protocol.NotebookEvent) {
-      const id =
-        state.notebook?.operations.includes(CommProtocol.operation) &&
-        state.runtime?.status === "running"
-          ? state.runtime.id
-          : undefined;
-      if (id !== active?.id) {
-        reset();
-        if (id) {
-          active = { id, ended: Deferred.makeUnsafe() };
-          deliver(id, {
-            op: "kernel-ready",
-            ui_values: {},
-            consumer_capabilities: { edit: false, interact: true },
-          });
-        }
+  function receive(state: NotebookState, event: Protocol.NotebookEvent) {
+    const id =
+      state.notebook?.operations.includes(CommProtocol.operation) &&
+      state.runtime?.status === "running"
+        ? state.runtime.id
+        : undefined;
+    if (id !== active?.id) {
+      reset();
+      if (id) {
+        active = { id, ended: Deferred.makeUnsafe() };
+        deliver(id, {
+          op: "kernel-ready",
+          ui_values: {},
+          consumer_capabilities: { edit: false, interact: true },
+        });
       }
-      if (
-        id &&
-        event.event === "custom" &&
-        event.data.custom.type === "marimo.notification"
-      ) {
-        deliver(id, event.data.custom.data);
-      }
-    },
-    bind(observed: Notebook.Interface["state"], retry: Effect.Effect<void>): Interface {
-      type Payload = Parameters<Client["Comm"]["send"]>[0]["payload"];
-      const post = (id: string, payload: Payload) =>
-        client.Comm.send({ params: { notebookId }, payload }).pipe(
-          Effect.mapError(
-            (cause) =>
-              new CommError({
-                code: "transport",
-                message: "The host refused the comm request.",
-                cause,
-              }),
-          ),
-          Effect.flatMap((runtime) =>
-            runtime.id === id && runtime.notebook_id === notebookId
-              ? Effect.void
-              : Effect.fail(
-                  problem(
-                    "stale-runtime",
-                    "The host answered for a different runtime.",
-                  ),
-                ),
+    }
+    if (
+      id &&
+      event.event === "custom" &&
+      event.data.custom.type === "marimo.notification"
+    ) {
+      deliver(id, event.data.custom.data);
+    }
+  }
+  type Payload = Parameters<Client["Comm"]["send"]>[0]["payload"];
+  const post = (id: string, payload: Payload) =>
+    notebook.send(payload).pipe(
+      Effect.mapError(
+        (cause) =>
+          new CommError({
+            code: "transport",
+            message: "The host refused the comm request.",
+            cause,
+          }),
+      ),
+      Effect.flatMap((runtime) =>
+        runtime.id === id && runtime.notebook_id === notebook.id
+          ? Effect.void
+          : Effect.fail(
+              problem("stale-runtime", "The host answered for a different runtime."),
+            ),
+      ),
+    );
+  const request = <A>(
+    target: Target,
+    run: (id: string) => Effect.Effect<A, CommError>,
+  ) =>
+    Effect.suspend<A, CommError, never>(() => {
+      if (closed) return Effect.fail(problem("closed", "The notebook is closed."));
+      if (target.runtimeId !== undefined && active?.id !== target.runtimeId)
+        return Effect.fail(
+          problem("stale-runtime", "This output belongs to an earlier runtime."),
+        );
+      const state = registry.get(notebook.state);
+      if (!AsyncResult.isSuccess(state) || state.waiting)
+        return Effect.fail(problem("unavailable", "The notebook is reconnecting."));
+      if (!state.value.notebook?.operations.includes(CommProtocol.operation))
+        return Effect.fail(
+          problem(
+            "unsupported",
+            "The notebook does not offer runtime.experimental.comm.",
           ),
         );
-      const request = <A>(
-        target: Target,
-        run: (id: string) => Effect.Effect<A, CommError>,
-      ) =>
-        Effect.suspend<A, CommError, never>(() => {
-          if (closed) return Effect.fail(problem("closed", "The notebook is closed."));
-          if (target.runtimeId !== undefined && active?.id !== target.runtimeId)
-            return Effect.fail(
-              problem("stale-runtime", "This output belongs to an earlier runtime."),
-            );
-          const state = registry.get(observed);
-          if (!AsyncResult.isSuccess(state) || state.waiting)
-            return Effect.fail(problem("unavailable", "The notebook is reconnecting."));
-          if (!state.value.notebook?.operations.includes(CommProtocol.operation))
-            return Effect.fail(
-              problem(
-                "unsupported",
-                "The notebook does not offer runtime.experimental.comm.",
-              ),
-            );
-          if (!active)
-            return Effect.fail(
-              problem("unavailable", "Start the runtime to interact with outputs."),
-            );
-          const connection = registry.get(channel);
-          if (connection._tag !== "Connected" || !connection.canInteract)
-            return Effect.fail(
-              problem(
-                "unsupported",
-                "The runtime does not permit output interactions.",
-              ),
-            );
-          return run(active.id).pipe(
-            Effect.raceFirst(Deferred.await(active.ended)),
-            Effect.timeoutOrElse({
-              duration: "30 seconds",
-              orElse: () =>
-                Effect.fail(problem("timeout", "The comm request timed out.")),
-            }),
-          );
-        });
-      return {
-        state: Atom.readable((get) => {
-          const result = get(observed);
-          const runtime =
-            AsyncResult.getOrElse(result, () => undefined)?.runtime ?? null;
-          if (AsyncResult.isFailure(result) && !result.waiting)
-            return {
-              runtime,
-              connection: Connection.Failed({
-                error: problem("transport", "The notebook event stream failed."),
-              }),
-            };
-          return {
-            runtime,
-            connection: result.waiting ? Connection.Connecting() : get(channel),
-          };
+      if (!active || state.value.runtime?.id !== active.id)
+        return Effect.fail(
+          problem("unavailable", "Start the runtime to interact with outputs."),
+        );
+      const connection = registry.get(channel);
+      if (connection._tag !== "Connected" || !connection.canInteract)
+        return Effect.fail(
+          problem("unsupported", "The runtime does not permit output interactions."),
+        );
+      return run(active.id).pipe(
+        Effect.raceFirst(Deferred.await(active.ended)),
+        Effect.timeoutOrElse({
+          duration: "30 seconds",
+          orElse: () => Effect.fail(problem("timeout", "The comm request timed out.")),
         }),
-        events,
-        retry,
-        send: (message) =>
-          request(message, (id) =>
-            post(
-              id,
-              message._tag === "SetValues"
-                ? { _tag: "SetValues", values: message.values }
-                : {
-                    _tag: "Model",
-                    model: message.model,
-                    message: message.message,
-                    buffers: message.buffers,
-                  },
-            ),
-          ),
-        invoke: (input) =>
-          request(input, (id) =>
-            invoke(calls, (call) =>
-              post(id, {
-                _tag: "Invoke",
-                call,
-                namespace: input.namespace,
-                name: input.name,
-                args: input.args,
-              }),
-            ),
-          ),
+      );
+    });
+  const comm: Interface = {
+    state: Atom.readable((get) => {
+      const result = get(notebook.state);
+      const runtime = AsyncResult.getOrElse(result, () => undefined)?.runtime ?? null;
+      if (AsyncResult.isFailure(result) && !result.waiting)
+        return {
+          runtime,
+          connection: Connection.Failed({
+            error: problem("transport", "The notebook event stream failed."),
+          }),
+        };
+      return {
+        runtime,
+        connection: result.waiting ? Connection.Connecting() : get(channel),
       };
-    },
+    }),
+    events,
+    retry: notebook.reconnect,
+    send: (message) =>
+      request(message, (id) =>
+        post(
+          id,
+          message._tag === "SetValues"
+            ? { _tag: "SetValues", values: message.values }
+            : {
+                _tag: "Model",
+                model: message.model,
+                message: message.message,
+                buffers: message.buffers,
+              },
+        ),
+      ),
+    invoke: (input) =>
+      request(input, (id) =>
+        invoke(calls, (call) =>
+          post(id, {
+            _tag: "Invoke",
+            call,
+            namespace: input.namespace,
+            name: input.name,
+            args: input.args,
+          }),
+        ),
+      ),
   };
+  return { comm, reset, receive };
 });
 
-const NotebookFrame = Schema.fromJsonString(
-  Schema.Struct({ notebook: Protocol.Notebook }),
-);
-const RuntimeFrame = Schema.fromJsonString(
-  Schema.Struct({ runtime: Protocol.Runtime }),
-);
-const NotificationFrame = Schema.fromJsonString(
-  Schema.Struct({ marimo: Schema.Unknown }),
-);
-const Acknowledgement = Schema.Struct({ success: Schema.Boolean });
 const failure = (cause: unknown) =>
   cause instanceof CommError
     ? cause
     : new CommError({
-        code: "transport",
-        message: "The output connection failed.",
+        code: cause instanceof Events.ViewerError ? cause.code : "transport",
+        message:
+          cause instanceof Events.ViewerError
+            ? cause.message
+            : "The output connection failed.",
         cause,
       });
 
@@ -494,37 +466,12 @@ interface MarimoSession {
   canInteract: boolean;
 }
 
-/** Opens marimo's session stream on demand for notebooks without the host operation. */
 const makeMarimo = Effect.fnUntraced(function* (
-  options: Marimo,
-  notebookId: string,
+  viewer: Events.Session,
   observed: Notebook.Interface["state"],
 ) {
   const registry = yield* AtomRegistry.AtomRegistry;
   let closed = false;
-  const http = (yield* HttpClient.HttpClient).pipe(
-    HttpClient.mapRequest(
-      HttpClientRequest.prependUrl(options.baseUrl.href.replace(/\/$/, "")),
-    ),
-    HttpClient.withScope,
-    HttpClient.transformResponse(
-      Effect.flatMap((response) =>
-        response.status >= 200 && response.status < 300
-          ? Effect.succeed(response)
-          : Effect.fail(
-              response.status === 401
-                ? problem(
-                    "authentication",
-                    "Authorize interactions with the marimo server token.",
-                  )
-                : problem(
-                    "transport",
-                    `Marimo refused the output request (${response.status}).`,
-                  ),
-            ),
-      ),
-    ),
-  );
   const channel = Atom.make<Connection>(Connection.Idle());
   yield* Atom.mount(channel);
   const snapshot = new CommProtocol.Snapshot();
@@ -542,138 +489,28 @@ const makeMarimo = Effect.fnUntraced(function* (
     snapshot.reset();
     emit({ kind: "reset", runtimeId: null });
   };
-  function post(path: string, body: unknown, sessionId?: string) {
-    return http
-      .post(path, {
-        body: HttpBody.jsonUnsafe(body),
-        headers: sessionId ? { "Marimo-Session-Id": sessionId } : undefined,
-      })
-      .pipe(
-        Effect.flatMap(HttpClientResponse.schemaBodyJson(Acknowledgement)),
-        Effect.flatMap(({ success }) =>
-          success
-            ? Effect.void
-            : Effect.fail(
-                problem("transport", "Marimo did not accept the output request."),
-              ),
-        ),
-        Effect.mapError(failure),
-        Effect.scoped,
-      );
-  }
-
-  const filePath = Effect.fnUntraced(function* (
-    notebook: typeof Protocol.Notebook.Type,
-  ) {
-    if (notebook.path === null)
-      return yield* problem(
-        "unsupported",
-        "Opening a marimo session requires a notebook file path.",
-      );
-    if (/^(\/|[A-Za-z]:[\\/])/.test(notebook.path)) return notebook.path;
-    const catalog = yield* AtomRegistry.getResult(registry, options.catalog, {
-      suspendOnWaiting: true,
-    }).pipe(
-      Effect.mapError(() => problem("unavailable", "The host catalog is unavailable.")),
-    );
-    const root = catalog.projects[notebook.project_id]?.root;
-    if (!root)
-      return yield* problem("unavailable", "The notebook's project is unavailable.");
-    const separator = root.includes("\\") ? "\\" : "/";
-    return (
-      root.replace(/[\\/]$/, "") + separator + notebook.path.replaceAll("/", separator)
-    );
-  });
-
-  const open = Effect.fnUntraced(function* (
-    current: MarimoSession,
-    notebook: typeof Protocol.Notebook.Type,
-  ) {
-    yield* post("/auth", {});
-    const file = yield* filePath(notebook);
-    let sessionNotebookId: string | undefined;
-    let sessionRuntimeId: string | undefined;
-    const receive = (frame: Sse.Event) => {
-      if (connection !== current) return;
-      if (frame.event === "close")
-        throw problem("unavailable", "The marimo session closed.");
-      if (frame.event === "notebook") {
-        const { notebook } = Schema.decodeUnknownSync(NotebookFrame)(frame.data);
-        sessionNotebookId = notebook.id;
-        if (sessionNotebookId !== notebookId)
-          throw problem(
-            "stale-runtime",
-            "The output connection belongs to another notebook.",
-          );
-      }
-      if (frame.event === "runtime") {
-        const { runtime } = Schema.decodeUnknownSync(RuntimeFrame)(frame.data);
-        sessionRuntimeId = runtime.id;
-        if (
-          runtime.notebook_id !== notebookId ||
-          runtime.id !== current.runtimeId ||
-          runtime.status !== "running"
-        )
-          throw problem(
-            "stale-runtime",
-            "The runtime changed while connecting outputs.",
-          );
-      }
-      if (["reset", "runtime.removed", "notebook.removed"].includes(frame.event))
-        throw problem(
-          "stale-runtime",
-          "The output session was reset. Reconnect to continue.",
-        );
-      if (frame.event !== "marimo") return;
-      const raw = Schema.decodeUnknownSync(NotificationFrame)(frame.data).marimo;
-      const notification = snapshot.recordNotification(raw, (cause) => {
-        throw cause;
-      });
-      if (!notification) return;
-      if (sessionNotebookId !== notebookId || sessionRuntimeId !== current.runtimeId)
-        throw problem(
-          "stale-runtime",
-          "The output connection did not confirm its runtime identity.",
-        );
-      if (
-        notification.op === "kernel-ready" ||
-        notification.op === "consumer-capabilities"
-      ) {
-        current.canInteract = notification.consumer_capabilities?.interact === true;
-        registry.set(
-          channel,
-          Connection.Connected({
-            canInteract: current.canInteract,
-          }),
-        );
-        if (notification.op === "kernel-ready")
-          Deferred.doneUnsafe(current.ready, Effect.void);
-      }
-      replyToCall(current.pending, notification);
-      emit({ kind: "notification", runtimeId: current.runtimeId, notification });
-    };
-    const response = yield* http.get("/sse", {
-      urlParams: { session_id: current.sessionId, file },
-      headers: { Accept: "text/event-stream" },
-    });
+  function receive(sessionId: string | undefined, raw: unknown) {
+    const current = connection;
+    if (!current || current.sessionId !== sessionId) return;
+    const notification = snapshot.recordNotification(raw);
+    if (!notification) return;
     if (
-      response.headers["content-type"]?.split(";")[0].trim().toLowerCase() !==
-      "text/event-stream"
-    )
-      return yield* problem("transport", "Marimo did not return an event stream.");
-    yield* response.stream.pipe(
-      Stream.timeout("45 seconds"),
-      Stream.decodeText,
-      Stream.pipeThroughChannel(Sse.decode()),
-      Stream.runForEach((frame) =>
-        Effect.try({ try: () => receive(frame), catch: failure }),
-      ),
-    );
-    return yield* problem(
-      "transport",
-      "The output connection ended. Reconnect to continue.",
-    );
-  }, Effect.scoped);
+      notification.op === "kernel-ready" ||
+      notification.op === "consumer-capabilities"
+    ) {
+      current.canInteract = notification.consumer_capabilities?.interact === true;
+      registry.set(
+        channel,
+        Connection.Connected({
+          canInteract: current.canInteract,
+        }),
+      );
+      if (notification.op === "kernel-ready")
+        Deferred.doneUnsafe(current.ready, Effect.void);
+    }
+    replyToCall(current.pending, notification);
+    emit({ kind: "notification", runtimeId: current.runtimeId, notification });
+  }
 
   const attachment = yield* RcRef.make({
     acquire: Effect.gen(function* () {
@@ -681,12 +518,12 @@ const makeMarimo = Effect.fnUntraced(function* (
       let attempted: string | null = null;
       function synchronize() {
         const state = registry.get(observed);
+        if (state.waiting) return;
         const notebook = AsyncResult.getOrElse(state, () => undefined)?.notebook;
         const runtime = AsyncResult.getOrElse(state, () => undefined)?.runtime;
         const key =
           !closed &&
           AsyncResult.isSuccess(state) &&
-          !state.waiting &&
           notebook &&
           !notebook.operations.includes(CommProtocol.operation) &&
           runtime?.status === "running"
@@ -720,7 +557,7 @@ const makeMarimo = Effect.fnUntraced(function* (
           Effect.andThen(Effect.never),
         );
         runSession(
-          open(current, notebook).pipe(
+          viewer.open(current, notebook).pipe(
             Effect.raceFirst(readinessDeadline),
             Effect.raceFirst(Deferred.await(current.ended)),
             Effect.catch((cause) =>
@@ -837,6 +674,7 @@ const makeMarimo = Effect.fnUntraced(function* (
   );
 
   return {
+    receive,
     state: Atom.readable((get): State => ({
       runtime: AsyncResult.getOrElse(get(observed), () => undefined)?.runtime ?? null,
       connection: get(channel),
@@ -845,39 +683,33 @@ const makeMarimo = Effect.fnUntraced(function* (
     retry: Effect.sync(() => retry?.()),
     send: (input: Message) =>
       interact(input, (current) =>
-        input._tag === "SetValues"
-          ? post(
-              "/api/kernel/set_ui_element_value",
-              {
-                objectIds: Object.keys(input.values),
-                values: Object.values(input.values),
-              },
-              current.sessionId,
-            )
-          : post(
-              "/api/kernel/set_model_value",
-              {
-                modelId: input.model,
-                message: input.message,
-                buffers: input.buffers,
-              },
-              current.sessionId,
-            ),
+        viewer
+          .post(
+            current.sessionId,
+            input._tag === "SetValues"
+              ? { _tag: "SetValues", values: input.values }
+              : {
+                  _tag: "Model",
+                  model: input.model,
+                  message: input.message,
+                  buffers: input.buffers,
+                },
+          )
+          .pipe(Effect.mapError(failure)),
       ),
     invoke: (input: Invoke) =>
       interact(input, (current) =>
-        invoke(current.pending, (functionCallId) =>
-          post(
-            "/api/kernel/function_call",
-            {
-              functionCallId,
+        invoke(current.pending, (call) =>
+          viewer
+            .post(current.sessionId, {
+              _tag: "Invoke",
+              call,
               namespace: input.namespace,
-              functionName: input.name,
+              name: input.name,
               args: input.args,
-            },
-            current.sessionId,
-          ),
+            })
+            .pipe(Effect.mapError(failure)),
         ),
       ),
-  } satisfies Interface;
+  } satisfies Interface & { receive: typeof receive };
 });

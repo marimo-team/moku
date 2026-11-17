@@ -67,10 +67,6 @@ const Notification = Schema.Union([
 export type Notification = typeof Notification.Type;
 
 const decode = Schema.decodeUnknownResult(Notification);
-const known = new Set<string>(
-  Notification.members.map((member) => member.fields.op.literal),
-);
-const envelope = Schema.Struct({ op: Schema.String });
 
 /** A legacy UI-value request validated by the proxy before forwarding. */
 export const ComponentValues = Schema.Struct({
@@ -131,22 +127,10 @@ export class Snapshot {
     this.ready = undefined;
   }
 
-  /**
-   * Records a renderer notification in stream order and returns it for live delivery.
-   *
-   * An unknown operation is skipped. An invalid envelope or malformed known
-   * operation also calls `onInvalid` when supplied.
-   */
-  recordNotification(
-    raw: unknown,
-    onInvalid?: (cause: Schema.SchemaError) => void,
-  ): Notification | undefined {
+  /** Records a recognized output notification and returns it for live delivery. */
+  recordNotification(raw: unknown): Notification | undefined {
     const decoded = decode(raw);
-    if (Result.isFailure(decoded)) {
-      if (onInvalid && (!Schema.is(envelope)(raw) || known.has(raw.op)))
-        onInvalid(decoded.failure);
-      return;
-    }
+    if (Result.isFailure(decoded)) return;
     const message = decoded.success;
     switch (message.op) {
       case "kernel-ready":

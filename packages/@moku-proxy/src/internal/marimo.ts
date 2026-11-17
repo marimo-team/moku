@@ -127,7 +127,6 @@ export function create(
           upstream.searchParams.set("file", file);
           // Viewer attachment never starts a kernel or replaces an editor consumer.
           upstream.searchParams.set("kiosk", "true");
-          upstream.searchParams.set("types", "notebook,runtime,marimo");
           headers.set("Accept", "text/event-stream");
           headers.set("Marimo-Attachment-Kind", "browser");
           headers.set("Marimo-Attachment-Name", clientName);

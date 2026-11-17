@@ -37,17 +37,12 @@ export interface Options {
   /** Bearer token sent to the host protocol API, including its event streams. */
   readonly token?: Redacted.Redacted<string>;
   /**
-   * Lets widgets use a marimo session when the notebook lacks the experimental comm operation.
+   * Base URL for widget requests when the notebook lacks the experimental comm operation.
    *
-   * The launcher supplies its output proxy here. Core posts to its `/auth`
-   * route before opening `/sse` and sending requests to `/api/kernel`.
+   * The launcher supplies its output proxy here. The injected HTTP client
+   * posts to `/auth` before opening `/sse` and sending requests to `/api/kernel`.
    */
-  readonly marimo?: {
-    /** Base URL shared by those routes, such as `/api/hosts/<id>/marimo` on the launcher origin. */
-    readonly baseUrl: URL;
-    /** Sends requests to those routes. In the launcher it carries the proxy session cookie. */
-    readonly fetch: typeof globalThis.fetch;
-  };
+  readonly marimoBaseUrl?: URL;
   /** Maximum retry interval after an uncertain response. Defaults to 60 seconds; use a value shorter than the host's documented retention window. */
   readonly retryWindow?: Duration.Input;
 }
@@ -176,6 +171,7 @@ export const make = Effect.fnUntraced(function* (
   never,
   HttpClient.HttpClient | AtomRegistry.AtomRegistry | Scope.Scope
 > {
+  const http = yield* HttpClient.HttpClient;
   const client = yield* makeClient(options);
   const registry = yield* AtomRegistry.AtomRegistry;
   let closed = false;
@@ -202,8 +198,14 @@ export const make = Effect.fnUntraced(function* (
         client,
         id,
         options.retryWindow,
-        options.marimo && { ...options.marimo, catalog: observation.state },
-      ).pipe(Effect.provideService(AtomRegistry.AtomRegistry, registry)),
+        options.marimoBaseUrl && {
+          baseUrl: options.marimoBaseUrl,
+          catalog: observation.state,
+        },
+      ).pipe(
+        Effect.provideService(HttpClient.HttpClient, http),
+        Effect.provideService(AtomRegistry.AtomRegistry, registry),
+      ),
   });
   const params = (id: string) =>
     Schema.decodeUnknownEffect(Protocol.NotebookId)(id).pipe(

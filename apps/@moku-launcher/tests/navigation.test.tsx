@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import * as Http from "./http.ts";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import * as React from "react";
@@ -6,7 +7,7 @@ import * as ReactRouter from "react-router";
 import * as ReactRouterDOM from "react-router/dom";
 import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";
-import { AtomRegistry } from "effect/reactivity";
+import { Atom, AtomRegistry } from "effect/reactivity";
 import { Plugin, type ViewProps } from "@moku/plugin";
 import { Effect } from "effect";
 import { App } from "../src/app/App.tsx";
@@ -80,7 +81,6 @@ async function mount(route: Route) {
     );
   };
   const application = Application.make({
-    fetch,
     plugins: [
       Plugin.define({
         id: "test",
@@ -100,7 +100,9 @@ async function mount(route: Route) {
       }),
     ],
   });
-  const registry = AtomRegistry.make();
+  const registry = AtomRegistry.make({
+    initialValues: [Atom.initialValue(Application.runtime.layer, Http.layer(fetch))],
+  });
   const element = document.createElement("div");
   document.body.append(element);
   const root = ReactDOMClient.createRoot(element);

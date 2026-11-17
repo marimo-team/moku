@@ -4,6 +4,7 @@
  * @module
  */
 import { Data, Effect } from "effect";
+import { FetchHttpClient } from "effect/http";
 import { Atom } from "effect/reactivity";
 import * as Workspace from "./Workspace.ts";
 import type * as Notebook from "./Notebook.ts";
@@ -11,13 +12,15 @@ import { Plugin } from "@moku/plugin";
 
 class Target extends Data.Class<Notebook.Target> {}
 
+/** Supplies the HTTP client used by workspace effects in each atom registry. */
+export const runtime = Atom.runtime(FetchHttpClient.layer);
+
 /** Creates application state for views that share an atom registry. */
 export function make(options: {
   launchKey?: string;
   plugins: readonly Plugin.Interface[];
-  fetch?: typeof globalThis.fetch;
 }) {
-  const workspace = Atom.make(Workspace.make(options)).pipe(Atom.setIdleTTL(0));
+  const workspace = runtime.atom(Workspace.make(options)).pipe(Atom.setIdleTTL(0));
   const notebooks = Atom.family((target: Target) =>
     Atom.make((get) =>
       get.result(workspace).pipe(Effect.flatMap((session) => session.attach(target))),

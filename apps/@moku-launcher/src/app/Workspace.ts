@@ -119,21 +119,21 @@ const checkResponse = Effect.fnUntraced(function* (
 });
 
 /** Opens a launcher session and shares host connections between catalogs and notebook views. */
-export const make = Effect.fnUntraced(function* (options: {
-  launchKey?: string;
-  fetch?: typeof globalThis.fetch;
-}) {
+export const make = Effect.fnUntraced(function* (options: { launchKey?: string }) {
   const sessionUrl = new URL("/api/session", location.origin).href;
   const hostsUrl = new URL("/api/hosts", location.origin).href;
   const hostUrl = (id: string) => hostsUrl + "/" + encodeURIComponent(id);
   const marimoUrl = (id: string) => new URL(hostUrl(id) + "/marimo");
-  const send = options.fetch ?? globalThis.fetch;
-  const fetch: typeof globalThis.fetch = (input, init) =>
-    send(input, { ...init, credentials: "same-origin", redirect: "error" });
-  const transport = yield* HttpClient.HttpClient.pipe(
-    Effect.provide(FetchHttpClient.layer),
-    Effect.provideService(FetchHttpClient.Fetch, fetch),
-    Effect.provideService(HttpClient.TracerPropagationEnabled, false),
+  const transport = (yield* HttpClient.HttpClient).pipe(
+    HttpClient.transformResponse((request) =>
+      request.pipe(
+        Effect.provideService(FetchHttpClient.RequestInit, {
+          redirect: "error",
+          credentials: "same-origin",
+        }),
+        Effect.provideService(HttpClient.TracerPropagationEnabled, false),
+      ),
+    ),
   );
   const http = transport.pipe(
     HttpClient.transformResponse(Effect.flatMap(checkResponse)),
@@ -205,7 +205,7 @@ export const make = Effect.fnUntraced(function* (options: {
     lookup: (connectionId: string) =>
       Host.make({
         baseUrl: hostUrl(connectionId),
-        marimo: { baseUrl: marimoUrl(connectionId), fetch },
+        marimoBaseUrl: marimoUrl(connectionId),
       }).pipe(Effect.provideService(HttpClient.HttpClient, transport)),
   });
   const host = (connectionId: string) => RcMap.get(hosts, connectionId);

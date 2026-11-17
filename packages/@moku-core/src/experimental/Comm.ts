@@ -18,7 +18,13 @@ import {
   Stream,
 } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
-import * as MarimoClient from "@marimo-team/client";
+import { Sse } from "effect/encoding";
+import {
+  HttpBody,
+  HttpClient,
+  HttpClientRequest,
+  HttpClientResponse,
+} from "effect/http";
 import * as CommProtocol from "../internal/comm-protocol.ts";
 import type { Client } from "../internal/client.ts";
 import type * as Host from "../Host.ts";
@@ -144,7 +150,8 @@ export interface Interface {
 }
 
 /** The marimo session route and catalog used to resolve notebook paths. */
-export interface Marimo extends NonNullable<Host.Options["marimo"]> {
+export interface Marimo {
+  readonly baseUrl: URL;
   /** Supplies project roots for relative notebook paths. */
   readonly catalog: Host.Interface["state"];
 }
@@ -161,7 +168,11 @@ export const make = Effect.fnUntraced(function* (
     bind: Effect.fnUntraced(function* (
       observed: Notebook.Interface["state"],
       retry: Effect.Effect<void>,
-    ): Effect.fn.Return<Interface, never, AtomRegistry.AtomRegistry | Scope.Scope> {
+    ): Effect.fn.Return<
+      Interface,
+      never,
+      HttpClient.HttpClient | AtomRegistry.AtomRegistry | Scope.Scope
+    > {
       const channel = host.bind(observed, retry);
       if (!marimo) return channel;
       const fallback = yield* makeMarimo(marimo, notebookId, observed);
@@ -444,8 +455,16 @@ const makeHost = Effect.fnUntraced(function* (
   };
 });
 
-const Frame = Schema.Struct({ event: Schema.String, data: Schema.Unknown });
-const Envelope = Schema.Struct({ marimo: Schema.Unknown });
+const NotebookFrame = Schema.fromJsonString(
+  Schema.Struct({ notebook: Protocol.Notebook }),
+);
+const RuntimeFrame = Schema.fromJsonString(
+  Schema.Struct({ runtime: Protocol.Runtime }),
+);
+const NotificationFrame = Schema.fromJsonString(
+  Schema.Struct({ marimo: Schema.Unknown }),
+);
+const Acknowledgement = Schema.Struct({ success: Schema.Boolean });
 const failure = (cause: unknown) =>
   cause instanceof CommError
     ? cause
@@ -456,6 +475,7 @@ const failure = (cause: unknown) =>
       });
 
 interface MarimoSession {
+  stream?: Promise<void>;
   readonly runtimeId: string;
   readonly sessionId: string;
   readonly controller: AbortController;
@@ -489,8 +509,29 @@ const makeMarimo = Effect.fnUntraced(function* (
 ) {
   const registry = yield* AtomRegistry.AtomRegistry;
   const lifetime = new AbortController();
-  const base = options.baseUrl.pathname.replace(/\/$/, "");
-  const urlFor = (path: string) => new URL(base + path, options.baseUrl).href;
+  const http = (yield* HttpClient.HttpClient).pipe(
+    HttpClient.mapRequest(
+      HttpClientRequest.prependUrl(options.baseUrl.href.replace(/\/$/, "")),
+    ),
+    HttpClient.withScope,
+    HttpClient.transformResponse(
+      Effect.flatMap((response) =>
+        response.status >= 200 && response.status < 300
+          ? Effect.succeed(response)
+          : Effect.fail(
+              response.status === 401
+                ? problem(
+                    "authentication",
+                    "Authorize interactions with the marimo server token.",
+                  )
+                : problem(
+                    "transport",
+                    `Marimo refused the output request (${response.status}).`,
+                  ),
+            ),
+      ),
+    ),
+  );
   const channel = Atom.make<Connection>(Connection.Idle());
   const unmount = registry.mount(channel);
   const snapshot = new CommProtocol.Snapshot();
@@ -512,45 +553,35 @@ const makeMarimo = Effect.fnUntraced(function* (
     previous?.pending.clear();
     snapshot.reset();
     emit({ kind: "reset", runtimeId: null });
+    return previous?.stream;
   };
   const fail = (current: MarimoSession, cause: unknown) => {
     if (connection !== current) return;
     const causeOfFailure = failure(cause);
-    reset(causeOfFailure);
+    void reset(causeOfFailure);
     registry.set(channel, Connection.Failed({ error: causeOfFailure }));
   };
 
-  async function request(path: string, init: RequestInit): Promise<Response> {
-    const response = await options.fetch(urlFor(path), init);
-    if (response.ok) return response;
-    await response.body?.cancel();
-    throw problem(
-      response.status === 401 ? "authentication" : "transport",
-      response.status === 401
-        ? "Authorize interactions with the marimo server token."
-        : `Marimo refused the output request (${response.status}).`,
+  function post(path: string, body: unknown, signal: AbortSignal, sessionId?: string) {
+    return Effect.runPromise(
+      http
+        .post(path, {
+          body: HttpBody.jsonUnsafe(body),
+          headers: sessionId ? { "Marimo-Session-Id": sessionId } : undefined,
+        })
+        .pipe(
+          Effect.flatMap(HttpClientResponse.schemaBodyJson(Acknowledgement)),
+          Effect.flatMap(({ success }) =>
+            success
+              ? Effect.void
+              : Effect.fail(
+                  problem("transport", "Marimo did not accept the output request."),
+                ),
+          ),
+          Effect.scoped,
+        ),
+      { signal },
     );
-  }
-  async function post(
-    path: string,
-    body: unknown,
-    signal: AbortSignal,
-    sessionId?: string,
-  ) {
-    const response = await request(path, {
-      method: "POST",
-      signal,
-      headers: {
-        "Content-Type": "application/json",
-        ...(sessionId ? { "Marimo-Session-Id": sessionId } : {}),
-      },
-      body: JSON.stringify(body),
-    });
-    const result = Schema.decodeUnknownSync(Schema.Struct({ success: Schema.Boolean }))(
-      await response.json(),
-    );
-    if (!result.success)
-      throw problem("transport", "Marimo did not accept the output request.");
   }
 
   async function filePath(
@@ -598,107 +629,108 @@ const makeMarimo = Effect.fnUntraced(function* (
     await post("/auth", {}, preparing);
     const file = await filePath(notebook, preparing);
     if (signal.aborted) return;
-    const url = new URL(urlFor("/sse"));
-    url.searchParams.set("session_id", current.sessionId);
-    url.searchParams.set("file", file);
     let sessionNotebookId: string | undefined;
     let sessionRuntimeId: string | undefined;
-    const receive = (input: unknown) => {
+    const receive = (frame: Sse.Event) => {
       if (connection !== current) return;
-      try {
-        const frame = Schema.decodeUnknownSync(Frame)(input);
-        if (frame.event === "notebook") {
-          const record = Schema.decodeUnknownSync(
-            Schema.Struct({ notebook: Schema.Unknown }),
-          )(frame.data);
-          sessionNotebookId = Schema.decodeUnknownSync(Protocol.Notebook)(
-            record.notebook,
-          ).id;
-          if (sessionNotebookId !== notebookId)
-            throw problem(
-              "stale-runtime",
-              "The output connection belongs to another notebook.",
-            );
-        }
-        if (frame.event === "runtime") {
-          const record = Schema.decodeUnknownSync(
-            Schema.Struct({ runtime: Schema.Unknown }),
-          )(frame.data);
-          const runtime = Schema.decodeUnknownSync(Protocol.Runtime)(record.runtime);
-          sessionRuntimeId = runtime.id;
-          if (
-            runtime.notebook_id !== notebookId ||
-            runtime.id !== current.runtimeId ||
-            runtime.status !== "running"
-          )
-            throw problem(
-              "stale-runtime",
-              "The runtime changed while connecting outputs.",
-            );
-        }
-        if (["reset", "runtime.removed", "notebook.removed"].includes(frame.event))
+      if (frame.event === "close")
+        throw problem("unavailable", "The marimo session closed.");
+      if (frame.event === "notebook") {
+        const { notebook } = Schema.decodeUnknownSync(NotebookFrame)(frame.data);
+        sessionNotebookId = notebook.id;
+        if (sessionNotebookId !== notebookId)
           throw problem(
             "stale-runtime",
-            "The output session was reset. Reconnect to continue.",
+            "The output connection belongs to another notebook.",
           );
-        if (frame.event !== "marimo") return;
-        const raw = Schema.decodeUnknownSync(Envelope)(frame.data).marimo;
-        const notification = snapshot.recordNotification(raw, (cause) => {
-          throw cause;
-        });
-        if (!notification) return;
-        if (sessionNotebookId !== notebookId || sessionRuntimeId !== current.runtimeId)
-          throw problem(
-            "stale-runtime",
-            "The output connection did not confirm its runtime identity.",
-          );
+      }
+      if (frame.event === "runtime") {
+        const { runtime } = Schema.decodeUnknownSync(RuntimeFrame)(frame.data);
+        sessionRuntimeId = runtime.id;
         if (
-          notification.op === "kernel-ready" ||
-          notification.op === "consumer-capabilities"
-        ) {
-          current.canInteract = notification.consumer_capabilities?.interact === true;
-          registry.set(
-            channel,
-            Connection.Connected({
-              canInteract: current.canInteract,
-            }),
+          runtime.notebook_id !== notebookId ||
+          runtime.id !== current.runtimeId ||
+          runtime.status !== "running"
+        )
+          throw problem(
+            "stale-runtime",
+            "The runtime changed while connecting outputs.",
           );
-          if (notification.op === "kernel-ready") current.ready.resolve();
-        }
-        if (notification.op === "function-call-result") {
-          const pending = current.pending.get(notification.function_call_id);
-          current.pending.delete(notification.function_call_id);
-          if (notification.found && notification.status.code === "ok")
-            pending?.resolve(notification.return_value);
-          else
-            pending?.reject(
-              problem(
-                "rpc",
-                notification.status.message ??
-                  notification.status.title ??
-                  "The kernel function failed.",
+      }
+      if (["reset", "runtime.removed", "notebook.removed"].includes(frame.event))
+        throw problem(
+          "stale-runtime",
+          "The output session was reset. Reconnect to continue.",
+        );
+      if (frame.event !== "marimo") return;
+      const raw = Schema.decodeUnknownSync(NotificationFrame)(frame.data).marimo;
+      const notification = snapshot.recordNotification(raw, (cause) => {
+        throw cause;
+      });
+      if (!notification) return;
+      if (sessionNotebookId !== notebookId || sessionRuntimeId !== current.runtimeId)
+        throw problem(
+          "stale-runtime",
+          "The output connection did not confirm its runtime identity.",
+        );
+      if (
+        notification.op === "kernel-ready" ||
+        notification.op === "consumer-capabilities"
+      ) {
+        current.canInteract = notification.consumer_capabilities?.interact === true;
+        registry.set(
+          channel,
+          Connection.Connected({
+            canInteract: current.canInteract,
+          }),
+        );
+        if (notification.op === "kernel-ready") current.ready.resolve();
+      }
+      if (notification.op === "function-call-result") {
+        const pending = current.pending.get(notification.function_call_id);
+        current.pending.delete(notification.function_call_id);
+        if (notification.found && notification.status.code === "ok")
+          pending?.resolve(notification.return_value);
+        else
+          pending?.reject(
+            problem(
+              "rpc",
+              notification.status.message ??
+                notification.status.title ??
+                "The kernel function failed.",
+            ),
+          );
+      }
+      emit({ kind: "notification", runtimeId: current.runtimeId, notification });
+    };
+    await Effect.runPromise(
+      http
+        .get("/sse", {
+          urlParams: { session_id: current.sessionId, file },
+          headers: { Accept: "text/event-stream" },
+        })
+        .pipe(
+          Effect.flatMap((response) => {
+            if (
+              response.headers["content-type"]?.split(";")[0].trim().toLowerCase() !==
+              "text/event-stream"
+            )
+              return Effect.fail(
+                problem("transport", "Marimo did not return an event stream."),
+              );
+            return response.stream.pipe(
+              Stream.timeout("45 seconds"),
+              Stream.decodeText,
+              Stream.pipeThroughChannel(Sse.decode()),
+              Stream.runForEach((frame) =>
+                Effect.try({ try: () => receive(frame), catch: failure }),
               ),
             );
-        }
-        emit({ kind: "notification", runtimeId: current.runtimeId, notification });
-      } catch (cause) {
-        fail(current, cause);
-      }
-    };
-    await MarimoClient.sse(url, {
-      fetch: async (_input, init) => {
-        try {
-          return await request("/sse" + url.search, init ?? {});
-        } catch (cause) {
-          fail(current, cause);
-          throw cause;
-        }
-      },
-      stop: (frame) =>
-        frame.event === "close"
-          ? problem("unavailable", "The marimo session closed.")
-          : undefined,
-    })({ cursor: null, signal }, { open: () => {}, message: receive });
+          }),
+          Effect.scoped,
+        ),
+      { signal },
+    );
     if (!signal.aborted)
       throw problem("transport", "The output connection ended. Reconnect to continue.");
   }
@@ -719,7 +751,7 @@ const makeMarimo = Effect.fnUntraced(function* (
         : null;
     if (key === attempted) return;
     attempted = key;
-    reset(problem("stale-runtime", "The runtime or output connection changed."));
+    void reset(problem("stale-runtime", "The runtime or output connection changed."));
     if (!key || !notebook || !runtime) {
       registry.set(channel, Connection.Idle());
       return;
@@ -747,20 +779,21 @@ const makeMarimo = Effect.fnUntraced(function* (
       () => clearTimeout(deadline),
       () => clearTimeout(deadline),
     );
-    void open(current, notebook).catch((cause) => fail(current, cause));
+    current.stream = open(current, notebook).catch((cause) => fail(current, cause));
   }
   function acquire() {
     if (lifetime.signal.aborted) throw problem("closed", "The notebook is closed.");
     references++;
     if (references === 1)
       unsubscribe = registry.subscribe(observed, synchronize, { immediate: true });
-    return () => {
+    return async () => {
       if (--references !== 0) return;
       unsubscribe?.();
       unsubscribe = undefined;
       attempted = null;
-      reset(problem("closed", "The output connection was released."));
+      const stream = reset(problem("closed", "The output connection was released."));
       registry.set(channel, Connection.Idle());
+      await stream;
     };
   }
 
@@ -787,10 +820,10 @@ const makeMarimo = Effect.fnUntraced(function* (
         listeners.add(listener);
         return () => {
           listeners.delete(listener);
-          release();
+          return release();
         };
       }),
-      (release) => Effect.sync(release),
+      (release) => Effect.promise(release),
     ),
   );
 
@@ -835,9 +868,9 @@ const makeMarimo = Effect.fnUntraced(function* (
               "unsupported",
               "This connection does not permit output interactions.",
             );
-          return await perform(current, signal);
+          return await until(perform(current, signal), signal);
         } finally {
-          release();
+          await release();
         }
       },
       catch: (cause) =>
@@ -848,14 +881,15 @@ const makeMarimo = Effect.fnUntraced(function* (
   }
 
   yield* Effect.addFinalizer(() =>
-    Effect.sync(() => {
+    Effect.promise(async () => {
       lifetime.abort(problem("closed", "The notebook is closed."));
       unsubscribe?.();
       unsubscribe = undefined;
-      reset(problem("closed", "The notebook is closed."));
+      const stream = reset(problem("closed", "The notebook is closed."));
       for (const listener of listeners) listener.end();
       listeners.clear();
       unmount();
+      await stream;
     }),
   );
 

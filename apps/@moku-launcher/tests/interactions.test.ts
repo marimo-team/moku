@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import type * as CommProtocol from "@moku/core/internal/comm-protocol";
+import * as Http from "./http.ts";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import { Cause, Effect, Exit, Scope, Stream } from "effect";
@@ -129,12 +130,13 @@ async function fixture(operations: string[] = []) {
   const scope = Effect.runSync(Scope.make());
   const model = await Effect.runPromise(
     Effect.gen(function* () {
-      const workspace = yield* Workspace.make({ fetch });
+      const workspace = yield* Workspace.make({});
       return yield* workspace.attach({
         connectionId: "host",
         notebookId: "n",
       });
     }).pipe(
+      Effect.provide(Http.layer(fetch)),
       Effect.provideService(AtomRegistry.AtomRegistry, registry),
       Effect.provideService(Scope.Scope, scope),
     ),
@@ -261,6 +263,30 @@ Vitest.test(
     await first.stop();
     Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(false);
     await second.stop();
+    Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(true);
+  },
+);
+
+Vitest.test(
+  "a marimo close frame fails a pending widget call immediately",
+  async () => {
+    const f = await fixture();
+    f.subscribe();
+    await f.ready();
+    const call = Vitest.expect(
+      Effect.runPromise(
+        f.model.runtime.experimentalComm.invoke({
+          namespace: "table",
+          name: "rows",
+          args: {},
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "unavailable" });
+    await vi.waitFor(() =>
+      Vitest.expect(f.requests.at(-1)?.path).toMatch(/function_call$/),
+    );
+    f.marimoStreams[0].send("close", { code: 1000 });
+    await call;
     Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(true);
   },
 );

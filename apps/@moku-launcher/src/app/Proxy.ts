@@ -1,7 +1,8 @@
-/** Launcher proxy routing and transport configuration. @module */
+/** Send launcher requests to the Moku proxy with the browser’s session cookie. @module */
 import { Effect, Layer } from "effect";
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 
+/** Resolves proxy routes against the launch URL and sends same-origin credentials. */
 export function make(
   baseUrl: string | URL,
   options: { fetch?: typeof globalThis.fetch } = {},
@@ -29,6 +30,7 @@ export function make(
     Layer.provide(Layer.succeed(HttpClient.TracerPropagationEnabled, false)),
   );
   return {
+    /** The proxy routes used to open a marimo session and load its output assets. */
     marimo: (connectionId: string) => ({
       baseUrl: url(`/api/hosts/${encodeURIComponent(connectionId)}/marimo`),
       fetch,

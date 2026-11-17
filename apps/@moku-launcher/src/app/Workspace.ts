@@ -30,8 +30,11 @@ export const Connection = Schema.Struct({
   pid: Schema.optionalKey(Schema.Number),
 });
 export type Connection = typeof Connection.Type;
+/** Credentials for registering a host with the launcher proxy. */
 export interface ConnectInput {
+  /** The versioned host protocol API URL. */
   readonly url: string;
+  /** Bearer token the proxy will send to that API. */
   readonly token: string;
 }
 
@@ -77,9 +80,9 @@ export interface Interface {
   readonly catalog: (connectionId: string) => Host.Interface["state"];
 
   /**
-   * Connects a host and adds it to `connections` on success.
+   * Registers a host URL and bearer token with the proxy.
    *
-   * Existing observations restart with the updated credentials.
+   * Registering the same URL again restarts its open streams with the new token.
    */
   readonly connect: (input: ConnectInput) => Effect.Effect<Connection, RequestError>;
 
@@ -95,9 +98,10 @@ export interface Interface {
   }) => Effect.Effect<void, RequestError>;
 
   /**
-   * Stores marimo server credentials on the proxy, separately from host API credentials.
+   * Authorizes the proxy to open marimo sessions for this host.
    *
-   * Retry the notebook's runtime connection after authorization succeeds.
+   * Supply the token from the marimo server’s launch URL. After authorization,
+   * retry the output connection to attach widgets to the running notebook.
    */
   readonly authorizeInteractions: (input: {
     readonly connectionId: string;

@@ -109,7 +109,11 @@ export interface RunOptions {
 }
 /** Operations on a notebook's current runtime, valid across restarts. */
 export interface Runtime {
-  /** Temporary access for the output renderer until it can read widget state directly. @internal */
+  /**
+   * Supplies widget state and callbacks to the output renderer.
+   *
+   * @internal
+   */
   readonly experimentalComm: Comm.Interface;
   /** Starts a runtime, optionally answering host startup decisions. */
   readonly start: (

@@ -19,12 +19,7 @@ const ModelState = {
 };
 const Capabilities = Schema.Struct({ edit: Schema.Boolean, interact: Schema.Boolean });
 
-/**
- * UI values, widget lifecycle messages, capabilities, and function replies.
- *
- * These messages serve interactive outputs. Notebook documents, executions, and
- * console output are observed through the notebook model. The channel correlates function replies before forwarding them to readers.
- */
+/** Kernel notifications understood by the output renderer. */
 const Notification = Schema.Union([
   Schema.Struct({
     op: Schema.Literal("kernel-ready"),
@@ -139,8 +134,8 @@ export class Snapshot {
   /**
    * Records a renderer notification in stream order and returns it for live delivery.
    *
-   * Unknown operations are ignored. A transport can report malformed messages from
-   * the marimo session stream while tolerating unrecognized custom event data.
+   * An unknown operation is skipped. An invalid envelope or malformed known
+   * operation also calls `onInvalid` when supplied.
    */
   recordNotification(
     raw: unknown,

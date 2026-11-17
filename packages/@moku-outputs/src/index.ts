@@ -1,10 +1,11 @@
 /**
  * React components for notebook display data and console output.
  *
- * Pass output records from your chosen execution. Components do not subscribe
- * to notebook state. Rich displays load the embedded marimo renderer on demand;
- * Provider connects widgets and function calls to a notebook runtime.
+ * Pass output records from the execution you want to display. Rich displays
+ * load the embedded renderer on demand. Wrap interactive outputs in
+ * {@link Provider} so their widgets can call back into the notebook.
  *
+ * @example Render a JSON value
  * ```tsx
  * import { DisplayView } from "@moku/outputs";
  *

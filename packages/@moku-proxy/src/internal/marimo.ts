@@ -1,5 +1,9 @@
 /**
- * Forward selected marimo output routes using server-side credentials.
+ * Forward widget requests to a running marimo server.
+ *
+ * On `POST /auth`, the proxy uses the supplied access token to load the marimo
+ * page and read its server token. Later kernel requests carry that server token
+ * and the ID of the widget’s session. The browser receives an acknowledgement.
  *
  * @module
  */

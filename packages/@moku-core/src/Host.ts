@@ -34,13 +34,18 @@ export interface State {
 export interface Options {
   /** The host protocol API base URL, including its versioned path. */
   readonly baseUrl: string | URL;
-  /** Bearer credential supplied with requests to this host. */
+  /** Bearer token sent to the host protocol API, including its event streams. */
   readonly token?: Redacted.Redacted<string>;
-  /** Optional marimo session transport for interactive outputs on hosts without runtime.experimental.comm. */
+  /**
+   * Lets widgets use a marimo session when the notebook lacks the experimental comm operation.
+   *
+   * The launcher supplies its output proxy here. Core posts to its `/auth`
+   * route before opening `/sse` and sending requests to `/api/kernel`.
+   */
   readonly marimo?: {
-    /** Base URL for marimo's authentication, event stream, and kernel routes. */
+    /** Base URL shared by those routes, such as `/api/hosts/<id>/marimo` on the launcher origin. */
     readonly baseUrl: URL;
-    /** Fetch implementation authorized for that marimo server. */
+    /** Sends requests to those routes. In the launcher it carries the proxy session cookie. */
     readonly fetch: typeof globalThis.fetch;
   };
   /** Maximum retry interval after an uncertain response. Defaults to 60 seconds; use a value shorter than the host's documented retention window. */

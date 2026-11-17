@@ -91,10 +91,7 @@ async function fixture(operations: string[] = []) {
             host = events;
             events.send("notebook", { notebook: { ...notebook, operations } });
             events.send("runtime", { runtime: current });
-            if (
-              operations.includes("runtime.comm") &&
-              request.headers.get("Example-Widget-Snapshot") === "1"
-            )
+            if (operations.includes("runtime.comm"))
               events.send("custom", {
                 custom: {
                   type: "marimo.notification",

@@ -60,11 +60,6 @@ export const makeClient = Effect.fnUntraced(function* (options: {
     HttpClient.mapRequestInput(HttpClientRequest.prependUrl(String(options.baseUrl))),
     HttpClient.transformResponse(Effect.provideContext(services)),
     HttpClient.mapRequest((request) =>
-      request.method === "GET" && /\/notebooks\/[^/]+\/events$/.test(request.url)
-        ? HttpClientRequest.setHeader(request, "Example-Widget-Snapshot", "1")
-        : request,
-    ),
-    HttpClient.mapRequest((request) =>
       options.token ? HttpClientRequest.bearerToken(request, options.token) : request,
     ),
     HttpClient.transformResponse(

@@ -224,7 +224,7 @@ async function fixture(
 }
 
 Vitest.test(
-  "comm uses host credentials and negotiates retained widgets on the notebook stream",
+  "comm validates widget messages and forwards them with host credentials",
   async ({ onTestFinished }) => {
     const { base, headers, received } = await fixture(onTestFinished);
     const payload = {
@@ -247,10 +247,6 @@ Vitest.test(
       headers: { authorization: "Bearer local-secret" },
     });
     Vitest.expect(JSON.parse(received[0].body)).toEqual(payload);
-    await fetch(base + "/notebooks/n/events", {
-      headers: { ...headers, "Example-Widget-Snapshot": "1" },
-    });
-    Vitest.expect(received.at(-1)?.headers["example-widget-snapshot"]).toBe("1");
   },
 );
 

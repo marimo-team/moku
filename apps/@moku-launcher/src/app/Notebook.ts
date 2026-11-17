@@ -2,7 +2,6 @@
 import { Effect } from "effect";
 import type * as Model from "@moku/core/Notebook";
 import type * as Host from "@moku/core/Host";
-import type * as Proxy from "./Proxy.ts";
 
 /** A notebook selected through a launcher host connection. */
 export interface Target {
@@ -19,13 +18,12 @@ export interface Interface extends Model.Interface {
 
 /** Attach a notebook and resolve its output assets through the launcher proxy. */
 export const make = Effect.fnUntraced(function* (
-  proxy: Proxy.Interface,
   host: Host.Interface,
   input: Target,
+  baseUrl: URL,
 ) {
   const target = Object.freeze({ ...input });
   const notebook = yield* host.notebooks.attach(target.notebookId);
-  const { baseUrl } = proxy.marimo(target.connectionId);
   return {
     ...notebook,
     target,

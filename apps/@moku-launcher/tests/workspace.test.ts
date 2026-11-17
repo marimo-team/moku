@@ -1,8 +1,7 @@
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import { Effect, Exit, Layer, Scope } from "effect";
+import { Effect, Exit, Scope } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
-import * as Proxy from "../src/app/Proxy.ts";
 import * as Workspace from "../src/app/Workspace.ts";
 import * as Document from "@moku/editor/Document";
 
@@ -15,7 +14,7 @@ const notebook = {
   updated_at: null,
 };
 
-async function fixture() {
+async function fixture(launchKey?: string) {
   const requests: Request[] = [];
   const streams: {
     request: Request;
@@ -25,12 +24,13 @@ async function fixture() {
   const connections = [
     { id: "local", name: "local", url: "http://host/api/marimo/v1", source: "local" },
   ];
-  let respond: ((request: Request) => Promise<Response>) | undefined;
+  let respond: ((request: Request) => Promise<Response | undefined>) | undefined;
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const request = new Request(input, init);
     request.signal.throwIfAborted();
     requests.push(request);
-    if (respond) return respond(request);
+    const response = await respond?.(request);
+    if (response) return response;
     const path = new URL(request.url).pathname;
     if (path === "/api/session") return Response.json({ authenticated: true });
     if (path === "/api/hosts") {
@@ -83,12 +83,10 @@ async function fixture() {
   };
   const registry = AtomRegistry.make();
   const scope = Effect.runSync(Scope.make());
-  const proxy = Proxy.make("http://moku.test", { fetch });
-  type Env = Layer.Success<typeof proxy.http> | AtomRegistry.AtomRegistry | Scope.Scope;
+  type Env = AtomRegistry.AtomRegistry | Scope.Scope;
   const run = <A, E>(effect: Effect.Effect<A, E, Env>, signal?: AbortSignal) =>
     Effect.runPromise(
       effect.pipe(
-        Effect.provide(proxy.http),
         Effect.provideService(AtomRegistry.AtomRegistry, registry),
         Effect.provideService(Scope.Scope, scope),
       ),
@@ -101,6 +99,9 @@ async function fixture() {
   });
   return {
     run,
+    workspace: await run(
+      Workspace.make({ baseUrl: "http://moku.test", fetch, launchKey }),
+    ),
     registry,
     requests,
     streams,
@@ -119,14 +120,14 @@ Vitest.test(
   "correcting credentials restarts shared observations without discarding editor drafts",
   async () => {
     const f = await fixture();
-    const workspace = await f.run(Workspace.make());
+    const { workspace } = f;
     await vi.waitFor(() =>
       Vitest.expect(f.registry.get(workspace.state).connections).toHaveLength(1),
     );
     const url = "http://manual/api/marimo/v1";
     await f.run(workspace.connect({ url, token: "expired" }));
-    const host = await f.run(workspace.host("manual"));
-    const attached = await f.run(host.notebooks.attach("n"));
+    const target = { connectionId: "manual", notebookId: "n" };
+    const attached = await f.run(workspace.attach(target));
     const editing = await f.run(Document.make(attached));
     const catalog = workspace.catalog("manual");
     Vitest.onTestFinished(f.registry.mount(catalog));
@@ -173,17 +174,19 @@ Vitest.test(
       Vitest.expect(f.registry.get(editing.state).canEdit).toBe(true),
     );
     editing.edit((tx) => tx.setCode("a", "unsent = 2"));
-    f.respond(async () =>
-      Response.json(
-        {
-          type: "urn:marimo:problem:unauthorized",
-          title: "Unauthorized",
-          status: 401,
-        },
-        { status: 401, headers: { "Content-Type": "application/problem+json" } },
-      ),
+    f.respond(async (request) =>
+      new URL(request.url).pathname.endsWith("/events")
+        ? Response.json(
+            {
+              type: "urn:marimo:problem:unauthorized",
+              title: "Unauthorized",
+              status: 401,
+            },
+            { status: 401, headers: { "Content-Type": "application/problem+json" } },
+          )
+        : undefined,
     );
-    await f.run(host.reconnect);
+    await f.run(workspace.connect({ url, token: "expired" }));
     await vi.waitFor(() => {
       for (const result of [f.registry.get(catalog), f.registry.get(attached.state)]) {
         Vitest.expect(result).toMatchObject({
@@ -199,8 +202,7 @@ Vitest.test(
 
     f.respond(undefined);
     await f.run(workspace.connect({ url, token: "corrected" }));
-    Vitest.expect(await f.run(workspace.host("manual"))).toBe(host);
-    Vitest.expect(await f.run(host.notebooks.attach("n"))).toBe(attached);
+    Vitest.expect((await f.run(workspace.attach(target))).state).toBe(attached.state);
     Vitest.expect(workspace.catalog("manual")).toBe(catalog);
     await vi.waitFor(() => Vitest.expect(f.streams).toHaveLength(4));
     for (const stream of f.streams.slice(2)) {
@@ -217,9 +219,7 @@ Vitest.test(
     );
     await f.close();
     Vitest.expect(f.streams.every((stream) => stream.closed)).toBe(true);
-    await Vitest.expect(f.run(host.reconnect)).rejects.toMatchObject({
-      reason: "closed",
-    });
+    await Vitest.expect(f.run(workspace.open(target))).rejects.toBeDefined();
     Vitest.expect(f.streams).toHaveLength(4);
   },
 );
@@ -227,8 +227,8 @@ Vitest.test(
 Vitest.test(
   "workspace authenticates, shares catalog atoms, and refreshes after manual connections",
   async () => {
-    const f = await fixture();
-    const workspace = await f.run(Workspace.make({ launchKey: "launch-key" }));
+    const f = await fixture("launch-key");
+    const { workspace } = f;
     Vitest.expectTypeOf(workspace.state).not.toExtend<Atom.Writable<Workspace.State>>();
     Vitest.expect(Atom.isWritable(workspace.state)).toBe(false);
     await vi.waitFor(() =>
@@ -274,7 +274,7 @@ Vitest.test(
   "proxy requests preserve policy, routing, and structured failures",
   async () => {
     const f = await fixture();
-    const workspace = await f.run(Workspace.make());
+    const { workspace } = f;
     await vi.waitFor(() =>
       Vitest.expect(f.registry.get(workspace.state).connections).toHaveLength(1),
     );
@@ -291,13 +291,6 @@ Vitest.test(
     Vitest.expect(open.headers.get("idempotency-key")).toEqual(
       Vitest.expect.any(String),
     );
-    await f.run(
-      workspace.authorizeInteractions({
-        connectionId: "host /a",
-        token: "marimo-token",
-      }),
-    );
-    Vitest.expect(await f.requests.at(-1)!.json()).toEqual({ token: "marimo-token" });
     for (const request of f.requests) {
       Vitest.expect(request.credentials).toBe("same-origin");
       Vitest.expect(request.redirect).toBe("error");
@@ -329,7 +322,7 @@ Vitest.test.each(["caller", "workspace"] as const)(
   "requests abort with their %s",
   async (owner) => {
     const f = await fixture();
-    const workspace = await f.run(Workspace.make());
+    const { workspace } = f;
     await vi.waitFor(() =>
       Vitest.expect(f.registry.get(workspace.state).connections).toHaveLength(1),
     );
@@ -346,16 +339,14 @@ Vitest.test.each(["caller", "workspace"] as const)(
     const caller = new AbortController();
     const pending = f
       .run(
-        workspace.authorizeInteractions({ connectionId: "local", token: "token" }),
+        workspace.connect({ url: "http://manual/api/marimo/v1", token: "token" }),
         caller.signal,
       )
       .then(
         () => "accepted",
         () => "aborted",
       );
-    await vi.waitFor(() =>
-      Vitest.expect(f.requests.at(-1)?.url).toContain("/marimo/auth"),
-    );
+    await vi.waitFor(() => Vitest.expect(f.requests.at(-1)?.method).toBe("POST"));
     const request = f.requests.at(-1)!;
     if (owner === "caller") caller.abort();
     else await f.close();
@@ -373,7 +364,7 @@ Vitest.test(
   "refresh leaves pending state on cancellation and clears failure on recovery",
   async () => {
     const f = await fixture();
-    const workspace = await f.run(Workspace.make());
+    const { workspace } = f;
     await vi.waitFor(() =>
       Vitest.expect(f.registry.get(workspace.state).connections).toHaveLength(1),
     );

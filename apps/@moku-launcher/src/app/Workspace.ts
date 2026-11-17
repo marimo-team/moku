@@ -3,21 +3,12 @@
  *
  * @module
  */
-import {
-  Data,
-  Effect,
-  Fiber,
-  Option,
-  RcMap,
-  Schema,
-  Semaphore,
-  type Scope,
-} from "effect";
+import { Data, Effect, Fiber, Option, RcMap, Schema, Semaphore } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Host from "@moku/core/Host";
-import type * as Proxy from "./Proxy.ts";
+import * as Notebook from "./Notebook.ts";
 import { RequestError } from "./request.ts";
-import { HttpBody, HttpClient, HttpClientResponse } from "effect/http";
+import { FetchHttpClient, HttpBody, HttpClient, HttpClientResponse } from "effect/http";
 
 /**
  * A discovered or manually connected host, without its authentication token.
@@ -66,10 +57,8 @@ export interface Interface {
    */
   readonly state: Atom.Atom<State>;
 
-  /** Shares a host until the last caller scope closes, bounded by this workspace. */
-  readonly host: (
-    connectionId: string,
-  ) => Effect.Effect<Host.Interface, never, Scope.Scope>;
+  /** Attaches a notebook on the selected host for the caller's scope. */
+  readonly attach: (target: Notebook.Target) => ReturnType<typeof Notebook.make>;
 
   /**
    * Returns a stable catalog atom for a connection.
@@ -96,17 +85,6 @@ export interface Interface {
     readonly connectionId: string;
     readonly notebookId: string;
   }) => Effect.Effect<void, RequestError>;
-
-  /**
-   * Authorizes the proxy to open marimo sessions for this host.
-   *
-   * Supply the token from the marimo server’s launch URL. After authorization,
-   * retry the output connection to attach widgets to the running notebook.
-   */
-  readonly authorizeInteractions: (input: {
-    readonly connectionId: string;
-    readonly token: string;
-  }) => Effect.Effect<void, RequestError>;
 }
 
 const failure = (cause: unknown) =>
@@ -116,7 +94,6 @@ const failure = (cause: unknown) =>
         message: cause instanceof Error ? cause.message : String(cause),
         cause,
       });
-const Success = Schema.Struct({ success: Schema.Literal(true) });
 const Problem = Schema.Struct({
   error: Schema.String,
   code: Schema.optionalKey(Schema.String),
@@ -141,15 +118,24 @@ const checkResponse = Effect.fnUntraced(function* (
   );
 });
 
-/**
- * Authenticate a proxy session and share its host observations.
- *
- * The supplied HttpClient handles the base URL and request credentials.
- */
-export const make = Effect.fnUntraced(function* (
-  options: { launchKey?: string; marimo?: Proxy.Interface["marimo"] } = {},
-) {
-  const transport = yield* HttpClient.HttpClient;
+/** Opens a launcher session and shares host connections between catalogs and notebook views. */
+export const make = Effect.fnUntraced(function* (options: {
+  baseUrl: string | URL;
+  launchKey?: string;
+  fetch?: typeof globalThis.fetch;
+}) {
+  const sessionUrl = new URL("/api/session", options.baseUrl).href;
+  const hostsUrl = new URL("/api/hosts", options.baseUrl).href;
+  const hostUrl = (id: string) => hostsUrl + "/" + encodeURIComponent(id);
+  const marimoUrl = (id: string) => new URL(hostUrl(id) + "/marimo");
+  const send = options.fetch ?? globalThis.fetch;
+  const fetch: typeof globalThis.fetch = (input, init) =>
+    send(input, { ...init, credentials: "same-origin", redirect: "error" });
+  const transport = yield* HttpClient.HttpClient.pipe(
+    Effect.provide(FetchHttpClient.layer),
+    Effect.provideService(FetchHttpClient.Fetch, fetch),
+    Effect.provideService(HttpClient.TracerPropagationEnabled, false),
+  );
   const http = transport.pipe(
     HttpClient.transformResponse(Effect.flatMap(checkResponse)),
   );
@@ -164,10 +150,10 @@ export const make = Effect.fnUntraced(function* (
     ).pipe(Effect.mapError(failure));
   yield* owned(
     (options.launchKey
-      ? http.post("/api/session", {
+      ? http.post(sessionUrl, {
           headers: { Authorization: `Bearer ${options.launchKey}` },
         })
-      : http.get("/api/session")
+      : http.get(sessionUrl)
     ).pipe(
       Effect.flatMap(
         HttpClientResponse.schemaBodyJson(
@@ -206,7 +192,7 @@ export const make = Effect.fnUntraced(function* (
     );
   const refresh = update(
     owned(
-      http.get("/api/hosts").pipe(
+      http.get(hostsUrl).pipe(
         Effect.flatMap(HttpClientResponse.schemaBodyJson(Schema.Array(Connection))),
         Effect.tap((connections) =>
           Effect.sync(() =>
@@ -219,8 +205,8 @@ export const make = Effect.fnUntraced(function* (
   const hosts = yield* RcMap.make({
     lookup: (connectionId: string) =>
       Host.make({
-        baseUrl: `/api/hosts/${encodeURIComponent(connectionId)}`,
-        marimo: options.marimo?.(connectionId),
+        baseUrl: hostUrl(connectionId),
+        marimo: { baseUrl: marimoUrl(connectionId), fetch },
       }).pipe(Effect.provideService(HttpClient.HttpClient, transport)),
   });
   const host = (connectionId: string) => RcMap.get(hosts, connectionId);
@@ -237,7 +223,13 @@ export const make = Effect.fnUntraced(function* (
     state: Atom.readable((get) => get(current)),
     refresh,
     catalog,
-    host,
+    attach: Effect.fnUntraced(function* (target) {
+      return yield* Notebook.make(
+        yield* host(target.connectionId),
+        target,
+        marimoUrl(target.connectionId),
+      );
+    }),
     open: ({ connectionId, notebookId }) =>
       owned(
         Effect.scoped(
@@ -247,21 +239,10 @@ export const make = Effect.fnUntraced(function* (
           }),
         ),
       ),
-    authorizeInteractions: ({ connectionId, token }) =>
-      owned(
-        http
-          .post(`/api/hosts/${encodeURIComponent(connectionId)}/marimo/auth`, {
-            body: HttpBody.jsonUnsafe({ token }),
-          })
-          .pipe(
-            Effect.flatMap(HttpClientResponse.schemaBodyJson(Success)),
-            Effect.asVoid,
-          ),
-      ),
     connect: (input) =>
       update(
         owned(
-          http.post("/api/hosts", { body: HttpBody.jsonUnsafe(input) }).pipe(
+          http.post(hostsUrl, { body: HttpBody.jsonUnsafe(input) }).pipe(
             Effect.flatMap(HttpClientResponse.schemaBodyJson(Connection)),
             Effect.tap((connection) =>
               Effect.scoped(

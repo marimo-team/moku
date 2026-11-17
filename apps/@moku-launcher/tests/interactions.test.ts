@@ -1,11 +1,9 @@
 import type * as CommProtocol from "@moku/core/internal/comm-protocol";
-import * as Host from "@moku/core/Host";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import { Cause, Effect, Exit, Scope, Stream } from "effect";
 import { AsyncResult, AtomRegistry } from "effect/reactivity";
-import * as Proxy from "../src/app/Proxy.ts";
-import * as Notebook from "../src/app/Notebook.ts";
+import * as Workspace from "../src/app/Workspace.ts";
 
 const notebook = {
   id: "n",
@@ -42,6 +40,8 @@ async function fixture(operations: string[] = []) {
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const request = new Request(input, init);
     const url = new URL(request.url);
+    if (url.pathname === "/api/session") return Response.json({ authenticated: true });
+    if (url.pathname === "/api/hosts") return Response.json([]);
     if (request.method === "POST") {
       const body = await request.json();
       requests.push({ path: url.pathname, body });
@@ -126,19 +126,14 @@ async function fixture(operations: string[] = []) {
   };
   const registry = AtomRegistry.make();
   const scope = Effect.runSync(Scope.make());
-  const proxy = Proxy.make("http://moku.test", { fetch });
   const model = await Effect.runPromise(
     Effect.gen(function* () {
-      const host = yield* Host.make({
-        baseUrl: proxy.url("/api/hosts/host"),
-        marimo: proxy.marimo("host"),
-      });
-      return yield* Notebook.make(proxy, host, {
+      const workspace = yield* Workspace.make({ baseUrl: "http://moku.test", fetch });
+      return yield* workspace.attach({
         connectionId: "host",
         notebookId: "n",
       });
     }).pipe(
-      Effect.provide(proxy.http),
       Effect.provideService(AtomRegistry.AtomRegistry, registry),
       Effect.provideService(Scope.Scope, scope),
     ),

@@ -3,7 +3,8 @@ import { Deferred, Effect, Stream } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import type * as Model from "@moku/core/Notebook";
 import type * as Host from "@moku/core/Host";
-import type * as Comm from "@moku/core/Comm";
+import { operation } from "@moku/core/internal/comm-protocol";
+import type * as Comm from "@moku/core/experimental/Comm";
 import type * as Proxy from "./Proxy.ts";
 import * as NativeOutputs from "./native/comm.ts";
 
@@ -44,8 +45,8 @@ export const make = Effect.fnUntraced(function* (
     AsyncResult.getOrElse(
       get(notebook.state),
       () => undefined,
-    )?.notebook?.operations.includes("runtime.comm")
-      ? notebook.runtime.comm
+    )?.notebook?.operations.includes(operation)
+      ? notebook.runtime.experimentalComm
       : outputs.comm,
   );
   const closed = yield* Deferred.make<void>();
@@ -64,6 +65,6 @@ export const make = Effect.fnUntraced(function* (
     ...notebook,
     target,
     assetUrl: outputs.assetUrl,
-    runtime: { ...notebook.runtime, comm },
+    runtime: { ...notebook.runtime, experimentalComm: comm },
   } satisfies Interface;
 });

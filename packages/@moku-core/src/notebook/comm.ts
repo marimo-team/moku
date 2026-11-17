@@ -1,8 +1,8 @@
 /** Route notebook widget notifications and correlate calls to the producing runtime. @module */
-import * as Native from "../internal/native-comm.ts";
+import * as CommProtocol from "../internal/comm-protocol.ts";
 import { type Cause, Deferred, Effect, Queue, Stream } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
-import * as Comm from "../Comm.ts";
+import * as Comm from "../experimental/Comm.ts";
 import type * as Notebook from "../Notebook.ts";
 import type * as Protocol from "../Protocol.ts";
 import type { Client } from "../internal/client.ts";
@@ -16,7 +16,7 @@ export const make = Effect.fnUntraced(function* (
   notebookId: typeof Protocol.NotebookId.Type,
 ) {
   const registry = yield* AtomRegistry.AtomRegistry;
-  const snapshot = new Native.Snapshot();
+  const snapshot = new CommProtocol.Snapshot();
   const readers = new Set<Queue.Queue<Comm.Event, Cause.Done>>();
   const calls = new Map<string, Deferred.Deferred<Comm.Json, Comm.Error>>();
   let active: { id: string; ended: Deferred.Deferred<never, Comm.Error> } | undefined;
@@ -111,7 +111,7 @@ export const make = Effect.fnUntraced(function* (
     reset,
     receive(state: NotebookState, event: Protocol.NotebookEvent) {
       const id =
-        state.notebook?.operations.includes("runtime.comm") &&
+        state.notebook?.operations.includes(CommProtocol.operation) &&
         state.runtime?.status === "running"
           ? state.runtime.id
           : undefined;
@@ -173,9 +173,12 @@ export const make = Effect.fnUntraced(function* (
           const state = registry.get(observed);
           if (!AsyncResult.isSuccess(state) || state.waiting)
             return Effect.fail(problem("unavailable", "The notebook is reconnecting."));
-          if (!state.value.notebook?.operations.includes("runtime.comm"))
+          if (!state.value.notebook?.operations.includes(CommProtocol.operation))
             return Effect.fail(
-              problem("unsupported", "The notebook does not offer runtime.comm."),
+              problem(
+                "unsupported",
+                "The notebook does not offer runtime.experimental.comm.",
+              ),
             );
           if (!active)
             return Effect.fail(

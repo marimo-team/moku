@@ -7,7 +7,7 @@
  * @module
  */
 import { Effect, Stream } from "effect";
-import * as Comm from "@moku/core/Comm";
+import * as Comm from "@moku/core/experimental/Comm";
 import type * as RendererSession from "./RendererSession.ts";
 import { loadRenderer } from "./renderer.ts";
 

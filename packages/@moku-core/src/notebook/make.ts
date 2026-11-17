@@ -82,7 +82,7 @@ export const make = Effect.fnUntraced(function* (
   });
   const { state } = observation;
   const runtime: Notebook.Runtime = {
-    comm: comm.bind(state, observation.reconnect),
+    experimentalComm: comm.bind(state, observation.reconnect),
     start: (payload = {}) =>
       commands.mutation((idempotencyKey) =>
         client.Notebook.start({

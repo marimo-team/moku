@@ -1,5 +1,8 @@
-/** Native marimo wire schemas and retained state shared by output adapters. @module */
+/** Host and native marimo protocols used by the experimental output channel. @module */
 import { Result, Schema } from "effect";
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
+import * as S from "@marimo-team/host-protocol/Schemas";
+import * as Problems from "@marimo-team/host-protocol/Problems";
 
 const JsonObject = Schema.Record(Schema.String, Schema.Json);
 const Buffers = Schema.Array(Schema.String);
@@ -213,3 +216,36 @@ export class Snapshot {
     ];
   }
 }
+
+/** The notebook operation that advertises the experimental comm endpoint. */
+export const operation = "runtime.experimental.comm";
+
+/** The HTTP contract shared by the notebook client and the proxy. */
+export const CommGroup = HttpApiGroup.make("Comm").add(
+  HttpApiEndpoint.post("send", "/notebooks/:notebook_id/runtime/experimental/comm", {
+    params: Schema.Struct({ notebookId: S.NotebookId }).pipe(
+      Schema.encodeKeys({ notebookId: "notebook_id" }),
+    ),
+    payload: Schema.TaggedUnion({
+      SetValues: { values: Schema.Record(Schema.String, Schema.Json) },
+      Model: {
+        model: Schema.String,
+        message: ModelValue.fields.message,
+        buffers: ModelValue.fields.buffers,
+      },
+      Invoke: {
+        call: Schema.String,
+        namespace: Schema.String,
+        name: Schema.String,
+        args: Schema.Record(Schema.String, Schema.Json),
+      },
+    }),
+    success: S.Runtime.pipe(HttpApiSchema.status(202)),
+    error: [
+      ...Problems.Common.members,
+      Problems.NoRuntimeProblem,
+      Problems.ConflictProblem,
+      Problems.UnsupportedOperationProblem,
+    ],
+  }),
+);

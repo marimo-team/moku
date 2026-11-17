@@ -6,8 +6,8 @@
  *
  * @module
  */
-import type * as Native from "@moku/core/internal/native-comm";
-import type * as Comm from "@moku/core/Comm";
+import type * as CommProtocol from "@moku/core/internal/comm-protocol";
+import type * as Comm from "@moku/core/experimental/Comm";
 import type { DisplayViewProps } from "../types.ts";
 
 /** Runtime-bound callbacks installed into the native renderer's registries. */
@@ -18,12 +18,14 @@ export interface Options {
   readonly assetUrl: (path: string) => string;
   /** Submits paired UI element IDs and values, resolving on host acceptance. */
   readonly sendComponentValues: (
-    request: typeof Native.ComponentValues.Type,
+    request: typeof CommProtocol.ComponentValues.Type,
   ) => Promise<void>;
   /** Resolves with the function's result after its reply arrives on the native stream. */
   readonly invoke: (request: Omit<Comm.Invoke, "runtimeId">) => Promise<Comm.Json>;
   /** Submits a widget state patch or custom message with its binary attachments. */
-  readonly sendModelValue: (request: typeof Native.ModelValue.Type) => Promise<void>;
+  readonly sendModelValue: (
+    request: typeof CommProtocol.ModelValue.Type,
+  ) => Promise<void>;
 }
 
 /** Native renderer registrations owned by one runtime and released together. */
@@ -33,7 +35,7 @@ export interface Interface {
   /** Resolves asset references for outputs belonging to this session. */
   readonly assetUrl: (path: string) => string;
   /** Applies a notification to the renderer's UI and widget registries. */
-  readonly handle: (notification: Native.Notification) => Promise<void>;
+  readonly handle: (notification: CommProtocol.Notification) => Promise<void>;
   /** Releases registries and listeners; repeated calls are harmless. */
   readonly dispose: () => void;
 }

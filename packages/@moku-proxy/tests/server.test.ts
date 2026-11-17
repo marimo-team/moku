@@ -6,7 +6,7 @@ import type { HostRecordOutput } from "@marimo-team/client/protocol";
 import { Effect, Schema, Stream } from "effect";
 import { AtomRegistry } from "effect/reactivity";
 import { FetchHttpClient } from "effect/http";
-import * as Comm from "@moku/core/Comm";
+import * as Comm from "@moku/core/experimental/Comm";
 import * as Host from "@moku/core/Host";
 import * as Protocol from "@marimo-team/host-protocol/Schemas";
 
@@ -232,7 +232,7 @@ Vitest.test(
       project_id: "p",
       name: "demo.py",
       path: "demo.py",
-      operations: ["runtime.comm"],
+      operations: ["runtime.experimental.comm"],
       updated_at: null,
     };
     const runtime = Schema.decodeUnknownSync(Protocol.Runtime)({
@@ -280,7 +280,7 @@ Vitest.test(
           url: req.url,
           body: body ? JSON.parse(body) : null,
         });
-        if (req.url?.endsWith("/runtime/comm")) {
+        if (req.url?.endsWith("/runtime/experimental/comm")) {
           res.writeHead(202, { "Content-Type": "application/json" });
           res.end(JSON.stringify(runtime));
           return;
@@ -350,20 +350,25 @@ Vitest.test(
             });
           }
           const registry = yield* AtomRegistry.AtomRegistry;
-          yield* AtomRegistry.toStream(registry, attached.runtime.comm.state).pipe(
+          yield* AtomRegistry.toStream(
+            registry,
+            attached.runtime.experimentalComm.state,
+          ).pipe(
             Stream.filter((state) => state.connection._tag === "Connected"),
             Stream.runHead,
             Effect.timeout("2 seconds"),
           );
           const invalid = yield* Effect.promise(() =>
-            fetch(f.base + "/notebooks/n/runtime/comm", {
+            fetch(f.base + "/notebooks/n/runtime/experimental/comm", {
               method: "POST",
               headers: f.headers,
               body: JSON.stringify({ _tag: "Model", ...model, buffers: [123] }),
             }),
           );
           Vitest.expect(invalid.status).toBe(400);
-          yield* attached.runtime.comm.send(Comm.Model({ ...model, runtimeId: "rt" }));
+          yield* attached.runtime.experimentalComm.send(
+            Comm.Model({ ...model, runtimeId: "rt" }),
+          );
           yield* host.notebooks.delete("n");
           authenticated = false;
           const error = yield* Effect.flip(host.notebooks.open("n"));
@@ -403,7 +408,7 @@ Vitest.test(
       },
       {
         method: "POST",
-        url: "/api/marimo/v1/notebooks/n/runtime/comm",
+        url: "/api/marimo/v1/notebooks/n/runtime/experimental/comm",
         body: { _tag: "Model", ...model },
       },
       { method: "DELETE", url: "/api/marimo/v1/notebooks/n", body: null },

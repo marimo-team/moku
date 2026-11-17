@@ -8,8 +8,8 @@
     "./Host": "./src/Host.ts",
     "./Protocol": "./src/Protocol.ts",
     "./Outputs": "./src/Outputs.ts",
-    "./Comm": "./src/Comm.ts",
-    "./internal/native-comm": "./src/internal/native-comm.ts"
+    "./experimental/Comm": "./src/experimental/Comm.ts",
+    "./internal/comm-protocol": "./src/internal/comm-protocol.ts"
   },
   "dependencies": {
     "@marimo-team/host-protocol": "file:../../vendor/host-protocol",

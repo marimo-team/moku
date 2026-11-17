@@ -85,16 +85,16 @@ Running fails if an observed cell has changed. The call returns when the run is
 accepted, and callers may follow execution through `notebook.state` using the
 accepted `run.id`.
 
-## Interact with outputs
+## Experimental output messaging
 
-When a notebook advertises `runtime.comm`, a renderer can send UI values and
+When a notebook advertises `runtime.experimental.comm`, a renderer can send UI values and
 widget messages to its running kernel. Pass the runtime ID that produced the
 output so a callback from an old renderer fails after a kernel restart.
 
 ```ts
-import * as Comm from "@moku/core/Comm";
+import * as Comm from "@moku/core/experimental/Comm";
 
-const comm = notebook.runtime.comm;
+const comm = notebook.runtime.experimentalComm;
 yield * comm.send(Comm.SetValues({ runtimeId, values: { [sliderId]: 45 } }));
 const rows = yield * comm.invoke({ runtimeId, namespace, name: "get_rows", args: {} });
 ```

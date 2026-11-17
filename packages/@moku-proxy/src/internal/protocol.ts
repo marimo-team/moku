@@ -5,7 +5,7 @@ import * as Host from "@marimo-team/host-protocol/Host";
 import type * as NodeHttp from "node:http";
 import { readBody } from "./http.ts";
 
-import { CommGroup } from "@moku/core/Protocol";
+import { CommGroup } from "@moku/core/internal/comm-protocol";
 
 const routes = [...Object.values(Host.Api.groups), CommGroup].flatMap((group) =>
   Object.values(group.endpoints).map((endpoint: HttpApiEndpoint.Top) => {

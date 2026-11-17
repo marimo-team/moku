@@ -10,7 +10,7 @@ import {
   ComponentValues,
   FunctionCall,
   ModelValue,
-} from "@moku/core/internal/native-comm";
+} from "@moku/core/internal/comm-protocol";
 import { json, readBody } from "./http.ts";
 
 const routes = {

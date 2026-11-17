@@ -6,13 +6,13 @@
  *
  * @module
  */
-import * as Native from "@moku/core/internal/native-comm";
+import * as CommProtocol from "@moku/core/internal/comm-protocol";
 import * as MarimoClient from "@marimo-team/client";
 import { Effect, Queue, Schema, Stream } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import type * as Host from "@moku/core/Host";
 import type * as Notebook from "@moku/core/Notebook";
-import * as Comm from "@moku/core/Comm";
+import * as Comm from "@moku/core/experimental/Comm";
 import * as Protocol from "@moku/core/Protocol";
 
 const Frame = Schema.Struct({ event: Schema.String, data: Schema.Unknown });
@@ -80,7 +80,7 @@ export const make = Effect.fnUntraced(function* (
   const urlFor = (path: string) => new URL(base + path, options.baseUrl).href;
   const channel = Atom.make<Comm.Connection>(Comm.Connection.Idle());
   const unmount = registry.mount(channel);
-  const snapshot = new Native.Snapshot();
+  const snapshot = new CommProtocol.Snapshot();
   const listeners = new Set<Listener>();
   let connection: Connection | undefined;
   let attempted: string | null = null;
@@ -300,7 +300,7 @@ export const make = Effect.fnUntraced(function* (
       AsyncResult.isSuccess(state) &&
       !state.waiting &&
       notebook &&
-      !notebook.operations.includes("runtime.comm") &&
+      !notebook.operations.includes(CommProtocol.operation) &&
       runtime?.status === "running"
         ? `${runtime.id}:${notebook.path}`
         : null;

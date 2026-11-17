@@ -28,8 +28,8 @@ function ExecutionOutputs({
 ```
 
 `CellOutputs` renders an output snapshot; `DisplayView` and `ConsoleOutput` render
-individual parts. `Provider` connects interactive outputs to the notebook runtime.
-The renderer sends widget messages through `notebook.runtime.comm` and uses `assetUrl` to resolve output assets.
+individual parts.
+Pass the notebook to `Provider` to connect its widgets and resolve their assets.
 Use the notebook's atom registry; one notebook can have interactive outputs per page.
 
 `bun setup` builds the embedded renderer from the pinned GitHub revision.

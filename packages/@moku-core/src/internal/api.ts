@@ -5,7 +5,7 @@ import * as Host from "@marimo-team/host-protocol/Host";
 import * as Notebook from "@marimo-team/host-protocol/Notebook";
 import * as Analysis from "@marimo-team/host-protocol/experimental/Analysis";
 
-import { CommGroup } from "../Protocol.ts";
+import { CommGroup } from "./comm-protocol.ts";
 
 const known = new Set<string>([
   "ready",

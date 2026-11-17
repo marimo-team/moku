@@ -1,5 +1,5 @@
 /**
- * Exchange messages with a notebook runtime's interactive outputs.
+ * Experimental messaging for interactive notebook outputs.
  *
  * Sends UI and widget updates, delivers incoming notifications, and matches
  * remote function calls with their replies.
@@ -8,8 +8,8 @@
  */
 import { Data, type Schema, type Effect, type Stream } from "effect";
 import type { Atom } from "effect/reactivity";
-import type * as Native from "./internal/native-comm.ts";
-import type * as Protocol from "./Protocol.ts";
+import type * as Native from "../internal/comm-protocol.ts";
+import type * as Protocol from "../Protocol.ts";
 
 /** Values exchanged with Python functions and interactive controls. */
 export type Json = typeof Schema.Json.Type;
@@ -116,7 +116,7 @@ export interface State {
 /**
  * A shared output connection owned by the notebook's Effect scope.
  *
- * Hosts advertising runtime.comm carry notifications on the notebook stream.
+ * Hosts advertising runtime.experimental.comm carry notifications on the notebook stream.
  * Native marimo attachments open on demand. Commands require a running kernel
  * and permission to interact.
  * Closing the owner scope aborts requests and ends subscriptions.

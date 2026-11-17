@@ -6,7 +6,7 @@ import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";
 import { Effect, Queue, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import * as Comm from "@moku/core/Comm";
+import * as Comm from "@moku/core/experimental/Comm";
 import { Provider, OutputContext, type Notebook } from "../src/Provider.tsx";
 import type * as RendererSession from "../src/internal/RendererSession.ts";
 
@@ -40,7 +40,7 @@ function fixture() {
   let emit: (event: Comm.Event) => void = () => {};
   let readers = 0;
   const executeCall = vi.fn(() => ({ answer: 42 }));
-  const comm: Notebook["runtime"]["comm"] = {
+  const comm: Notebook["runtime"]["experimentalComm"] = {
     state: Atom.readable(() => ({
       runtime: null,
       connection: Comm.Connection.Connected({ canInteract: true }),
@@ -64,7 +64,7 @@ function fixture() {
     retry: Effect.void,
   };
   return {
-    runtime: { comm },
+    runtime: { experimentalComm: comm },
     executeCall,
     assetUrl: (path: string) => path,
     sessions,
@@ -161,7 +161,7 @@ Vitest.test(
     Vitest.expect(old.dispose).toHaveBeenCalledOnce();
     Vitest.expect(view.element.textContent).toBe("new");
     await old.options.sendComponentValues({ objectIds: ["a"], values: [7] });
-    Vitest.expect(f.runtime.comm.send).toHaveBeenCalledWith({
+    Vitest.expect(f.runtime.experimentalComm.send).toHaveBeenCalledWith({
       _tag: "SetValues",
       runtimeId: "old",
       values: { a: 7 },
@@ -170,7 +170,7 @@ Vitest.test(
     Vitest.expect(
       await current.invoke({ namespace: "table", name: "fetch", args: {} }),
     ).toEqual({ answer: 42 });
-    Vitest.expect(f.runtime.comm.invoke).toHaveBeenCalledWith({
+    Vitest.expect(f.runtime.experimentalComm.invoke).toHaveBeenCalledWith({
       runtimeId: "new",
       namespace: "table",
       name: "fetch",
@@ -181,7 +181,7 @@ Vitest.test(
       message: { method: "custom", content: {} },
       buffers: ["AQ=="],
     });
-    Vitest.expect(f.runtime.comm.send).toHaveBeenCalledWith({
+    Vitest.expect(f.runtime.experimentalComm.send).toHaveBeenCalledWith({
       _tag: "Model",
       runtimeId: "new",
       model: "m",

@@ -1,4 +1,4 @@
-import type * as Native from "@moku/core/internal/native-comm";
+import type * as CommProtocol from "@moku/core/internal/comm-protocol";
 import * as Host from "@moku/core/Host";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
@@ -6,7 +6,7 @@ import { Cause, Effect, Exit, Scope, Stream } from "effect";
 import { AsyncResult, AtomRegistry } from "effect/reactivity";
 import * as Proxy from "../src/app/Proxy.ts";
 import * as Notebook from "../src/app/Notebook.ts";
-import * as Comm from "@moku/core/Comm";
+import * as Comm from "@moku/core/experimental/Comm";
 
 const notebook = {
   id: "n",
@@ -46,7 +46,7 @@ async function fixture(operations: string[] = []) {
     if (request.method === "POST") {
       const body = await request.json();
       requests.push({ path: url.pathname, body });
-      if (url.pathname.endsWith("/runtime/comm"))
+      if (url.pathname.endsWith("/runtime/experimental/comm"))
         return Response.json(current, { status: 202 });
       return Response.json(
         { success: true },
@@ -91,7 +91,7 @@ async function fixture(operations: string[] = []) {
             host = events;
             events.send("notebook", { notebook: { ...notebook, operations } });
             events.send("runtime", { runtime: current });
-            if (operations.includes("runtime.comm"))
+            if (operations.includes("runtime.experimental.comm"))
               events.send("custom", {
                 custom: {
                   type: "marimo.notification",
@@ -153,7 +153,7 @@ async function fixture(operations: string[] = []) {
     const events: Comm.Event[] = [];
     const controller = new AbortController();
     const done = Effect.runPromiseExit(
-      model.runtime.comm.events.pipe(
+      model.runtime.experimentalComm.events.pipe(
         Stream.runForEach((event) =>
           Effect.sync(() => {
             events.push(event);
@@ -179,18 +179,18 @@ async function fixture(operations: string[] = []) {
     close,
     subscribe,
     notebookStreams: () => notebookStreams,
-    custom: (notification: Native.Notification) =>
+    custom: (notification: CommProtocol.Notification) =>
       host!.send("custom", {
         custom: { type: "marimo.notification", data: notification },
         time: "2026-11-12T12:00:00Z",
       }),
     ready: () =>
       vi.waitFor(() =>
-        Vitest.expect(registry.get(model.runtime.comm.state).connection._tag).toBe(
-          "Connected",
-        ),
+        Vitest.expect(
+          registry.get(model.runtime.experimentalComm.state).connection._tag,
+        ).toBe("Connected"),
       ),
-    notify: (notification: Native.Notification) =>
+    notify: (notification: CommProtocol.Notification) =>
       native.at(-1)!.send("marimo", { marimo: notification }),
     authenticate: (value: boolean) => {
       authenticated = value;
@@ -270,7 +270,7 @@ Vitest.test(
   async () => {
     const f = await fixture();
     const invoked = Effect.runPromise(
-      f.model.runtime.comm.invoke({
+      f.model.runtime.experimentalComm.invoke({
         namespace: "table",
         name: "fetch",
         args: { page: 1 },
@@ -297,12 +297,12 @@ Vitest.test(
     const reader = f.subscribe();
     await f.ready();
     await Effect.runPromise(
-      f.model.runtime.comm.send(
+      f.model.runtime.experimentalComm.send(
         Comm.SetValues({ runtimeId: "rt", values: { "a-0": 5 } }),
       ),
     );
     await Effect.runPromise(
-      f.model.runtime.comm.send(
+      f.model.runtime.experimentalComm.send(
         Comm.Model({
           runtimeId: "rt",
           model: "model",
@@ -328,7 +328,7 @@ Vitest.test(
     f.subscribe();
     await f.ready();
     const pending = Effect.runPromise(
-      f.model.runtime.comm.invoke({
+      f.model.runtime.experimentalComm.invoke({
         runtimeId: "rt",
         namespace: "n",
         name: "f",
@@ -348,7 +348,7 @@ Vitest.test(
     const before = f.requests.length;
     await Vitest.expect(
       Effect.runPromise(
-        f.model.runtime.comm.send(
+        f.model.runtime.experimentalComm.send(
           Comm.SetValues({ runtimeId: "rt", values: { "a-0": 1 } }),
         ),
       ),
@@ -358,7 +358,11 @@ Vitest.test(
     Vitest.expect(f.native[1].signal.aborted).toBe(true);
     await Vitest.expect(
       Effect.runPromise(
-        f.model.runtime.comm.invoke({ namespace: "n", name: "f", args: {} }),
+        f.model.runtime.experimentalComm.invoke({
+          namespace: "n",
+          name: "f",
+          args: {},
+        }),
       ),
     ).rejects.toMatchObject({ code: "closed" });
   },
@@ -372,7 +376,7 @@ Vitest.test(
     f.subscribe();
     await vi.waitFor(() =>
       Vitest.expect(
-        f.registry.get(f.model.runtime.comm.state).connection,
+        f.registry.get(f.model.runtime.experimentalComm.state).connection,
       ).toMatchObject({
         _tag: "Failed",
         error: { code: "authentication" },
@@ -380,13 +384,13 @@ Vitest.test(
     );
     Vitest.expect(f.native).toHaveLength(0);
     f.authenticate(true);
-    await Effect.runPromise(f.model.runtime.comm.retry);
+    await Effect.runPromise(f.model.runtime.experimentalComm.retry);
     await f.ready();
     f.wrongRuntime();
-    await Effect.runPromise(f.model.runtime.comm.retry);
+    await Effect.runPromise(f.model.runtime.experimentalComm.retry);
     await vi.waitFor(() =>
       Vitest.expect(
-        f.registry.get(f.model.runtime.comm.state).connection,
+        f.registry.get(f.model.runtime.experimentalComm.state).connection,
       ).toMatchObject({
         _tag: "Failed",
         error: { code: "stale-runtime" },
@@ -399,7 +403,7 @@ Vitest.test(
 Vitest.test(
   "a late renderer restores host widget values without opening a second stream or writing to the kernel",
   async () => {
-    const f = await fixture(["runtime.comm"]);
+    const f = await fixture(["runtime.experimental.comm"]);
     const reader = f.subscribe();
     await vi.waitFor(() =>
       Vitest.expect(reader.events).toContainEqual(
@@ -417,13 +421,13 @@ Vitest.test(
     Vitest.expect(f.native).toHaveLength(0);
 
     await Effect.runPromise(
-      f.model.runtime.comm.send(
+      f.model.runtime.experimentalComm.send(
         Comm.SetValues({ runtimeId: "rt", values: { slider: 8 } }),
       ),
     );
     Vitest.expect(f.requests).toEqual([
       {
-        path: "/api/hosts/host/notebooks/n/runtime/comm",
+        path: "/api/hosts/host/notebooks/n/runtime/experimental/comm",
         body: { _tag: "SetValues", values: { slider: 8 } },
       },
     ]);
@@ -433,10 +437,10 @@ Vitest.test(
 Vitest.test(
   "concurrent Python calls receive their own replies when the kernel answers out of order",
   async () => {
-    const f = await fixture(["runtime.comm"]);
+    const f = await fixture(["runtime.experimental.comm"]);
     function invoke(name: string) {
       return Effect.runPromise(
-        f.model.runtime.comm.invoke({ namespace: "table", name, args: {} }),
+        f.model.runtime.experimentalComm.invoke({ namespace: "table", name, args: {} }),
       );
     }
     const first = invoke("rows");
@@ -471,8 +475,8 @@ Vitest.test(
 Vitest.test(
   "replacing the host runtime retires pending calls, retained values, and stale widget callbacks",
   async () => {
-    const f = await fixture(["runtime.comm"]);
-    const comm = f.model.runtime.comm;
+    const f = await fixture(["runtime.experimental.comm"]);
+    const comm = f.model.runtime.experimentalComm;
     const pending = Vitest.expect(
       Effect.runPromise(comm.invoke({ namespace: "table", name: "rows", args: {} })),
     ).rejects.toMatchObject({ code: "stale-runtime" });

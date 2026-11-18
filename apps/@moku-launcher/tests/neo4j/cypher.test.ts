@@ -9,7 +9,19 @@ movies = driver.execute_query(
     """,
     database_="neo4j",
     parameters_={"limit": 5},
-)`;
+)
+CypherGraph(movies, driver)`;
+
+const metadata: Cypher.Metadata = {
+  variable: "g",
+  driver: "driver",
+  args: [],
+  comments: [],
+};
+
+/** A hand-written Cypher cell around `call`, binding `g`. */
+const cell = (call: string, display = "CypherGraph(g, driver)") =>
+  `g = ${call}\n${display}`;
 
 Vitest.describe("read", () => {
   Vitest.test("projects the query and preserves the surrounding Python", () => {
@@ -28,37 +40,78 @@ Vitest.describe("read", () => {
   Vitest.test("removes shared indentation from hand-written queries", () => {
     Vitest.expect(
       Cypher.read(
-        'g = driver.execute_query("""\n        MATCH (n)\n          RETURN n""")',
+        cell('driver.execute_query("""\n        MATCH (n)\n          RETURN n""")'),
       )?.cypher,
     ).toBe("MATCH (n)\n  RETURN n");
   });
 
   Vitest.test("accepts single-line and raw strings", () => {
-    Vitest.expect(Cypher.read('g = db.execute_query("RETURN 1")')?.cypher).toBe(
-      "RETURN 1",
-    );
     Vitest.expect(
-      Cypher.read(String.raw`g = db.execute_query(r"""RETURN '\d'""")`)?.cypher,
+      Cypher.read(cell('db.execute_query("RETURN 1")', "CypherGraph(g, db)"))?.cypher,
+    ).toBe("RETURN 1");
+    Vitest.expect(
+      Cypher.read(
+        cell(String.raw`db.execute_query(r"""RETURN '\d'""")`, "CypherGraph(g, db)"),
+      )?.cypher,
     ).toBe(String.raw`RETURN '\d'`);
   });
 
+  Vitest.test("accepts a private result name", () => {
+    Vitest.expect(
+      Cypher.read(
+        '_result = driver.execute_query("RETURN 1")\nCypherGraph(_result, driver)',
+      )?.metadata.variable,
+    ).toBe("_result");
+  });
+
   Vitest.test.each([
-    ["an f-string with an invalid field", 'g = driver.execute_query(f"""RETURN {x""")'],
-    ["a bytes string", 'g = driver.execute_query(b"RETURN 1")'],
-    ["a concatenated string", 'g = driver.execute_query("RETURN " "1")'],
-    ["a query variable", "g = driver.execute_query(query)"],
-    ["a keyword query", 'g = driver.execute_query(query_="RETURN 1")'],
-    ["another method", 'g = driver.session("RETURN 1")'],
-    ["a nested driver", 'g = self.driver.execute_query("RETURN 1")'],
-    ["a conditional value", 'g = driver.execute_query("RETURN 1") if ok else None'],
-    ["chained assignment", 'a = g = driver.execute_query("RETURN 1")'],
-    ["trailing code", 'g = driver.execute_query("RETURN 1")\nprint(g)'],
-    ["leading code", 'import neo4j\ng = driver.execute_query("RETURN 1")'],
+    [
+      "an f-string with an invalid field",
+      cell('driver.execute_query(f"""RETURN {x""")'),
+    ],
+    ["a bytes string", cell('driver.execute_query(b"RETURN 1")')],
+    ["a concatenated string", cell('driver.execute_query("RETURN " "1")')],
+    ["a query variable", cell("driver.execute_query(query)")],
+    ["a keyword query", cell('driver.execute_query(query_="RETURN 1")')],
+    ["another method", cell('driver.session("RETURN 1")')],
+    ["a nested driver", cell('self.driver.execute_query("RETURN 1")')],
+    ["a conditional value", cell('driver.execute_query("RETURN 1") if ok else None')],
+    [
+      "an unpacked result",
+      'g, s, k = driver.execute_query("RETURN 1")\nCypherGraph(g, driver)',
+    ],
+    [
+      "chained assignment",
+      'a = g = driver.execute_query("RETURN 1")\nCypherGraph(g, driver)',
+    ],
+    ["no display", 'g = driver.execute_query("RETURN 1")'],
+    ["another display", cell('driver.execute_query("RETURN 1")', "show(g)")],
+    [
+      "a display of another name",
+      cell('driver.execute_query("RETURN 1")', "CypherGraph(h, driver)"),
+    ],
+    [
+      "a display of an expression",
+      cell('driver.execute_query("RETURN 1")', "CypherGraph(g, g.keys)"),
+    ],
+    [
+      "a display without the driver",
+      cell('driver.execute_query("RETURN 1")', "CypherGraph(g)"),
+    ],
+    [
+      "a display with another driver",
+      cell('driver.execute_query("RETURN 1")', "CypherGraph(g, other)"),
+    ],
+    [
+      "trailing code",
+      cell('driver.execute_query("RETURN 1")', "CypherGraph(g, driver)\nprint(g)"),
+    ],
+    ["leading code", `import neo4j\n${cell('driver.execute_query("RETURN 1")')}`],
     [
       "a comment among the arguments",
-      'g = driver.execute_query(\n  "RETURN 1",  # c\n)',
+      cell('driver.execute_query(\n  "RETURN 1",  # c\n)'),
     ],
-    ["a syntax error", 'g = driver.execute_query("RETURN 1"'],
+    ["a syntax error", cell('driver.execute_query("RETURN 1"')],
     ["an empty cell", ""],
   ])("rejects %s", (_, code) => {
     Vitest.expect(Cypher.read(code)).toBeUndefined();
@@ -83,34 +136,40 @@ Vitest.describe("write", () => {
     ["whitespace-only lines", "MATCH (n)\n  \nRETURN n"],
     ["an empty query", ""],
   ])("round-trips %s", (_, cypher) => {
-    const python = Cypher.write(cypher, {
-      variable: "g",
-      driver: "driver",
-      args: [],
-      comments: [],
-    });
+    const python = Cypher.write(cypher, metadata);
     Vitest.expect(Cypher.read(python)?.cypher).toBe(cypher);
   });
 
-  Vitest.test("creates an empty cell that reads back as Cypher", () => {
-    const python = Cypher.create("graph");
-    Vitest.expect(python).toBe('graph = driver.execute_query(\n    """\n\n    """,\n)');
-    Vitest.expect(Cypher.read(python)).toEqual({
-      cypher: "",
-      metadata: { variable: "graph", driver: "driver", args: [], comments: [] },
-    });
+  Vitest.test("renames the result", () => {
+    const cell = Cypher.read(stored)!;
+    const python = Cypher.write(cell.cypher, { ...cell.metadata, variable: "actors" });
+    Vitest.expect(python).toContain("actors = driver.execute_query(");
+    Vitest.expect(python.endsWith("\nCypherGraph(actors, driver)")).toBe(true);
+    Vitest.expect(Cypher.read(python)?.cypher).toBe(cell.cypher);
   });
+
+  Vitest.test(
+    "creates an empty cell with a private name that reads back as Cypher",
+    () => {
+      const python = Cypher.create();
+      Vitest.expect(python).toBe(
+        '_result = driver.execute_query(\n    """\n\n    """,\n)\nCypherGraph(_result, driver)',
+      );
+      Vitest.expect(Cypher.read(python)).toEqual({
+        cypher: "",
+        metadata: { variable: "_result", driver: "driver", args: [], comments: [] },
+      });
+    },
+  );
 });
 
-Vitest.test("chooses unused variable names", () => {
-  Vitest.expect(Cypher.nextVariable([])).toBe("graph");
-  Vitest.expect(Cypher.nextVariable(["graph", "graph_2"])).toBe("graph_3");
-});
-
-Vitest.test("requires public identifiers", () => {
-  Vitest.expect(Cypher.isPublicVariable("movies")).toBe(true);
-  Vitest.expect(Cypher.isPublicVariable("_movies")).toBe(false);
-  Vitest.expect(Cypher.isPublicVariable("2movies")).toBe(false);
+Vitest.test("accepts Python names that are not keywords", () => {
+  Vitest.expect(Cypher.isName("movies")).toBe(true);
+  Vitest.expect(Cypher.isName("_movies")).toBe(true);
+  Vitest.expect(Cypher.isName("2movies")).toBe(false);
+  Vitest.expect(Cypher.isName("class")).toBe(false);
+  Vitest.expect(Cypher.isPrivate("_movies")).toBe(true);
+  Vitest.expect(Cypher.isPrivate("movies")).toBe(false);
 });
 
 Vitest.describe("interpolation", () => {
@@ -137,19 +196,19 @@ Vitest.describe("interpolation", () => {
   });
 
   Vitest.test("reads f-strings as marimo SQL cells do", () => {
-    const python = `movies = driver.execute_query(
+    const python = `g = driver.execute_query(
     f"""
     MATCH (p:Person {{name: "{actor.value}"}})
     RETURN p LIMIT {limit.value}
     """,
-)`;
+)
+CypherGraph(g, driver)`;
     Vitest.expect(Cypher.read(python)?.cypher).toBe(
       'MATCH (p:Person {name: "{actor.value}"})\nRETURN p LIMIT {limit.value}',
     );
   });
 
   Vitest.test("writes an f-string only when the query interpolates", () => {
-    const metadata = { variable: "g", driver: "driver", args: [], comments: [] };
     Vitest.expect(Cypher.write("RETURN {a: 1}", metadata)).toContain(
       '    """\n    RETURN {a: 1}\n',
     );
@@ -166,12 +225,7 @@ Vitest.describe("interpolation", () => {
     ["backslashes and quotes", String.raw`RETURN "\d" + {x} + '"""'`],
     ["multiple lines", "MATCH (n)\nWHERE n.age > {age.value}\nRETURN n\n"],
   ])("round-trips %s", (_, cypher) => {
-    const python = Cypher.write(cypher, {
-      variable: "g",
-      driver: "driver",
-      args: [],
-      comments: [],
-    });
+    const python = Cypher.write(cypher, metadata);
     Vitest.expect(Cypher.read(python)?.cypher).toBe(cypher);
   });
 
@@ -179,12 +233,7 @@ Vitest.describe("interpolation", () => {
     const target = 'MATCH (p {name: "{actor.value}"}) LIMIT {limit.value}';
     for (let end = 0; end <= target.length; end++) {
       const cypher = target.slice(0, end);
-      const python = Cypher.write(cypher, {
-        variable: "g",
-        driver: "driver",
-        args: [],
-        comments: [],
-      });
+      const python = Cypher.write(cypher, metadata);
       Vitest.expect(Cypher.read(python)?.cypher, cypher).toBe(cypher);
     }
   });

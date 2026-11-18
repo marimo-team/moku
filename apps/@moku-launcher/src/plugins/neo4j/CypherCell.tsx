@@ -1,30 +1,28 @@
 import { useAtomValue } from "@effect/atom-react";
-import { Cause } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import * as React from "react";
 import type * as Notebook from "@moku/core/Notebook";
-import type * as Protocol from "@moku/core/Protocol";
 import type * as Document from "@moku/editor/Document";
 import { CellOutputs } from "@moku/outputs";
 import type * as Outputs from "../notebook/outputs.ts";
 import type * as Currentness from "../notebook/currentness.ts";
 import { CellMenu } from "../notebook/cells/CellMenu.tsx";
 import { CypherEditor } from "./CypherEditor.tsx";
-import { GraphView } from "./GraphView.tsx";
-import { ResultTables } from "./ResultTables.tsx";
 import * as Cypher from "./cypher.ts";
-import * as Graph from "./graph.ts";
+import * as Neo4jSchema from "./schema.ts";
 
-type Tab = "graph" | "nodes" | "relationships" | "records";
-
-/** A cell whose driver call is edited as Cypher and whose result is drawn as a graph. */
+/**
+ * A cell whose driver call is edited as Cypher.
+ *
+ * The cell's own output is the `CypherGraph` widget, so the graph and tables
+ * arrive with its other outputs.
+ */
 export function CypherCell({
   notebook,
+  variables,
   cell,
   cypher,
   outputs,
-  result,
-  variables,
   focusRequest,
   insert,
   remove,
@@ -34,12 +32,10 @@ export function CypherCell({
   currentness,
 }: {
   notebook: Notebook.Interface;
+  variables: Notebook.State["variables"];
   cell: Document.EditableCell;
   cypher: Cypher.Cell;
   outputs: Outputs.CellOutputs;
-  /** The cell's latest completed execution in this runtime. */
-  result: typeof Protocol.Execution.Type | undefined;
-  variables: Notebook.State["variables"];
   hasResult: boolean;
   currentness: Currentness.Reason | null;
   focusRequest?: number;
@@ -51,30 +47,22 @@ export function CypherCell({
   remove?: { readonly pending: boolean; readonly run: () => void };
   insert?: {
     readonly pending: boolean;
-    readonly at: (position: "before" | "after") => void;
+    readonly at: (position: "before" | "after", kind?: string) => void;
+    readonly kinds?: readonly string[];
   };
   rename?: (variable: string) => void;
-  /** Names already defined in the notebook. */
+  /** Public names defined by other cells. */
   taken: ReadonlySet<string>;
 }) {
   const { variable, driver } = cypher.metadata;
   const name = `Cypher cell ${variable}`;
-  const inputs = [
-    ...new Set(
-      Cypher.interpolations(cypher.cypher).map((field) => field.expression.trim()),
-    ),
-  ];
+  const driverVariable = Object.values(variables).find(
+    (entry) => entry.name === driver,
+  );
   const [focused, setFocused] = React.useState(focusRequest !== undefined);
   React.useLayoutEffect(() => {
     if (focusRequest !== undefined) setFocused(true);
   }, [focusRequest]);
-
-  // Show the graph only for the value this cell's latest execution bound.
-  const bound =
-    result &&
-    Object.values(variables).find(
-      (entry) => entry.name === variable && entry.execution_id === result.id,
-    );
 
   return (
     <article
@@ -104,26 +92,20 @@ export function CypherCell({
       <div className="cell-body">
         <div className="cypher-header">
           <span className="cypher-badge">Cypher</span>
-          <VariableName
-            value={variable}
-            taken={taken}
-            onChange={rename}
-            disabled={!rename}
-          />
+          <VariableName value={variable} taken={taken} onChange={rename} />
           <span className="cypher-driver" title="The neo4j driver this cell queries">
             via <code>{driver}</code>
           </span>
-          {inputs.length > 0 && (
-            <span className="cypher-inputs" title="Python evaluated into the query">
-              {inputs.map((input) => (
-                <code key={input}>{input}</code>
-              ))}
-            </span>
-          )}
           {currentness && <span className="cypher-stale">{currentness}</span>}
         </div>
         <div className="cell-source">
-          <CypherEditor
+          <SchemaEditor
+            notebook={notebook}
+            driver={driver}
+            revision={
+              driverVariable &&
+              `${driverVariable.revision.execution}:${driverVariable.revision.update}`
+            }
             cellId={cell.id}
             autoFocus={focused}
             focusRequest={focusRequest}
@@ -168,114 +150,75 @@ export function CypherCell({
             </button>
           )}
         </div>
-        {/* Errors and printed output come from the cell's own execution. */}
+        {/* The widget, errors, and printed output come from the cell's own execution. */}
         <CellOutputs {...outputs} />
-        {bound && (
-          <CypherResult
-            notebook={notebook}
-            variable={variable}
-            revision={`${bound.revision.execution}:${bound.revision.update}`}
-          />
-        )}
       </div>
     </article>
   );
 }
 
-function CypherResult({
+/**
+ * The Cypher editor, completing from the schema behind `driver` once the driver exists.
+ *
+ * Reading the schema needs a running driver, so there is nothing to complete
+ * from until the cell defining it has run.
+ */
+function SchemaEditor({
   notebook,
-  variable,
+  driver,
   revision,
-}: {
+  ...props
+}: React.ComponentProps<typeof CypherEditor> & {
   notebook: Notebook.Interface;
-  variable: string;
-  revision: string;
+  driver: string;
+  revision: string | undefined;
 }) {
-  const loaded = useAtomValue(Graph.load({ notebook, variable, revision }));
-  const [tab, setTab] = React.useState<Tab>();
-  const [selected, setSelected] = React.useState<string>();
-
-  if (AsyncResult.isFailure(loaded)) {
-    const error = Cause.squash(loaded.cause);
-    return (
-      <p className="notice error" role="alert">
-        {error instanceof Error ? error.message : "Could not read the query result."}
-      </p>
-    );
-  }
-  if (!AsyncResult.isSuccess(loaded)) {
-    return (
-      <p className="notice" role="status">
-        Reading result…
-      </p>
-    );
-  }
-  const value = loaded.value;
-  // Write-only queries such as MERGE without RETURN have nothing to show.
-  if (value.keys.length === 0 && value.nodes.length === 0) return null;
-  const hasGraph = value.nodes.length > 0;
-  const tabs: readonly { id: Tab; label: string }[] = hasGraph
-    ? [
-        { id: "graph", label: "Graph" },
-        { id: "nodes", label: `Nodes ${value.nodes.length}` },
-        { id: "relationships", label: `Relationships ${value.relationships.length}` },
-        { id: "records", label: `Records ${value.records.length}` },
-      ]
-    : [{ id: "records", label: `Records ${value.records.length}` }];
-  const active = tabs.some((entry) => entry.id === tab) ? tab! : tabs[0]!.id;
-
+  if (revision === undefined || Cypher.isPrivate(driver))
+    return <CypherEditor {...props} />;
   return (
-    <section className="cypher-result" aria-label={`Result of ${variable}`}>
-      <div className="cypher-tabs" role="tablist">
-        {tabs.map((entry) => (
-          <button
-            key={entry.id}
-            role="tab"
-            aria-selected={entry.id === active}
-            onClick={() => setTab(entry.id)}
-          >
-            {entry.label}
-          </button>
-        ))}
-        {value.truncated && (
-          <span className="cypher-truncated">
-            Showing the first {Graph.limit.toLocaleString()} of each
-          </span>
-        )}
-      </div>
-      <div role="tabpanel">
-        {active === "graph" ? (
-          <GraphView result={value} selected={selected} onSelect={setSelected} />
-        ) : (
-          <ResultTables
-            table={active}
-            result={value}
-            selected={selected}
-            onSelect={setSelected}
-          />
-        )}
-      </div>
-    </section>
+    <LoadedSchemaEditor
+      notebook={notebook}
+      driver={driver}
+      revision={revision}
+      {...props}
+    />
   );
 }
 
-/** An inline field that renames the variable a Cypher cell binds. */
+function LoadedSchemaEditor({
+  notebook,
+  driver,
+  revision,
+  ...props
+}: React.ComponentProps<typeof CypherEditor> & {
+  notebook: Notebook.Interface;
+  driver: string;
+  revision: string;
+}) {
+  const schema = useAtomValue(Neo4jSchema.load({ notebook, driver, revision }));
+  return (
+    <CypherEditor
+      {...props}
+      schema={AsyncResult.isSuccess(schema) ? schema.value : undefined}
+    />
+  );
+}
+
+/** An inline field that renames the variable a Cypher cell binds its result to. */
 function VariableName({
   value,
   taken,
   onChange,
-  disabled,
 }: {
   value: string;
   taken: ReadonlySet<string>;
   onChange?: (value: string) => void;
-  disabled: boolean;
 }) {
   const [draft, setDraft] = React.useState(value);
   React.useEffect(() => setDraft(value), [value]);
-  const problem = !Cypher.isPublicVariable(draft)
-    ? "Use a Python name that does not start with an underscore."
-    : draft !== value && taken.has(draft)
+  const problem = !Cypher.isName(draft)
+    ? "Use a Python name."
+    : draft !== value && !Cypher.isPrivate(draft) && taken.has(draft)
       ? `${draft} is already defined.`
       : undefined;
   const commit = () => {
@@ -286,12 +229,16 @@ function VariableName({
     <input
       className="cypher-variable"
       aria-label="Result variable"
-      title={problem ?? "The Python variable bound to this query's result"}
+      title={
+        problem ??
+        "The query's EagerResult, with records, summary, and keys. Names starting with _ stay local to this cell."
+      }
       aria-invalid={problem !== undefined}
+      data-private={Cypher.isPrivate(draft)}
       spellCheck={false}
       size={Math.max(4, draft.length)}
       value={draft}
-      disabled={disabled}
+      disabled={!onChange}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {

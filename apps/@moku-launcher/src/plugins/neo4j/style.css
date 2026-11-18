@@ -110,223 +110,40 @@
   input.cypher-variable:focus {
     border-color: var(--color-border);
   }
+  input.cypher-variable {
+    field-sizing: content;
+  }
+  input.cypher-variable[data-private="true"] {
+    color: var(--color-muted);
+  }
   input.cypher-variable[aria-invalid="true"] {
     border-color: var(--color-error);
   }
   .cypher-driver code {
     font-family: var(--font-mono);
   }
-  .cypher-inputs {
-    display: flex;
-    gap: var(--space-1);
-    min-width: 0;
-    overflow: hidden;
-  }
-  .cypher-inputs code {
-    padding: 0 var(--space-1);
-    border-radius: var(--radius-sm);
-    background: var(--graph-accent-soft);
-    color: var(--graph-accent);
-    font-family: var(--font-mono);
-    white-space: nowrap;
-  }
   .cypher-stale {
     margin-left: auto;
     color: var(--color-warning-ink);
   }
 
-  .cypher-result {
-    margin-top: var(--space-3);
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--radius-md);
-    overflow: hidden;
+  .neo4j-widget-cell .cell-body {
+    padding: var(--space-1) var(--space-3);
   }
-  .cypher-tabs {
+  .neo4j-widget-row {
     display: flex;
     align-items: center;
-    gap: var(--space-1);
-    padding: var(--space-1);
-    border-bottom: 1px solid var(--color-hairline);
-    font-size: var(--text-caption);
-  }
-  .cypher-tabs button {
-    min-height: var(--space-6);
+    gap: var(--space-2);
     color: var(--color-muted);
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
   }
-  .cypher-tabs button[aria-selected="true"] {
-    background: var(--color-surface-subtle);
+  .neo4j-widget-row code {
+    font-family: var(--font-mono);
     color: var(--color-ink);
   }
-  .cypher-truncated {
-    margin-left: auto;
-    padding-right: var(--space-2);
-    color: var(--color-warning-ink);
-  }
-
-  .cypher-graph {
-    position: relative;
-    background: var(--color-surface-faint);
-  }
-  .cypher-graph svg {
-    display: block;
-    cursor: grab;
-    touch-action: none;
-    user-select: none;
-  }
-  .cypher-graph svg:active {
-    cursor: grabbing;
-  }
-  .cypher-link path {
-    fill: none;
-    stroke: var(--color-border-strong);
-    stroke-width: 1.5;
-  }
-  .cypher-link path.cypher-link-hit {
-    stroke: transparent;
-    stroke-width: 12;
-    cursor: pointer;
-  }
-  .cypher-link text {
-    fill: var(--color-muted);
-    font-size: 9px;
-    text-anchor: middle;
-    pointer-events: none;
-  }
-  .cypher-link[data-selected="true"] path:not(.cypher-link-hit) {
-    stroke: var(--color-accent);
-    stroke-width: 2.5;
-  }
-  .cypher-arrowhead {
-    fill: var(--color-border-strong);
-  }
-  .cypher-node {
-    cursor: pointer;
-  }
-  .cypher-node circle {
-    stroke: var(--color-frame);
-    stroke-width: 2;
-  }
-  .cypher-node[data-selected="true"] circle {
-    stroke: var(--color-accent);
-    stroke-width: 3;
-  }
-  .cypher-node text {
-    fill: var(--color-ink);
-    font-size: 11px;
-    text-anchor: middle;
-    pointer-events: none;
-    paint-order: stroke;
-    stroke: var(--color-surface-faint);
-    stroke-width: 3px;
-  }
-  .cypher-legend {
-    position: absolute;
-    left: var(--space-3);
-    bottom: var(--space-2);
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    color: var(--color-muted);
-    font-size: var(--text-caption);
-    pointer-events: none;
-  }
-  .cypher-legend i,
-  .cypher-chip i {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    margin-right: var(--space-1);
-    border-radius: 50%;
-  }
-  .cypher-details {
-    position: absolute;
-    top: var(--space-2);
-    right: var(--space-2);
-    width: 240px;
-    max-height: calc(100% - 2 * var(--space-2));
-    overflow: auto;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: var(--color-frame);
-    font-size: var(--text-caption);
-    line-height: var(--leading-caption);
-  }
-  .cypher-details header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
-    border-bottom: 1px solid var(--color-hairline);
-    font-family: var(--font-mono);
-  }
-  .cypher-details header button {
+  .neo4j-widget-row button {
     min-height: 0;
-  }
-  .cypher-details dl {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: var(--space-1) var(--space-3);
-    margin: 0;
-    padding: var(--space-2) var(--space-3);
-  }
-  .cypher-details dt {
-    color: var(--color-muted);
-  }
-  .cypher-details dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .cypher-table {
-    max-height: 420px;
-    overflow: auto;
-  }
-  .cypher-table table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--text-caption);
-    line-height: var(--leading-caption);
-  }
-  .cypher-table th {
-    position: sticky;
-    top: 0;
-    background: var(--color-frame);
-    color: var(--color-muted);
-    font-weight: 500;
-    text-align: left;
-  }
-  .cypher-table th,
-  .cypher-table td {
-    padding: var(--space-1) var(--space-3);
-    border-bottom: 1px solid var(--color-hairline);
-    max-width: 320px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    vertical-align: top;
-  }
-  .cypher-table tr[aria-selected] {
-    cursor: pointer;
-  }
-  .cypher-table tbody tr:hover {
-    background: var(--color-surface-faint);
-  }
-  .cypher-table tr[aria-selected="true"] {
-    background: var(--color-selection);
-  }
-  .cypher-table code {
-    font-family: var(--font-mono);
-  }
-  .cypher-chip {
-    display: inline-flex;
-    align-items: center;
-  }
-  .cypher-path {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-  }
-  .cypher-missing {
-    color: var(--color-faint);
+    border-color: var(--color-border);
   }
 }

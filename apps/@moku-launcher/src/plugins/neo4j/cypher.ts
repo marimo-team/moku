@@ -1,8 +1,9 @@
 /**
  * Projects neo4j driver calls in Python cells into editable Cypher.
  *
- * A Cypher cell is stored as one assignment from `driver.execute_query`, so the
- * notebook stays plain Python that stock marimo can run:
+ * A Cypher cell is stored as an assignment from `driver.execute_query`,
+ * followed by the `CypherGraph` widget that displays the result. The notebook
+ * stays plain Python that stock marimo can run:
  *
  * ```python
  * movies = driver.execute_query(
@@ -12,7 +13,11 @@
  *     """,
  *     database_="neo4j",
  * )
+ * CypherGraph(movies, driver)
  * ```
+ *
+ * The widget receives the driver so that double-clicking a node can add its
+ * neighbors to the drawing.
  *
  * Like marimo's SQL cells, a query can interpolate Python with `{expression}`,
  * such as `LIMIT {limit.value}`, and is then stored as an f-string. Braces that
@@ -24,9 +29,20 @@
 import type * as LezerCommon from "@lezer/common";
 import * as LezerPython from "@lezer/python";
 
+/**
+ * The name a new Cypher cell binds its result to.
+ *
+ * Names starting with an underscore stay local to the cell, as in marimo, so
+ * several Cypher cells can use the default without clashing.
+ */
+export const defaultVariable = "_result";
+
+/** The widget class, defined by the notebook's generated widget cell, that displays results. */
+export const widget = "CypherGraph";
+
 /** Python surrounding the Cypher text that a round trip must preserve. */
 export interface Metadata {
-  /** The public variable bound to the driver's result. */
+  /** The variable bound to the driver's `EagerResult`. */
   readonly variable: string;
   /** The variable holding the neo4j driver. */
   readonly driver: string;
@@ -43,6 +59,11 @@ export interface Cell {
 }
 
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const keywords = new Set(
+  "False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield".split(
+    " ",
+  ),
+);
 const indent = "    ";
 
 /** A Python expression in Cypher text, evaluated before the query is sent. */
@@ -58,9 +79,9 @@ export interface Interpolation {
 /**
  * Reads a cell's Python as a Cypher query.
  *
- * Returns undefined unless the code is optional comment lines followed by
- * exactly one `NAME = DRIVER.execute_query("...", ...)` assignment whose query
- * is a single string literal. An f-string's replacement fields appear as
+ * Returns undefined unless the code is optional comment lines, then exactly one
+ * `NAME = DRIVER.execute_query("...", ...)` assignment whose query is a single
+ * string literal, then `CypherGraph(NAME, DRIVER)`. An f-string's replacement fields appear as
  * `{expression}` and its doubled braces as single ones.
  */
 export function read(python: string): Cell | undefined {
@@ -77,12 +98,15 @@ export function read(python: string): Cell | undefined {
   const script = tree.topNode;
   const comments: string[] = [];
   let assignment: LezerCommon.SyntaxNode | undefined;
+  let display: LezerCommon.SyntaxNode | undefined;
   for (let child = script.firstChild; child; child = child.nextSibling) {
     if (child.name === "Comment" && !assignment) comments.push(text(code, child));
     else if (child.name === "AssignStatement" && !assignment) assignment = child;
+    else if (child.name === "ExpressionStatement" && assignment && !display)
+      display = child;
     else return undefined;
   }
-  if (!assignment) return undefined;
+  if (!assignment || !display) return undefined;
 
   const [target, op, call, ...rest] = children(assignment);
   if (
@@ -92,6 +116,7 @@ export function read(python: string): Cell | undefined {
     call?.name !== "CallExpression"
   )
     return undefined;
+  const variable = text(code, target);
 
   const [member, argList] = children(call);
   if (member?.name !== "MemberExpression" || argList?.name !== "ArgList")
@@ -105,6 +130,7 @@ export function read(python: string): Cell | undefined {
     text(code, property) !== "execute_query"
   )
     return undefined;
+  if (!isDisplay(code, display, variable, text(code, driver))) return undefined;
 
   const groups = splitArguments(argList);
   if (!groups) return undefined;
@@ -120,12 +146,38 @@ export function read(python: string): Cell | undefined {
   return {
     cypher: margin(cypher),
     metadata: {
-      variable: text(code, target),
+      variable,
       driver: text(code, driver),
       args: args.map((group) => code.slice(group[0]!.from, group.at(-1)!.to)),
       comments,
     },
   };
+}
+
+/** Whether `statement` is exactly `CypherGraph(variable, driver)`. */
+function isDisplay(
+  code: string,
+  statement: LezerCommon.SyntaxNode,
+  variable: string,
+  driver: string,
+): boolean {
+  const [call, ...rest] = children(statement);
+  if (rest.length > 0 || call?.name !== "CallExpression") return false;
+  const [callee, argList, ...more] = children(call);
+  if (
+    more.length > 0 ||
+    callee?.name !== "VariableName" ||
+    text(code, callee) !== widget ||
+    argList?.name !== "ArgList"
+  )
+    return false;
+  const groups = splitArguments(argList);
+  const names = groups?.map((group) =>
+    group.length === 1 && group[0]!.name === "VariableName"
+      ? text(code, group[0]!)
+      : undefined,
+  );
+  return names?.length === 2 && names[0] === variable && names[1] === driver;
 }
 
 /** Whether a cell's Python is shown as Cypher by {@link read}. */
@@ -164,32 +216,22 @@ export function write(cypher: string, metadata: Metadata): string {
     .map((line) => (line ? `${indent}${line}` : ""))
     .join("\n");
   const args = metadata.args.map((arg) => `${indent}${arg},\n`).join("");
+  const { variable } = metadata;
   return [
     ...metadata.comments,
-    `${metadata.variable} = ${metadata.driver}.execute_query(\n` +
+    `${variable} = ${metadata.driver}.execute_query(\n` +
       `${indent}${prefix}"""\n${body}\n${indent}""",\n${args})`,
+    `${widget}(${variable}, ${metadata.driver})`,
   ].join("\n");
 }
 
-/** Creates the Python for a new Cypher cell that binds `variable`. */
-export function create(
-  variable: string,
-  { driver = "driver", cypher = "" }: { driver?: string; cypher?: string } = {},
-): string {
+/** Creates the Python for a new Cypher cell, by default binding {@link defaultVariable}. */
+export function create({
+  driver = "driver",
+  cypher = "",
+  variable = defaultVariable,
+}: { driver?: string; cypher?: string; variable?: string } = {}): string {
   return write(cypher, { variable, driver, args: [], comments: [] });
-}
-
-/**
- * Picks the first name in `graph`, `graph_2`, `graph_3`, … that is not taken.
- *
- * Pass every name the notebook already defines.
- */
-export function nextVariable(taken: Iterable<string>): string {
-  const names = new Set(taken);
-  if (!names.has("graph")) return "graph";
-  let index = 2;
-  while (names.has(`graph_${index}`)) index++;
-  return `graph_${index}`;
 }
 
 /**
@@ -249,9 +291,14 @@ function isExpression(source: string): boolean {
   return valid && tree.topNode.firstChild?.nextSibling === null;
 }
 
-/** Whether `name` can be bound by a Cypher cell and read back by the client. */
-export function isPublicVariable(name: string): boolean {
-  return identifier.test(name) && !name.startsWith("_");
+/** Whether `name` is a Python identifier that a Cypher cell can bind. */
+export function isName(name: string): boolean {
+  return identifier.test(name) && !keywords.has(name);
+}
+
+/** Whether marimo keeps `name` local to its cell, so other cells cannot clash with it. */
+export function isPrivate(name: string): boolean {
+  return name.startsWith("_");
 }
 
 function text(code: string, node: LezerCommon.SyntaxNode): string {

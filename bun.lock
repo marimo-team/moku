@@ -16,6 +16,7 @@
     "apps/@moku-launcher": {
       "name": "@moku/launcher",
       "dependencies": {
+        "@codemirror/autocomplete": "^6.20.4",
         "@codemirror/commands": "^6.11.1",
         "@codemirror/lang-markdown": "^6.5.2",
         "@codemirror/lang-python": "^6.2.1",

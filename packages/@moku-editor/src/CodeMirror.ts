@@ -33,6 +33,17 @@ function project(options: CellOptions): Source {
   return options.source?.(code) ?? { code, write: (text) => text };
 }
 
+/**
+ * Whether editor text already represents the cell's current source.
+ *
+ * Projections may normalize text on read, such as Markdown trimming a trailing
+ * space, so text that writes back to the stored code counts as current.
+ */
+function inSync(options: CellOptions, text: string): boolean {
+  const source = project(options);
+  return source.code === text || source.write(text) === (readCode(options) ?? "");
+}
+
 function canEdit(options: CellOptions): boolean {
   const { document } = options;
   return (
@@ -60,7 +71,9 @@ function permissions(editable: boolean): CodeMirrorState.Extension {
  *
  * Add languages, themes, history, and keymaps alongside this extension.
  * An optional `source` projection can display Markdown or SQL while `write`
- * stores canonical Python. Keep projection extensions stable across calls.
+ * stores canonical Python. Editor text that writes back to the stored source
+ * is kept as typed, even when the projection would read it differently.
+ * Keep projection extensions stable across calls.
  * Destroying the view releases its subscriptions and leaves the document alive.
  *
  * @example Mount a cell editor
@@ -90,8 +103,7 @@ export function bindCell(options: CellOptions): CodeMirrorState.Extension {
       }
 
       // A pending source update must reach the view before it can be edited.
-      const matchesSource =
-        project(options).code === transaction.startState.doc.toString();
+      const matchesSource = inSync(options, transaction.startState.doc.toString());
       return canEdit(options) && matchesSource ? transaction : [];
     }),
     CodeMirrorView.ViewPlugin.define(
@@ -147,7 +159,7 @@ class CellBinding {
   private publishEdit(update: CodeMirrorView.ViewUpdate): void {
     const { document, cellId } = this.options;
     const source = project(this.options);
-    const matchesSource = source.code === update.startState.doc.toString();
+    const matchesSource = inSync(this.options, update.startState.doc.toString());
 
     // Also enforce permissions for callers that dispatch with filtering disabled.
     if (!canEdit(this.options) || !matchesSource) {
@@ -189,13 +201,15 @@ class CellBinding {
       effects.push(this.sourceCompartment.reconfigure(source.extension ?? []));
       this.extension = source.extension;
     }
-    const changes = this.waitingForComposition
-      ? []
-      : CodeMirrorMerge.diff(previous, next, { scanLimit: 500 }).map((change) => ({
-          from: change.fromA,
-          to: change.toA,
-          insert: next.slice(change.fromB, change.toB),
-        }));
+    // Keep text the projection would normalize away, such as a trailing space.
+    const changes =
+      this.waitingForComposition || inSync(this.options, previous)
+        ? []
+        : CodeMirrorMerge.diff(previous, next, { scanLimit: 500 }).map((change) => ({
+            from: change.fromA,
+            to: change.toA,
+            insert: next.slice(change.fromB, change.toB),
+          }));
 
     if (changes.length === 0 && effects.length === 0) {
       return;

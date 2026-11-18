@@ -7,7 +7,9 @@ import * as CodeMirrorView from "@codemirror/view";
 import * as LezerHighlight from "@lezer/highlight";
 import * as CodeMirror from "@moku/editor/CodeMirror";
 import { useDocument } from "../notebook/DocumentContext.ts";
+import * as Completion from "./completion.ts";
 import * as Cypher from "./cypher.ts";
+import type * as Neo4jSchema from "./schema.ts";
 
 // The binding swaps projection extensions by identity, so keep this one stable.
 const language = CodeMirrorLanguage.StreamLanguage.define(
@@ -102,6 +104,27 @@ const extensions = [
     ".cm-cypher-interpolation, .cm-cypher-interpolation *": {
       color: "var(--graph-accent)",
     },
+    ".cm-tooltip.cm-tooltip-autocomplete": {
+      border: "1px solid var(--color-border)",
+      borderRadius: "var(--radius-md)",
+      backgroundColor: "var(--color-frame)",
+      overflow: "hidden",
+    },
+    ".cm-tooltip.cm-tooltip-autocomplete > ul": {
+      fontFamily: "var(--font-mono)",
+      fontSize: "var(--text-caption)",
+    },
+    ".cm-tooltip-autocomplete > ul > li": { padding: "2px var(--space-2)" },
+    ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
+      backgroundColor: "var(--graph-accent-soft)",
+      color: "var(--color-ink)",
+    },
+    ".cm-completionIcon": { display: "none" },
+    ".cm-completionDetail": {
+      marginLeft: "var(--space-3)",
+      color: "var(--color-muted)",
+      fontStyle: "normal",
+    },
     ".cm-cypher-interpolation": {
       borderRadius: "3px",
       backgroundColor: "var(--graph-accent-soft)",
@@ -115,16 +138,22 @@ export function CypherEditor({
   autoFocus = false,
   onRun,
   focusRequest,
+  schema,
 }: {
   cellId: string;
   autoFocus?: boolean;
   onRun?: (advance: boolean) => void;
   focusRequest?: number;
+  /** The database schema to complete labels, relationship types, and properties from. */
+  schema?: Neo4jSchema.Schema;
 }) {
   const document = useDocument();
   const container = React.useRef<HTMLDivElement>(null);
   const editor = React.useRef<CodeMirrorView.EditorView | null>(null);
   const run = React.useEffectEvent((advance: boolean) => onRun?.(advance));
+  // Completion reads the latest schema without rebuilding the editor.
+  const latestSchema = React.useRef(schema);
+  latestSchema.current = schema;
   const binding = React.useMemo(
     () =>
       CodeMirror.bindCell({
@@ -150,6 +179,7 @@ export function CypherEditor({
       parent: container.current,
       extensions: [
         ...extensions,
+        Completion.extension(() => latestSchema.current),
         binding,
         CodeMirrorState.Prec.highest(
           CodeMirrorView.keymap.of(

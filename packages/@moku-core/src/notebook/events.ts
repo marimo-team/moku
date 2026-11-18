@@ -1,9 +1,10 @@
 /** Observe a marimo notebook and send widget commands through its attached viewer. @module */
-import { Data, Effect, Schema, Stream } from "effect";
+import { Effect, Schema, Stream } from "effect";
 import { Sse } from "effect/encoding";
 import { AtomRegistry } from "effect/reactivity";
 import { HttpClient, HttpClientRequest } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
+import { CommError } from "../experimental/Comm.ts";
 import { LegacyCommApi } from "../internal/comm-protocol.ts";
 import type * as Host from "../Host.ts";
 import type { Client, ModelError } from "../internal/client.ts";
@@ -21,18 +22,6 @@ export interface Update {
   /** Absent when the notebook starts a fresh snapshot. */
   readonly event?: Event;
 }
-
-/** The session could not continue serving notebook and widget events. */
-export class ViewerError extends Data.TaggedError("ViewerError")<{
-  readonly code:
-    | "unsupported"
-    | "unavailable"
-    | "stale-runtime"
-    | "transport"
-    | "authentication";
-  readonly message: string;
-  readonly cause?: unknown;
-}> {}
 
 interface Identity {
   readonly sessionId: string;
@@ -52,23 +41,23 @@ export interface Options {
   readonly catalog: Host.Interface["state"];
 }
 
-const problem = (code: ViewerError["code"], message: string) =>
-  new ViewerError({ code, message });
+const problem = (code: CommError["code"], message: string) =>
+  new CommError({ code, message });
 const failure = (cause: unknown) =>
-  cause instanceof ViewerError
+  cause instanceof CommError
     ? cause
-    : new ViewerError({
+    : new CommError({
         code: "transport",
         message: "The output connection failed.",
         cause,
       });
 
-/** Attach a viewer to the notebook observation for the duration of its widget requests. */
+/** Open a marimo viewer on the notebook stream and address widget requests to its session. */
 export const session = Effect.fnUntraced(function* (
   options: Options,
   withSnapshot: (
-    stream: Stream.Stream<Event, ViewerError>,
-  ) => Effect.Effect<never, ViewerError | ModelError>,
+    stream: Stream.Stream<Event, CommError>,
+  ) => Effect.Effect<never, CommError | ModelError>,
 ) {
   const registry = yield* AtomRegistry.AtomRegistry;
   const http = (yield* HttpClient.HttpClient).pipe(
@@ -147,7 +136,7 @@ export const session = Effect.fnUntraced(function* (
           Stream.mapEffect(
             Effect.fnUntraced(function* (event) {
               if (event.event === "close")
-                return yield* new ViewerError({
+                return yield* new CommError({
                   code: "unavailable",
                   message: "The marimo session closed.",
                 });
@@ -166,7 +155,7 @@ export const session = Effect.fnUntraced(function* (
                     !(confirmedNotebook && confirmedRuntime)) ||
                   ["reset", "notebook.removed", "runtime.removed"].includes(event.event)
                 )
-                  return yield* new ViewerError({
+                  return yield* new CommError({
                     code: "stale-runtime",
                     message:
                       "The output connection belongs to a different notebook or runtime.",
@@ -190,7 +179,9 @@ export const session = Effect.fnUntraced(function* (
       .authorize({ payload: {} })
       .pipe(Effect.mapError(failure), Effect.scoped);
     const file = yield* filePath(notebook);
-    return yield* withSnapshot(viewer(notebook.id, current, file));
+    return yield* withSnapshot(viewer(notebook.id, current, file)).pipe(
+      Effect.mapError(failure),
+    );
   });
 
   const post = Effect.fnUntraced(

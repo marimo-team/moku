@@ -11,7 +11,12 @@ class CypherGraph(anywidget.AnyWidget):
 
     With a `driver`, double-clicking a node adds its neighbors to the drawing.
     They are read from the database the result came from, and the records and
-    the result itself stay as the query returned them.
+    the result itself stay as the query returned them. `nodes` and
+    `relationships` follow the drawing instead, so wrapping the widget in
+    `mo.ui.anywidget` lets other cells rerun with each expansion:
+
+        movies_graph = mo.ui.anywidget(CypherGraph(movies, driver))
+        movies_graph.nodes  # in another cell
     """
 
     _esm = __MOKU_ESM__
@@ -28,7 +33,9 @@ class CypherGraph(anywidget.AnyWidget):
         self._driver = driver
         summary = getattr(result, "summary", None)
         self._database = getattr(summary, "database", None)
-        data = CypherGraph.serialize(result)
+        # The neo4j objects behind the drawing, by element id.
+        self._entities = {}
+        data = CypherGraph.serialize(result, self._entities)
         data["expandable"] = driver is not None
         super().__init__(data=data)
 
@@ -54,7 +61,8 @@ class CypherGraph(anywidget.AnyWidget):
             data["error"] = f"Could not expand: {error}"
             self.data = data
             return
-        added = CypherGraph.serialize(graph)
+        found = {}
+        added = CypherGraph.serialize(graph, found)
         data["error"] = None
         for key in ("nodes", "relationships"):
             known = {entry["id"] for entry in data[key]}
@@ -67,6 +75,7 @@ class CypherGraph(anywidget.AnyWidget):
                     break
                 entries.append(entry)
                 known.add(entry["id"])
+                self._entities[entry["id"]] = found[entry["id"]]
             data[key] = entries
         node_ids = {entry["id"] for entry in data["nodes"]}
         data["relationships"] = [
@@ -76,9 +85,22 @@ class CypherGraph(anywidget.AnyWidget):
         ]
         self.data = data
 
+    @property
+    def nodes(self):
+        """The `neo4j.graph.Node` objects drawn, including those added by expanding."""
+        return [self._entities[entry["id"]] for entry in self.data["nodes"]]
+
+    @property
+    def relationships(self):
+        """The `neo4j.graph.Relationship` objects drawn, including those added by expanding."""
+        return [self._entities[entry["id"]] for entry in self.data["relationships"]]
+
     @staticmethod
-    def serialize(result):
-        """Converts a result to JSON, replacing graph entities in records with references."""
+    def serialize(result, entities=None):
+        """Converts a result to JSON, replacing graph entities in records with references.
+
+        When given, `entities` receives each drawn node and relationship by element id.
+        """
         import math
 
         from neo4j.graph import Graph, Node, Path, Relationship
@@ -104,6 +126,8 @@ class CypherGraph(anywidget.AnyWidget):
             if len(nodes) >= limit:
                 truncated = True
                 return
+            if entities is not None:
+                entities[node.element_id] = node
             nodes[node.element_id] = {
                 "id": node.element_id,
                 "labels": sorted(node.labels),
@@ -122,6 +146,8 @@ class CypherGraph(anywidget.AnyWidget):
                 return
             add_node(start)
             add_node(end)
+            if entities is not None:
+                entities[relationship.element_id] = relationship
             relationships[relationship.element_id] = {
                 "id": relationship.element_id,
                 "type": relationship.type,

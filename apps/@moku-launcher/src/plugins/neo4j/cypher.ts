@@ -13,11 +13,16 @@
  *     """,
  *     database_="neo4j",
  * )
- * CypherGraph(movies, driver)
+ * movies_graph = mo.ui.anywidget(CypherGraph(movies, driver))
+ * movies_graph
  * ```
  *
  * The widget receives the driver so that double-clicking a node can add its
- * neighbors to the drawing.
+ * neighbors to the drawing. `movies` stays what the query returned, while
+ * `movies_graph.nodes` and `movies_graph.relationships` follow the drawing, and
+ * marimo reruns the cells that read them after each expansion. Cells written
+ * before this form display `CypherGraph(movies, driver)` directly; they are
+ * read and written back unchanged.
  *
  * Like marimo's SQL cells, a query can interpolate Python with `{expression}`,
  * such as `LIMIT {limit.value}`, and is then stored as an f-string. Braces that
@@ -50,6 +55,18 @@ export interface Metadata {
   readonly args: readonly string[];
   /** Comment lines written above the assignment. */
   readonly comments: readonly string[];
+  /**
+   * Whether the widget is bound to {@link graphName} through `mo.ui.anywidget`.
+   *
+   * When false, the cell displays the widget without binding it, so other cells
+   * cannot react to expansions.
+   */
+  readonly graph: boolean;
+}
+
+/** The name a Cypher cell binds its widget to, so other cells can read the drawing. */
+export function graphName(variable: string): string {
+  return `${variable}_graph`;
 }
 
 /** Cypher text projected from a cell, with the Python needed to write it back. */
@@ -81,8 +98,9 @@ export interface Interpolation {
  *
  * Returns undefined unless the code is optional comment lines, then exactly one
  * `NAME = DRIVER.execute_query("...", ...)` assignment whose query is a single
- * string literal, then `CypherGraph(NAME, DRIVER)`. An f-string's replacement fields appear as
- * `{expression}` and its doubled braces as single ones.
+ * string literal, then either `NAME_graph = mo.ui.anywidget(CypherGraph(NAME, DRIVER))`
+ * followed by `NAME_graph`, or just `CypherGraph(NAME, DRIVER)`. An f-string's
+ * replacement fields appear as `{expression}` and its doubled braces as single ones.
  */
 export function read(python: string): Cell | undefined {
   const code = python.trim();
@@ -98,15 +116,14 @@ export function read(python: string): Cell | undefined {
   const script = tree.topNode;
   const comments: string[] = [];
   let assignment: LezerCommon.SyntaxNode | undefined;
-  let display: LezerCommon.SyntaxNode | undefined;
+  const display: LezerCommon.SyntaxNode[] = [];
   for (let child = script.firstChild; child; child = child.nextSibling) {
     if (child.name === "Comment" && !assignment) comments.push(text(code, child));
     else if (child.name === "AssignStatement" && !assignment) assignment = child;
-    else if (child.name === "ExpressionStatement" && assignment && !display)
-      display = child;
+    else if (child.name !== "Comment" && assignment) display.push(child);
     else return undefined;
   }
-  if (!assignment || !display) return undefined;
+  if (!assignment || display.length === 0) return undefined;
 
   const [target, op, call, ...rest] = children(assignment);
   if (
@@ -130,7 +147,8 @@ export function read(python: string): Cell | undefined {
     text(code, property) !== "execute_query"
   )
     return undefined;
-  if (!isDisplay(code, display, variable, text(code, driver))) return undefined;
+  const graph = displayForm(code, display, variable, text(code, driver));
+  if (graph === undefined) return undefined;
 
   const groups = splitArguments(argList);
   if (!groups) return undefined;
@@ -150,19 +168,71 @@ export function read(python: string): Cell | undefined {
       driver: text(code, driver),
       args: args.map((group) => code.slice(group[0]!.from, group.at(-1)!.to)),
       comments,
+      graph,
     },
   };
 }
 
-/** Whether `statement` is exactly `CypherGraph(variable, driver)`. */
-function isDisplay(
+/**
+ * Reads the statements after the query as one of the two display forms.
+ *
+ * Returns whether the widget is bound to {@link graphName}, or undefined when
+ * the statements are neither form.
+ */
+function displayForm(
   code: string,
-  statement: LezerCommon.SyntaxNode,
+  statements: readonly LezerCommon.SyntaxNode[],
+  variable: string,
+  driver: string,
+): boolean | undefined {
+  const [first, second, ...rest] = statements;
+  if (rest.length > 0 || !first) return undefined;
+  if (!second) {
+    const [call, ...more] = first.name === "ExpressionStatement" ? children(first) : [];
+    return more.length === 0 && call && isWidget(code, call, variable, driver)
+      ? false
+      : undefined;
+  }
+  const name = graphName(variable);
+  if (first.name !== "AssignStatement" || second.name !== "ExpressionStatement")
+    return undefined;
+  const [target, op, wrap, ...extra] = children(first);
+  const [shown, ...trailing] = children(second);
+  if (
+    extra.length > 0 ||
+    trailing.length > 0 ||
+    target?.name !== "VariableName" ||
+    text(code, target) !== name ||
+    op?.name !== "AssignOp" ||
+    wrap?.name !== "CallExpression" ||
+    shown?.name !== "VariableName" ||
+    text(code, shown) !== name
+  )
+    return undefined;
+  const [callee, argList, ...more] = children(wrap);
+  if (
+    more.length > 0 ||
+    callee?.name !== "MemberExpression" ||
+    text(code, callee) !== "mo.ui.anywidget" ||
+    argList?.name !== "ArgList"
+  )
+    return undefined;
+  const groups = splitArguments(argList);
+  return groups?.length === 1 &&
+    groups[0]!.length === 1 &&
+    isWidget(code, groups[0]![0]!, variable, driver)
+    ? true
+    : undefined;
+}
+
+/** Whether `call` is exactly `CypherGraph(variable, driver)`. */
+function isWidget(
+  code: string,
+  call: LezerCommon.SyntaxNode,
   variable: string,
   driver: string,
 ): boolean {
-  const [call, ...rest] = children(statement);
-  if (rest.length > 0 || call?.name !== "CallExpression") return false;
+  if (call.name !== "CallExpression") return false;
   const [callee, argList, ...more] = children(call);
   if (
     more.length > 0 ||
@@ -217,21 +287,27 @@ export function write(cypher: string, metadata: Metadata): string {
     .join("\n");
   const args = metadata.args.map((arg) => `${indent}${arg},\n`).join("");
   const { variable } = metadata;
+  const display = `${widget}(${variable}, ${metadata.driver})`;
+  const graph = graphName(variable);
   return [
     ...metadata.comments,
     `${variable} = ${metadata.driver}.execute_query(\n` +
       `${indent}${prefix}"""\n${body}\n${indent}""",\n${args})`,
-    `${widget}(${variable}, ${metadata.driver})`,
+    ...(metadata.graph ? [`${graph} = mo.ui.anywidget(${display})`, graph] : [display]),
   ].join("\n");
 }
 
-/** Creates the Python for a new Cypher cell, by default binding {@link defaultVariable}. */
+/**
+ * Creates the Python for a new Cypher cell, by default binding {@link defaultVariable}.
+ *
+ * The cell binds its widget to {@link graphName}, so the notebook must define `mo`.
+ */
 export function create({
   driver = "driver",
   cypher = "",
   variable = defaultVariable,
 }: { driver?: string; cypher?: string; variable?: string } = {}): string {
-  return write(cypher, { variable, driver, args: [], comments: [] });
+  return write(cypher, { variable, driver, args: [], comments: [], graph: true });
 }
 
 /**

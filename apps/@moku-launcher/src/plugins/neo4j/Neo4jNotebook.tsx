@@ -150,21 +150,35 @@ function Content({
       first ? { before: first } : undefined,
     );
   };
-  /** Inserts a cell, first adding a missing widget cell when `widget` is set. */
+  /** Imports marimo at the top when no cell defines `mo` yet. */
+  const addMarimo = (edit: EditorDocument.Editor) => {
+    if (defined.has("mo")) return;
+    const first = order[0];
+    edit.createCell(
+      { code: "import marimo as mo" },
+      first ? { before: first } : undefined,
+    );
+  };
+  /**
+   * Inserts a cell, first adding a missing widget cell when `widget` is set and
+   * importing marimo when `marimo` is set.
+   */
   const insert = (
     code: string,
     anchor?: string,
     position: "before" | "after" = "after",
-    { widget = false }: { widget?: boolean } = {},
+    { widget = false, marimo = false }: { widget?: boolean; marimo?: boolean } = {},
   ) => {
     documentModel.edit((edit) => {
       if (widget) addWidget(edit);
+      if (marimo) addMarimo(edit);
       const id = edit.createCell({ code }, anchor ? { [position]: anchor } : undefined);
       navigation.focus(id);
     });
   };
+  // A Cypher cell wraps its widget with `mo.ui.anywidget` so other cells can react to it.
   const insertCypher = (anchor?: string, position: "before" | "after" = "after") =>
-    insert(Cypher.create(), anchor, position, { widget: true });
+    insert(Cypher.create(), anchor, position, { widget: true, marimo: true });
   /** Inserts a cell of `kind`, first importing marimo when a smart cell needs `mo`. */
   const insertKind = (
     kind: Kind,
@@ -173,13 +187,7 @@ function Content({
   ) => {
     if (kind === "Cypher") return insertCypher(anchor, position);
     documentModel.edit((edit) => {
-      if (kind !== "Python" && !defined.has("mo")) {
-        const first = order[0];
-        edit.createCell(
-          { code: "import marimo as mo" },
-          first ? { before: first } : undefined,
-        );
-      }
+      if (kind !== "Python") addMarimo(edit);
       const id = edit.createCell(
         // Like marimo, Markdown shows its rendered output and opens its source on focus.
         {
@@ -494,8 +502,11 @@ function definedNames(
   for (const variable of Object.values(state.variables)) names.add(variable.name);
   for (const cell of Object.values(state.analysis?.cells ?? {}))
     for (const name of cell.defs) names.add(name);
-  for (const cell of cypher.values())
-    if (!Cypher.isPrivate(cell.metadata.variable)) names.add(cell.metadata.variable);
+  for (const { metadata } of cypher.values())
+    if (!Cypher.isPrivate(metadata.variable)) {
+      names.add(metadata.variable);
+      if (metadata.graph) names.add(Cypher.graphName(metadata.variable));
+    }
   // Analysis lags behind local edits, so also catch top-level assignments in drafts.
   for (const id of document?.order ?? [])
     for (const match of (document?.cells.get(id)?.code ?? "").matchAll(

@@ -11,21 +11,15 @@ import type * as NodeHttp from "node:http";
 import * as Forward from "./forward.ts";
 import { Schema } from "effect";
 import {
-  ComponentValues,
-  FunctionCall,
-  ModelValue,
   LegacyCommApi,
+  LegacySessionId,
   ViewerCredentials,
 } from "@moku/core/internal/comm-protocol";
+import { jsonPayload } from "./protocol.ts";
 import { json, readBody } from "./http.ts";
 
-const { endpoints } = LegacyCommApi.groups.LegacyComm;
-const routes = {
-  [endpoints.setValues.path]: ComponentValues,
-  [endpoints.invoke.path]: FunctionCall,
-  [endpoints.setModel.path]: ModelValue,
-};
-const sessionPattern = /^[a-zA-Z0-9_-]{1,128}$/;
+const endpoints = Object.values(LegacyCommApi.groups.LegacyComm.endpoints);
+const isSessionId = Schema.is(LegacySessionId);
 
 export function create(
   requests: Map<AbortController, NodeHttp.ServerResponse>,
@@ -52,25 +46,22 @@ export function create(
           error: "This host does not expose marimo output routes.",
         });
       const marimoBase = base.slice(0, -"/api/marimo/v1".length);
-      const auth =
-        path === endpoints.authorize.path && req.method === endpoints.authorize.method;
+      const endpoint = endpoints.find(
+        (endpoint) => endpoint.method === req.method && endpoint.path === path,
+      );
       const stream = path === "/sse" && req.method === "GET";
       const asset = path.startsWith("/@file/") && req.method === "GET";
-      const schema = Object.hasOwn(routes, path)
-        ? routes[path as keyof typeof routes]
-        : undefined;
-      const mutation = schema !== undefined && req.method === "POST";
-      if (!(auth || stream || asset || mutation))
+      if (!(endpoint || stream || asset))
         return json(res, 404, {
           error: "The proxy does not expose this marimo route.",
         });
-      if ((auth || mutation) && req.headers.origin !== origin)
+      if (endpoint && req.headers.origin !== origin)
         return json(res, 403, {
           error: "An action must originate from the local app.",
         });
       const forward = Forward.create(res, requests, stream ? 45_000 : 30_000);
       try {
-        if (auth) {
+        if (endpoint?.identifier === "authorize") {
           let input: { readonly token?: string };
           try {
             input = Schema.decodeUnknownSync(ViewerCredentials)(await readBody(req));
@@ -116,12 +107,7 @@ export function create(
         if (stream) {
           const sessionId = url.searchParams.get("session_id");
           const file = url.searchParams.get("file");
-          if (
-            !sessionId ||
-            !sessionPattern.test(sessionId) ||
-            !file ||
-            file.length > 4096
-          )
+          if (!isSessionId(sessionId) || !file || file.length > 4096)
             return json(res, 400, {
               error: "A session ID and notebook path are required.",
             });
@@ -138,13 +124,15 @@ export function create(
           if (decoded.includes("\\") || decoded.split("/").includes(".."))
             return json(res, 400, { error: "Invalid output asset path." });
         }
-        if (mutation) {
+        if (endpoint) {
           const sessionId = req.headers["marimo-session-id"];
-          if (typeof sessionId !== "string" || !sessionPattern.test(sessionId))
+          if (!isSessionId(sessionId))
             return json(res, 400, { error: "The output session ID is missing." });
           try {
             body = JSON.stringify(
-              Schema.decodeUnknownSync(schema!)(await readBody(req, 8 * 1024 * 1024)),
+              Schema.decodeUnknownSync(jsonPayload(endpoint))(
+                await readBody(req, 8 * 1024 * 1024),
+              ),
             );
           } catch {
             return json(res, 400, { error: "Invalid output interaction request." });

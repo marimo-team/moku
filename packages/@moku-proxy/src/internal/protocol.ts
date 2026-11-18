@@ -41,6 +41,13 @@ export function match(method: string | undefined, path: string) {
   }
 }
 
+/** The declared JSON request body, in the form the proxy sends upstream. */
+export function jsonPayload(endpoint: Pick<HttpApiEndpoint.Top, "payload">) {
+  const payload = endpoint.payload.get("application/json");
+  if (!payload) throw new Error("Expected a JSON request.");
+  return Schema.toEncoded(Schema.Union(payload.schemas.filter(Schema.isSchema)));
+}
+
 export async function prepare(
   route: { endpoint: HttpApiEndpoint.Top; params: Record<string, string> },
   req: NodeHttp.IncomingMessage,
@@ -58,10 +65,7 @@ export async function prepare(
     : {};
   let body: string | undefined;
   if (endpoint.payload.size > 0) {
-    const payload = endpoint.payload.get("application/json");
-    if (!payload) throw new Error("Expected a JSON request.");
-    const schema = Schema.Union(payload.schemas.filter(Schema.isSchema));
-    const value = Schema.decodeUnknownSync(Schema.toEncoded(schema), {
+    const value = Schema.decodeUnknownSync(jsonPayload(endpoint), {
       onExcessProperty: "error",
     })(await readBody(req, 8 * 1024 * 1024));
     body = JSON.stringify(value);

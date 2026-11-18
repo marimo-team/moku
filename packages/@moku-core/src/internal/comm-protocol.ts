@@ -111,7 +111,12 @@ export const ModelValue = Schema.Struct({
   buffers: Buffers,
 });
 
-const SessionHeaders = Schema.Struct({ sessionId: Schema.String }).pipe(
+/** The viewer identity shared by the marimo event stream and its kernel requests. */
+export const LegacySessionId = Schema.String.check(
+  Schema.isPattern(/^[a-zA-Z0-9_-]{1,128}$/),
+);
+
+const SessionHeaders = Schema.Struct({ sessionId: LegacySessionId }).pipe(
   Schema.encodeKeys({ sessionId: "marimo-session-id" }),
 );
 const Acknowledgement = Schema.Struct({ success: Schema.Literal(true) });

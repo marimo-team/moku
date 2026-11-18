@@ -17,7 +17,18 @@ const metadata: Cypher.Metadata = {
   driver: "driver",
   args: [],
   comments: [],
+  graph: false,
 };
+
+/** The reactive form, binding the widget to `NAME_graph` so other cells can read it. */
+const reactive = `movies = driver.execute_query(
+    """
+    MATCH (p:Person)-[:ACTED_IN]->(m:Movie)
+    RETURN p, m
+    """,
+)
+movies_graph = mo.ui.anywidget(CypherGraph(movies, driver))
+movies_graph`;
 
 /** A hand-written Cypher cell around `call`, binding `g`. */
 const cell = (call: string, display = "CypherGraph(g, driver)") =>
@@ -33,7 +44,18 @@ Vitest.describe("read", () => {
         driver: "driver",
         args: ['database_="neo4j"', 'parameters_={"limit": 5}'],
         comments: ["# Actors and their movies"],
+        graph: false,
       },
+    });
+  });
+
+  Vitest.test("reads a widget bound for other cells", () => {
+    Vitest.expect(Cypher.read(reactive)?.metadata).toEqual({
+      variable: "movies",
+      driver: "driver",
+      args: [],
+      comments: [],
+      graph: true,
     });
   });
 
@@ -111,6 +133,34 @@ Vitest.describe("read", () => {
       "a comment among the arguments",
       cell('driver.execute_query(\n  "RETURN 1",  # c\n)'),
     ],
+    [
+      "a bound widget under another name",
+      cell(
+        'driver.execute_query("RETURN 1")',
+        "h_graph = mo.ui.anywidget(CypherGraph(g, driver))\nh_graph",
+      ),
+    ],
+    [
+      "a bound widget that is not shown",
+      cell(
+        'driver.execute_query("RETURN 1")',
+        "g_graph = mo.ui.anywidget(CypherGraph(g, driver))",
+      ),
+    ],
+    [
+      "a bound widget shown by another name",
+      cell(
+        'driver.execute_query("RETURN 1")',
+        "g_graph = mo.ui.anywidget(CypherGraph(g, driver))\ng",
+      ),
+    ],
+    [
+      "a widget bound without mo.ui.anywidget",
+      cell(
+        'driver.execute_query("RETURN 1")',
+        "g_graph = CypherGraph(g, driver)\ng_graph",
+      ),
+    ],
     ["a syntax error", cell('driver.execute_query("RETURN 1"')],
     ["an empty cell", ""],
   ])("rejects %s", (_, code) => {
@@ -119,9 +169,12 @@ Vitest.describe("read", () => {
 });
 
 Vitest.describe("write", () => {
-  Vitest.test("reproduces stored source", () => {
-    const cell = Cypher.read(stored)!;
-    Vitest.expect(Cypher.write(cell.cypher, cell.metadata)).toBe(stored);
+  Vitest.test.each([
+    ["a displayed widget", stored],
+    ["a bound widget", reactive],
+  ])("reproduces stored source with %s", (_, source) => {
+    const cell = Cypher.read(source)!;
+    Vitest.expect(Cypher.write(cell.cypher, cell.metadata)).toBe(source);
   });
 
   Vitest.test.each([
@@ -148,16 +201,34 @@ Vitest.describe("write", () => {
     Vitest.expect(Cypher.read(python)?.cypher).toBe(cell.cypher);
   });
 
+  Vitest.test("renames a bound widget with its result", () => {
+    const cell = Cypher.read(reactive)!;
+    const python = Cypher.write(cell.cypher, { ...cell.metadata, variable: "actors" });
+    Vitest.expect(
+      python.endsWith(
+        "\nactors_graph = mo.ui.anywidget(CypherGraph(actors, driver))\nactors_graph",
+      ),
+    ).toBe(true);
+    Vitest.expect(Cypher.read(python)?.metadata.variable).toBe("actors");
+  });
+
   Vitest.test(
     "creates an empty cell with a private name that reads back as Cypher",
     () => {
       const python = Cypher.create();
       Vitest.expect(python).toBe(
-        '_result = driver.execute_query(\n    """\n\n    """,\n)\nCypherGraph(_result, driver)',
+        '_result = driver.execute_query(\n    """\n\n    """,\n)\n' +
+          "_result_graph = mo.ui.anywidget(CypherGraph(_result, driver))\n_result_graph",
       );
       Vitest.expect(Cypher.read(python)).toEqual({
         cypher: "",
-        metadata: { variable: "_result", driver: "driver", args: [], comments: [] },
+        metadata: {
+          variable: "_result",
+          driver: "driver",
+          args: [],
+          comments: [],
+          graph: true,
+        },
       });
     },
   );

@@ -610,6 +610,8 @@
     opacity: 0;
     pointer-events: none;
   }
+  /* Pointing at a cell reveals its action, so every cell can be run with a click. */
+  .cell:hover .cell-run,
   .cell[data-focused="true"] .cell-run,
   .cell-run:focus-visible {
     opacity: 1;

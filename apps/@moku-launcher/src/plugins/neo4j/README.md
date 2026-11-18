@@ -2,7 +2,7 @@
 
 The Neo4j view edits neo4j driver calls as Cypher and draws their results as a graph with node, relationship, and record tables.
 
-A Cypher cell is stored as one assignment from `execute_query` on a driver variable, followed by the widget that displays the result. The notebook remains plain Python that stock marimo can run.
+A Cypher cell is stored as one assignment from `execute_query` on a driver variable, followed by the widget that displays the result, wrapped with `mo.ui.anywidget` so other cells can react to it. The notebook remains plain Python that stock marimo can run.
 
 ```python
 _result = driver.execute_query(
@@ -12,10 +12,11 @@ _result = driver.execute_query(
     """,
     database_="neo4j",
 )
-CypherGraph(_result, driver)
+_result_graph = mo.ui.anywidget(CypherGraph(_result, driver))
+_result_graph
 ```
 
-The view shows such a cell as only its query, keeps the driver, extra arguments, and leading comments, and writes the query back exactly as typed. Other cells render with the Notebook view's cell component.
+The view shows such a cell as only its query, keeps the driver, extra arguments, and leading comments, and writes the query back exactly as typed. Cells that display `CypherGraph(_result, driver)` without binding it, as earlier versions wrote them, are edited the same way and keep that form. Other cells render with the Notebook view's cell component.
 
 ## Using results in Python
 
@@ -27,9 +28,15 @@ import polars as pl
 pl.DataFrame([record.data() for record in directors.records])
 ```
 
+The result never changes after the query runs, so it describes what the code asked for. What is on screen, including neighbors added by expanding, is the widget's instead. A cell with a public result also binds its widget to that name with `_graph` appended, whose `nodes` and `relationships` are the drawn `neo4j.graph.Node` and `Relationship` objects. Because marimo tracks the widget, cells that read them rerun after every expansion.
+
+```python
+[node["title"] for node in directors_graph.nodes if "Movie" in node.labels]
+```
+
 ## Exploring and completing
 
-The widget receives the driver so that double-clicking a node can add its neighbors to the drawing. They are read with a fixed, parameterized query routed to readers on the database the result came from, and they change only the drawing, so the result and its records stay as the query returned them. Expanding needs a running kernel, so it is unavailable in exported HTML.
+The widget receives the driver so that double-clicking a node can add its neighbors to the drawing. They are read with a fixed, parameterized query routed to readers on the database the result came from, and they change only the drawing and the widget's `nodes` and `relationships`, so the result and its records stay as the query returned them. Expanding needs a running kernel, so it is unavailable in exported HTML.
 
 Once the cell that defines the driver has run, the editor reads the database's labels, relationship types, and property keys through a scratch execution that binds nothing, and completes them after `:` in node and relationship patterns, after `.`, and as map keys. Every Cypher cell on the same driver shares one read, which repeats when the driver is redefined. [wigglystuff's](https://github.com/koaning/wigglystuff) `Neo4jWidget` inspired both.
 

@@ -25,3 +25,39 @@ export function useNotebookShortcuts({ canSave, saveDisabled, save }: Options) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [canSave, saveDisabled, save]);
 }
+
+/**
+ * Binds Backspace or Delete to remove the selected cells and Escape to clear them.
+ *
+ * Keys typed into an editor or text field keep their usual meaning.
+ */
+export function useSelectionShortcuts({
+  active,
+  remove,
+  clear,
+}: {
+  active: boolean;
+  remove: (() => void) | undefined;
+  clear: () => void;
+}) {
+  React.useEffect(() => {
+    if (!active) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || target.closest("input, textarea, select"))
+      )
+        return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        clear();
+      } else if ((event.key === "Backspace" || event.key === "Delete") && remove) {
+        event.preventDefault();
+        remove();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [active, remove, clear]);
+}

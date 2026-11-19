@@ -6,6 +6,7 @@ export function CellMenu({
   onToggleSource,
   insert,
   remove,
+  move,
 }: {
   name: string;
   sourceVisible: boolean;
@@ -15,6 +16,10 @@ export function CellMenu({
     readonly at: (position: "before" | "after") => void;
   };
   remove?: { readonly pending: boolean; readonly run: () => void };
+  move?: {
+    readonly up: (() => void) | undefined;
+    readonly down: (() => void) | undefined;
+  };
 }) {
   const id = React.useId();
   const root = React.useRef<HTMLDivElement>(null);
@@ -37,7 +42,7 @@ export function CellMenu({
     if (returnFocus) trigger.current?.focus({ preventScroll: true });
   }
 
-  if (!onToggleSource && !remove && !insert) return null;
+  if (!onToggleSource && !remove && !insert && !move) return null;
   return (
     <div
       ref={root}
@@ -135,12 +140,29 @@ export function CellMenu({
                 Insert {position === "before" ? "above" : "below"}
               </button>
             ))}
+          {move &&
+            (["up", "down"] as const).map((direction, index) => (
+              <button
+                key={direction}
+                role="menuitem"
+                autoFocus={!onToggleSource && !insert && index === 0}
+                disabled={!move[direction]}
+                title={`⌥${direction === "up" ? "↑" : "↓"} on the cell margin`}
+                onClick={(event) => {
+                  close(event.detail === 0);
+                  move[direction]?.();
+                }}
+              >
+                <span aria-hidden="true" />
+                Move {direction}
+              </button>
+            ))}
           {remove && (
             <button
               role="menuitem"
               className="cell-actions-delete"
               disabled={remove.pending}
-              autoFocus={!onToggleSource && !insert}
+              autoFocus={!onToggleSource && !insert && !move}
               onClick={(event) => {
                 close(event.detail === 0);
                 remove.run();

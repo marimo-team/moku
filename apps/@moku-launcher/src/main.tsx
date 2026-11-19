@@ -9,6 +9,7 @@ import GraphExplainerPlugin from "./plugins/graph-explainer/index.tsx";
 import NotebookEditorPlugin from "./plugins/notebook/index.tsx";
 import BasicPlugin from "./plugins/basic/index.tsx";
 import MinimapPlugin from "./plugins/minimap/index.tsx";
+import DialogPlugin from "./plugins/dialog/index.tsx";
 
 import "./style.css";
 
@@ -19,7 +20,13 @@ if (launchKey) {
 const application = Application.make({
   baseUrl: location.origin,
   launchKey,
-  plugins: [GraphExplainerPlugin, NotebookEditorPlugin, BasicPlugin, MinimapPlugin],
+  plugins: [
+    GraphExplainerPlugin,
+    NotebookEditorPlugin,
+    DialogPlugin,
+    BasicPlugin,
+    MinimapPlugin,
+  ],
 });
 
 const router = ReactRouter.createBrowserRouter([

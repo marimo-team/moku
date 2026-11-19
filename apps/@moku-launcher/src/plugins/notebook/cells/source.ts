@@ -44,3 +44,24 @@ export function write(source: Source, code: string): string {
       return code;
   }
 }
+
+/**
+ * Writes the Python source for a new cell whose editor shows `text` in `language`.
+ *
+ * Markdown and SQL cells call marimo through `mo`, which the notebook must import.
+ */
+export function create(language: Language, text: string): string {
+  switch (language) {
+    case "markdown":
+      return markdown.transformOut(text, markdown.defaultMetadata).code;
+    case "sql":
+      return sql.transformOut(text, sql.defaultMetadata).code;
+    case "python":
+      return text;
+  }
+}
+
+/** Whether a cell's source imports marimo as `mo`, as Markdown and SQL cells require. */
+export function importsMarimo(code: string | null): boolean {
+  return code !== null && /^\s*import\s+marimo\s+as\s+mo\s*$/m.test(code);
+}

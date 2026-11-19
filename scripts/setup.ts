@@ -144,4 +144,20 @@ run(
   Marimo.root,
 );
 run("bun", ["run", "--filter", "@moku/outputs", "build"], Marimo.root);
+if (!checks) {
+  // The development server runs uv offline, so resolve marimo with the extras it serves now.
+  run(
+    "uv",
+    [
+      "run",
+      "--no-project",
+      "--with-editable",
+      `${Marimo.checkout}[lsp,mcp]`,
+      "python",
+      "-c",
+      "",
+    ],
+    Marimo.root,
+  );
+}
 console.log(`Prepared marimo ${revision}`);

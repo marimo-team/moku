@@ -4,9 +4,11 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./vite": "./src/vite.ts"
+    "./vite": "./src/vite.ts",
+    "./Agent": "./src/Agent.ts"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "2.7.0",
     "@marimo-team/client": "file:../../vendor/client",
     "@marimo-team/host-protocol": "file:../../vendor/host-protocol",
     "@moku/core": "workspace:*",

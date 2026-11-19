@@ -11,6 +11,7 @@ import * as MarimoNode from "@marimo-team/client/node";
 import { json, readBody } from "./internal/http.ts";
 import type { ManagedServer } from "./internal/managed.ts";
 import { createNative } from "./internal/native.ts";
+import { createAgents, type AgentOptions } from "./internal/agent.ts";
 import type * as Discovery from "@marimo-team/client/protocol";
 import { Schema } from "effect";
 import * as Protocol from "@marimo-team/host-protocol/Schemas";
@@ -34,6 +35,9 @@ interface Options {
   server?: Pick<ManagedServer, "host">;
   origin: () => string;
   discover?: () => AsyncIterable<Discovery.HostRecordOutput>;
+  /** Serves `/api/agent` from this ACP agent, with the managed host's MCP tools. */
+  agent?: AgentOptions;
+  log?: (message: string) => void;
 }
 
 function matches(actual: string | undefined, expected: string) {
@@ -73,6 +77,8 @@ export function createApi({
   discover = MarimoNode.discoverHosts,
   clientName = "moku",
   server,
+  agent,
+  log = () => {},
 }: Options) {
   const launchKey = NodeCrypto.randomBytes(32).toString("hex");
   const sessionKey = NodeCrypto.randomBytes(32).toString("hex");
@@ -80,6 +86,13 @@ export function createApi({
   const manual = new Map<string, Connection>();
   const requests = new Map<AbortController, NodeHttp.ServerResponse>();
   const native = createNative(requests, clientName);
+  const agents =
+    agent &&
+    createAgents(agent, {
+      log,
+      // marimo serves MCP beside its host API when started with `--mcp`.
+      mcp: () => server?.host && new URL("/mcp/server", server.host.url).href,
+    });
   let known = new Map<string, Connection>();
   let discovering: Promise<Map<string, Connection>> | undefined;
   let closed = false;
@@ -158,6 +171,14 @@ export function createApi({
     }
     if (url.pathname === "/api/session" && req.method === "GET") {
       return json(res, 200, { authenticated: true });
+    }
+    if (url.pathname.startsWith("/api/agent/")) {
+      if (!agents) return json(res, 404, { error: "No agent is configured." });
+      if (req.method !== "GET" && req.headers.origin !== expected)
+        return json(res, 403, {
+          error: "An action must originate from the local app.",
+        });
+      return agents.handle(req, res, url.pathname.slice("/api/agent".length));
     }
     if (url.pathname === "/api/hosts" && req.method === "GET") {
       const local = await discovered();
@@ -303,6 +324,7 @@ export function createApi({
         response.destroy();
       }
       native.close();
+      agents?.close();
       manual.clear();
       known.clear();
     },

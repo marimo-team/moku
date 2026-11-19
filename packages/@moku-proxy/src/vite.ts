@@ -5,13 +5,29 @@
  */
 import type * as Vite from "vite-plus";
 import { createApi } from "./server.ts";
+import * as NodePath from "node:path";
 import { startServer, type ServerOptions } from "./internal/managed.ts";
+import type { AgentOptions as Agent } from "./internal/agent.ts";
 export type { ServerOptions } from "./internal/managed.ts";
+
+/** A command that starts a coding agent speaking ACP over standard input and output. */
+export interface AgentOptions extends Omit<Agent, "cwd"> {
+  /** The agent's working directory, relative to Vite's root. Defaults to the root itself. */
+  readonly cwd?: string;
+}
 
 export interface Options {
   readonly clientName?: string;
   /** Starts one marimo server alongside discovery of existing hosts. */
   readonly server?: ServerOptions;
+  /**
+   * Serves dialogs from a coding agent, such as `opencode acp`.
+   *
+   * The agent starts with the first dialog. When the managed server runs with
+   * `--mcp=code-mode`, each session receives its MCP endpoint so the agent can
+   * read, edit, and run cells.
+   */
+  readonly agent?: AgentOptions;
 }
 
 /**
@@ -38,6 +54,7 @@ export interface Options {
 export function marimo({
   clientName = "moku",
   server: command,
+  agent,
 }: Options = {}): Vite.Plugin {
   const instances = new Set<() => Promise<void>>();
   async function configure(server: Vite.ViteDevServer | Vite.PreviewServer) {
@@ -72,7 +89,16 @@ export function marimo({
           log: (line) => server.config.logger.info(`[marimo] ${line}`),
         }));
       controller.signal.throwIfAborted();
-      api = createApi({ origin, clientName, server: managed });
+      api = createApi({
+        origin,
+        clientName,
+        server: managed,
+        agent: agent && {
+          ...agent,
+          cwd: NodePath.resolve(server.config.root, agent.cwd ?? "."),
+        },
+        log: (line) => server.config.logger.info(`[agent] ${line}`),
+      });
       const proxy = api;
       server.middlewares.use((req, res, next) => {
         if (req.url?.startsWith("/api/")) proxy.handle(req, res);

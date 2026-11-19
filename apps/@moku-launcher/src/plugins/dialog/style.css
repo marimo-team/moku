@@ -1,0 +1,270 @@
+/*
+ * The Dialog view reads like a document: warm paper, serif prose, bordered
+ * panels for code, and a narrow column. These rules outrank the notebook's
+ * scoped rules by specificity, so the Notebook view keeps its own look.
+ */
+.moku-dialog .moku-notebook {
+  --paper: light-dark(#fffdf9, #1b1a18);
+  --panel: light-dark(#f7f4ee, #232120);
+  --line: light-dark(#e6e0d6, #36322d);
+  --font-prose: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --dialog-column: min(
+    calc(var(--notebook-width) - 2 * var(--panel-inset)),
+    calc(100% - 2 * var(--panel-inset))
+  );
+  --dialog-body-offset: calc(var(--cell-gutter) + var(--cell-gap));
+
+  --color-ink: light-dark(#25221d, #f2ede4);
+  --color-ink-soft: light-dark(#3d3931, #ddd6ca);
+  --color-muted: light-dark(#706a60, #a8a094);
+  --color-faint: light-dark(#9a9387, #7d766b);
+  --color-frame: var(--paper);
+  --color-canvas: var(--paper);
+  --color-editor: var(--panel);
+  --color-surface-subtle: var(--panel);
+  --color-surface-faint: light-dark(#faf7f1, #201f1d);
+  --color-surface-pressed: light-dark(#ece6db, #2e2b28);
+  --color-border: var(--line);
+  --color-border-strong: light-dark(#d3cbbe, #4a453e);
+  --color-hairline: var(--line);
+  --color-focus: var(--color-muted);
+  --color-accent: light-dark(#246bce, #75a7ff);
+  --color-selection: light-dark(#246bce26, #75a7ff33);
+  --syntax-function: var(--color-accent);
+  --notebook-width: 50rem;
+  --cell-spacing: var(--space-6);
+  --dialog-prompt-background: var(--panel);
+  --dialog-prompt-border: var(--line);
+}
+
+/* Outputs and prose use the serif face. Controls and code keep theirs. */
+.moku-dialog .moku-cell-outputs {
+  --marimo-text-font: var(--font-prose);
+  --marimo-heading-font: var(--font-prose);
+  font-family: var(--font-prose);
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+/* Code reads as a bordered panel, like a code sample in an essay. */
+.moku-dialog .code-editor {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+/* A turn is a message, so it has no run button and no frame. */
+.moku-dialog .cell[data-kind="dialog"] .cell-run,
+.moku-dialog .cell[data-kind="dialog"] .cell-placeholder {
+  display: none;
+}
+
+.moku-dialog .notebook-meta,
+.moku-dialog .cell-selection-bar {
+  background: var(--paper);
+}
+
+/* The bar that appends the next cell, aligned with the cell bodies above it. */
+.moku-dialog .dialog-bar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: var(--space-2);
+  width: calc(var(--dialog-column) - var(--dialog-body-offset));
+  margin: 0 0 var(--space-4)
+    calc((100% - var(--dialog-column)) / 2 + var(--dialog-body-offset));
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow:
+    0 1px 2px rgb(37 34 29 / 0.04),
+    0 10px 28px -16px rgb(37 34 29 / 0.25);
+}
+.moku-dialog .dialog-bar:focus-within {
+  border-color: var(--color-border-strong);
+}
+.moku-dialog .dialog-bar-modes {
+  display: flex;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+.moku-dialog .dialog-bar-modes button {
+  height: 24px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: var(--text-control);
+}
+.moku-dialog .dialog-bar-modes button:hover {
+  color: var(--color-ink);
+}
+.moku-dialog .dialog-bar-modes button[aria-checked="true"] {
+  background: var(--paper);
+  color: var(--color-ink);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.moku-dialog .dialog-bar textarea {
+  resize: none;
+  width: 100%;
+  padding: var(--space-1) 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: 17px / 1.55 var(--font-prose);
+}
+.moku-dialog .dialog-bar textarea[data-mode="python"],
+.moku-dialog .dialog-bar textarea[data-mode="sql"] {
+  font: 13px / var(--leading-code) var(--font-mono);
+}
+.moku-dialog .dialog-bar textarea::placeholder {
+  color: var(--color-faint);
+}
+.moku-dialog .dialog-bar-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-control);
+}
+.moku-dialog .dialog-bar-hint {
+  margin-left: auto;
+  color: var(--color-faint);
+  font-size: var(--text-caption);
+}
+.moku-dialog .dialog-bar-footer button {
+  height: 28px;
+  padding: 0 var(--space-4);
+  border-radius: 6px;
+}
+.moku-dialog .dialog-model {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-muted);
+}
+.moku-dialog .dialog-model select {
+  max-width: 16rem;
+  height: 26px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--color-ink);
+  font: inherit;
+}
+
+/* The live reply reads as prose below the turn it answers. */
+.moku-dialog .dialog-progress {
+  padding-left: var(--dialog-body-offset);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.moku-dialog .dialog-message {
+  font-size: var(--text-control);
+}
+.moku-dialog .dialog-message p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.moku-dialog .dialog-reply {
+  font: 18px / 1.6 var(--font-prose);
+}
+.moku-dialog .dialog-message-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-1);
+}
+.moku-dialog .dialog-role {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.moku-dialog .dialog-thinking {
+  color: var(--color-faint);
+  font: italic 16px / 1.6 var(--font-prose);
+}
+.moku-dialog .dialog-tools {
+  margin: var(--space-1) 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-caption);
+  color: var(--color-muted);
+}
+.moku-dialog .dialog-tools li::before {
+  content: "○ ";
+}
+.moku-dialog .dialog-tools li[data-status="in_progress"]::before {
+  content: "◌ ";
+  color: var(--color-accent);
+}
+.moku-dialog .dialog-tools li[data-status="completed"]::before {
+  content: "● ";
+  color: var(--color-running);
+}
+.moku-dialog .dialog-tools li[data-status="failed"]::before {
+  content: "✕ ";
+  color: var(--color-error);
+}
+.moku-dialog .dialog-permission {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--color-warning);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--panel);
+  font-size: var(--text-control);
+}
+.moku-dialog .dialog-permission span {
+  margin-right: auto;
+}
+.moku-dialog .dialog-permission button,
+.moku-dialog .dialog-message-header button {
+  height: 26px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.moku-dialog .dialog-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-error);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--panel);
+  color: var(--color-ink);
+  font-size: var(--text-control);
+}
+
+/* A turn before marimo renders it, matching the bubble the dialog cell draws. */
+.moku-dialog .dialog-turn-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.moku-dialog .dialog-turn-preview p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 18px / 1.6 var(--font-prose);
+}
+.moku-dialog .dialog-turn-prompt {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--dialog-prompt-border);
+  border-radius: 12px;
+  background: var(--dialog-prompt-background);
+}

@@ -17,6 +17,11 @@ export function Cell({
   execution,
   currentness,
   hasResult,
+  selection,
+  keyboard,
+  move,
+  kind,
+  preview,
 }: {
   cell: Document.EditableCell;
   hasResult: boolean;
@@ -38,6 +43,41 @@ export function Cell({
     readonly last: boolean;
     readonly at: (position: "before" | "after") => void;
   };
+  /**
+   * Selection of several cells through the margin.
+   *
+   * Shift-click selects a range and Cmd/Ctrl-click toggles one cell. While any
+   * cell is selected, a plain click toggles too instead of showing the source.
+   */
+  selection?: {
+    readonly selected: boolean;
+    readonly active: boolean;
+    readonly select: (mode: "toggle" | "range") => void;
+  };
+  /**
+   * Keys handled while the cell's margin has focus.
+   *
+   * Arrow keys move between cells, Shift extends the selection, Alt moves the
+   * cells, Cmd/Ctrl+A selects every cell, and Backspace or Delete removes them.
+   */
+  keyboard?: {
+    readonly navigate: (direction: "up" | "down", extend: boolean) => void;
+    readonly selectAll: () => void;
+    readonly remove: (() => void) | undefined;
+  };
+  /** Moves this cell, or the selection that includes it, one place. Absent when cells are read-only. */
+  move?: {
+    readonly up: (() => void) | undefined;
+    readonly down: (() => void) | undefined;
+  };
+  /** A label from the hosting view, exposed as `data-kind` so it can style the cell. */
+  kind?: string;
+  /**
+   * Content shown in place of the source until the cell has a result.
+   *
+   * Focusing the cell still shows the source for editing.
+   */
+  preview?: React.ReactNode;
 }) {
   const sourceId = React.useId();
   const margin = React.useRef<HTMLButtonElement>(null);
@@ -47,8 +87,12 @@ export function Cell({
     if (focusRequest !== undefined) setFocused(true);
   }, [focusRequest]);
   const pinned = !cell.config.hide_code;
-  const visible = cell.code !== null && (!hasResult || pinned || focused);
-  const name = cell.name === "_" ? `${source.language} cell` : cell.name;
+  const previewing = preview !== undefined && !hasResult && !focused;
+  const visible =
+    cell.code !== null && !previewing && (!hasResult || pinned || focused);
+  // marimo writes unnamed cells as `_`, and cells created through code mode arrive with no name.
+  const named = cell.name !== "" && cell.name !== "_";
+  const name = named ? cell.name : `${source.language} cell`;
 
   const runButton = execution && (
     <button
@@ -101,6 +145,9 @@ export function Cell({
       data-needs-run={currentness !== null}
       data-runnable={execution !== undefined}
       data-running={execution?.running ?? false}
+      data-selected={selection?.selected ?? false}
+      data-cell-id={cell.id}
+      data-kind={kind}
       onFocus={(event) => {
         if (event.target.closest(".cell-source")) setFocused(true);
       }}
@@ -127,10 +174,51 @@ export function Cell({
           ref={margin}
           className="cell-margin"
           aria-label={`${focused ? "Leave" : "Focus"} ${name} source`}
-          title={focused ? "Leave cell (Esc)" : "Show source (Enter)"}
+          title={
+            selection?.active
+              ? "Select cell (Shift-click or Shift+↑/↓ for a range, ⌫ deletes)"
+              : `${focused ? "Leave cell (Esc)" : "Show source (Enter)"} · ↑/↓ to move between cells, Shift+↑/↓ to select, ⌥↑/↓ to reorder, ⌫ to delete`
+          }
           aria-expanded={visible}
           aria-controls={sourceId}
-          onClick={() => setFocused(!focused)}
+          aria-pressed={selection ? selection.selected : undefined}
+          onMouseDown={(event) => {
+            // Shift-click would otherwise select the page's text across the range.
+            if (event.shiftKey) event.preventDefault();
+          }}
+          onKeyDown={(event) => {
+            if (!keyboard || event.nativeEvent.isComposing) return;
+            const vertical =
+              event.key === "ArrowUp"
+                ? "up"
+                : event.key === "ArrowDown"
+                  ? "down"
+                  : null;
+            const mod = event.metaKey || event.ctrlKey;
+            if (vertical && event.altKey && move) {
+              move[vertical]?.();
+            } else if (vertical && !mod) {
+              keyboard.navigate(vertical, event.shiftKey);
+            } else if (mod && event.key.toLowerCase() === "a") {
+              keyboard.selectAll();
+            } else if (
+              (event.key === "Backspace" || event.key === "Delete") &&
+              keyboard.remove
+            ) {
+              keyboard.remove();
+            } else {
+              return;
+            }
+            // The window-level selection shortcuts would otherwise handle the same key.
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            if (selection && event.shiftKey) selection.select("range");
+            else if (selection && (event.metaKey || event.ctrlKey || selection.active))
+              selection.select("toggle");
+            else setFocused(!focused);
+          }}
         />
       )}
       {insert && (
@@ -162,25 +250,30 @@ export function Cell({
               }
         }
         remove={remove}
+        move={move}
       />
       <div className="cell-body">
         {!visible && runButton}
-        {(cell.name !== "_" || cell.config.disabled) && (
+        {(named || cell.config.disabled) && (
           <div className="cell-meta">
-            {cell.name !== "_" && <span>{cell.name}</span>}
+            {named && <span>{cell.name}</span>}
             {cell.config.disabled && <span>Disabled</span>}
           </div>
         )}
-        {!visible && cell.code !== null && !Outputs.hasContent(outputs) && (
-          <button
-            className="cell-placeholder"
-            aria-label={`Show ${name} source`}
-            aria-controls={sourceId}
-            onClick={() => setFocused(true)}
-          >
-            <code>&lt;code&gt;</code>
-          </button>
-        )}
+        {previewing && preview}
+        {!visible &&
+          !previewing &&
+          cell.code !== null &&
+          !Outputs.hasContent(outputs) && (
+            <button
+              className="cell-placeholder"
+              aria-label={`Show ${name} source`}
+              aria-controls={sourceId}
+              onClick={() => setFocused(true)}
+            >
+              <code>&lt;code&gt;</code>
+            </button>
+          )}
         {cell.code === null ? (
           <p className="notice">Source is not exposed by this host.</p>
         ) : (

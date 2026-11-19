@@ -7,7 +7,7 @@ import { HttpApiClient } from "effect/http-api";
 import { CommError } from "../experimental/Comm.ts";
 import { LegacyCommApi } from "../internal/comm-protocol.ts";
 import type * as Host from "../Host.ts";
-import type { Client, ModelError } from "../internal/client.ts";
+import type { CommRequest, ModelError } from "../internal/client.ts";
 import { NotebookEvent } from "../internal/api.ts";
 import type * as Protocol from "../Protocol.ts";
 import type { NotebookState } from "./state.ts";
@@ -185,11 +185,9 @@ export const session = Effect.fnUntraced(function* (
   });
 
   const post = Effect.fnUntraced(
-    function* (
-      sessionId: string,
-      input: Parameters<Client["Comm"]["send"]>[0]["payload"],
-    ) {
-      const headers = { sessionId };
+    function* (sessionId: string, command: CommRequest) {
+      const { payload: input } = command;
+      const headers = { sessionId, ...command.headers };
       switch (input._tag) {
         case "SetValues":
           yield* client.setValues({

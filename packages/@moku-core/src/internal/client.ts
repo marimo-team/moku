@@ -19,6 +19,11 @@ import { Api } from "./api.ts";
 import * as Problems from "@marimo-team/host-protocol/Problems";
 
 export type Client = Effect.Success<ReturnType<typeof makeClient>>;
+/** A comm POST with its notebook path already bound. */
+export type CommRequest = Pick<
+  Parameters<Client["Comm"]["send"]>[0],
+  "payload" | "headers"
+>;
 const knownProblems = new Set<string>(
   Problems.Problem.members.map((problem) => problem.fields.type.schema.literal),
 );

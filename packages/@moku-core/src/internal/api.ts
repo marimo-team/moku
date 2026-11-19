@@ -41,7 +41,10 @@ export const CatalogEvent = Schema.Union([Host.Event, UnknownEvent]);
 const MarimoEvent = Schema.Struct({
   event: Schema.Literal("marimo"),
   id: Schema.optionalKey(Schema.String),
-  data: Schema.Struct({ marimo: Schema.Unknown }),
+  data: Schema.Struct({
+    marimo: Schema.Unknown,
+    request_id: Schema.optionalKey(Schema.String),
+  }),
 });
 export const NotebookEvent = Schema.Union([
   Analysis.NotebookEvent,

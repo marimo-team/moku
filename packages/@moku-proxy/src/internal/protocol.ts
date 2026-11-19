@@ -42,14 +42,17 @@ export function match(method: string | undefined, path: string) {
 }
 
 /** The declared JSON request body, in the form the proxy sends upstream. */
-export function jsonPayload(endpoint: Pick<HttpApiEndpoint.Top, "payload">) {
+function jsonPayload(endpoint: Pick<HttpApiEndpoint.Top, "payload">) {
   const payload = endpoint.payload.get("application/json");
   if (!payload) throw new Error("Expected a JSON request.");
   return Schema.toEncoded(Schema.Union(payload.schemas.filter(Schema.isSchema)));
 }
 
 export async function prepare(
-  route: { endpoint: HttpApiEndpoint.Top; params: Record<string, string> },
+  route: {
+    endpoint: Pick<HttpApiEndpoint.Top, "params" | "query" | "headers" | "payload">;
+    params: Record<string, string>;
+  },
   req: NodeHttp.IncomingMessage,
   url: URL,
 ) {

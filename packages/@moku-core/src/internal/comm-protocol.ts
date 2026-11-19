@@ -116,8 +116,16 @@ export const LegacySessionId = Schema.String.check(
   Schema.isPattern(/^[a-zA-Z0-9_-]{1,128}$/),
 );
 
-const SessionHeaders = Schema.Struct({ sessionId: LegacySessionId }).pipe(
-  Schema.encodeKeys({ sessionId: "marimo-session-id" }),
+const mutationFields = { idempotencyKey: Schema.String };
+const mutationKeys = { idempotencyKey: "idempotency-key" } as const;
+const SessionHeaders = Schema.Struct({
+  sessionId: LegacySessionId,
+  ...mutationFields,
+}).pipe(
+  Schema.encodeKeys({
+    sessionId: "marimo-session-id",
+    ...mutationKeys,
+  }),
 );
 const Acknowledgement = Schema.Struct({ success: Schema.Literal(true) });
 
@@ -239,26 +247,30 @@ export class Snapshot {
 /** The notebook operation that advertises the experimental comm endpoint. */
 export const operation = "runtime.experimental.comm";
 
+/** Commands accepted by the experimental notebook comm endpoint. */
+const Command = Schema.TaggedUnion({
+  SetValues: { values: JsonObject },
+  Model: {
+    model: Schema.String,
+    message: ModelValue.fields.message,
+    buffers: ModelValue.fields.buffers,
+  },
+  Invoke: {
+    call: Schema.String,
+    namespace: FunctionCall.fields.namespace,
+    name: FunctionCall.fields.functionName,
+    args: FunctionCall.fields.args,
+  },
+});
+
 /** The HTTP contract shared by the notebook client and the proxy. */
 export const CommGroup = HttpApiGroup.make("Comm").add(
   HttpApiEndpoint.post("send", "/notebooks/:notebook_id/runtime/experimental/comm", {
     params: Schema.Struct({ notebookId: S.NotebookId }).pipe(
       Schema.encodeKeys({ notebookId: "notebook_id" }),
     ),
-    payload: Schema.TaggedUnion({
-      SetValues: { values: Schema.Record(Schema.String, Schema.Json) },
-      Model: {
-        model: Schema.String,
-        message: ModelValue.fields.message,
-        buffers: ModelValue.fields.buffers,
-      },
-      Invoke: {
-        call: Schema.String,
-        namespace: Schema.String,
-        name: Schema.String,
-        args: Schema.Record(Schema.String, Schema.Json),
-      },
-    }),
+    headers: Schema.Struct(mutationFields).pipe(Schema.encodeKeys(mutationKeys)),
+    payload: Command,
     success: S.Runtime.pipe(HttpApiSchema.status(202)),
     error: [
       ...Problems.Common.members,

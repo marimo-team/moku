@@ -38,6 +38,7 @@ async function fixture(
   const marimoStreams: Events[] = [];
   const requests: {
     path: string;
+    key: string | null;
     body: Record<string, unknown>;
   }[] = [];
   let host: Events | undefined;
@@ -52,7 +53,11 @@ async function fixture(
     if (url.pathname === "/api/hosts") return Response.json([]);
     if (request.method === "POST") {
       const body = await request.json();
-      requests.push({ path: url.pathname, body });
+      requests.push({
+        path: url.pathname,
+        body,
+        key: request.headers.get("idempotency-key"),
+      });
       if (url.pathname.endsWith("/runtime/experimental/comm"))
         return Response.json(current, { status: 202 });
       return Response.json(
@@ -204,9 +209,10 @@ async function fixture(
     subscribe,
     notebookStreams: () => notebookStreams,
     peakNotebookStreams: () => peakNotebookStreams,
-    custom: (notification: CommProtocol.Notification) =>
+    custom: (notification: CommProtocol.Notification, request_id?: string) =>
       host!.send("custom", {
         custom: { type: "marimo.notification", data: notification },
+        request_id,
         time: "2026-11-12T12:00:00Z",
       }),
     ready: () =>
@@ -215,8 +221,8 @@ async function fixture(
           registry.get(model.runtime.experimentalComm.state).connection._tag,
         ).toBe("Connected"),
       ),
-    notify: (notification: CommProtocol.Notification) =>
-      host!.send("marimo", { marimo: notification }),
+    notify: (notification: CommProtocol.Notification, request_id?: string) =>
+      host!.send("marimo", { marimo: notification, request_id }),
     authenticate: (value: boolean) => {
       authenticated = value;
     },
@@ -326,6 +332,7 @@ Vitest.test(
     f.delayKernelReady();
     const fiber = Effect.runFork(
       f.model.runtime.experimentalComm.invoke({
+        call: crypto.randomUUID(),
         namespace: "table",
         name: "rows",
         args: {},
@@ -346,10 +353,13 @@ Vitest.test(
   async () => {
     const f = await fixture();
     f.delayKernelReady();
-    const send = f.model.runtime.experimentalComm.send({
-      _tag: "SetValues",
-      values: { slider: 7 },
-    });
+    const send = f.model.runtime.experimentalComm.send(
+      {
+        _tag: "SetValues",
+        values: { slider: 7 },
+      },
+      crypto.randomUUID(),
+    );
     const write = () =>
       Vitest.expect(Effect.runPromise(send)).rejects.toMatchObject({
         code: "unsupported",
@@ -378,6 +388,7 @@ Vitest.test(
     const call = Vitest.expect(
       Effect.runPromise(
         f.model.runtime.experimentalComm.invoke({
+          call: crypto.randomUUID(),
           namespace: "table",
           name: "rows",
           args: {},
@@ -399,6 +410,7 @@ Vitest.test(
     const f = await fixture();
     const invoked = Effect.runPromise(
       f.model.runtime.experimentalComm.invoke({
+        call: crypto.randomUUID(),
         namespace: "table",
         name: "fetch",
         args: { page: 1 },
@@ -425,20 +437,26 @@ Vitest.test(
     const reader = f.subscribe();
     await f.ready();
     await Effect.runPromise(
-      f.model.runtime.experimentalComm.send({
-        _tag: "SetValues",
-        runtimeId: "rt",
-        values: { "a-0": 5 },
-      }),
+      f.model.runtime.experimentalComm.send(
+        {
+          _tag: "SetValues",
+          runtimeId: "rt",
+          values: { "a-0": 5 },
+        },
+        crypto.randomUUID(),
+      ),
     );
     await Effect.runPromise(
-      f.model.runtime.experimentalComm.send({
-        _tag: "Model",
-        runtimeId: "rt",
-        model: "model",
-        message: { method: "update", state: { x: null }, bufferPaths: [["x"]] },
-        buffers: ["AQ=="],
-      }),
+      f.model.runtime.experimentalComm.send(
+        {
+          _tag: "Model",
+          runtimeId: "rt",
+          model: "model",
+          message: { method: "update", state: { x: null }, bufferPaths: [["x"]] },
+          buffers: ["AQ=="],
+        },
+        crypto.randomUUID(),
+      ),
     );
     Vitest.expect(f.requests.at(-2)?.body).toEqual({ objectIds: ["a-0"], values: [5] });
     Vitest.expect(f.requests.at(-1)?.body).toMatchObject({
@@ -460,6 +478,7 @@ Vitest.test(
     await f.ready();
     const pending = Effect.runPromise(
       f.model.runtime.experimentalComm.invoke({
+        call: crypto.randomUUID(),
         runtimeId: "rt",
         namespace: "n",
         name: "f",
@@ -483,11 +502,14 @@ Vitest.test(
     const before = f.requests.length;
     await Vitest.expect(
       Effect.runPromise(
-        f.model.runtime.experimentalComm.send({
-          _tag: "SetValues",
-          runtimeId: "rt",
-          values: { "a-0": 1 },
-        }),
+        f.model.runtime.experimentalComm.send(
+          {
+            _tag: "SetValues",
+            runtimeId: "rt",
+            values: { "a-0": 1 },
+          },
+          crypto.randomUUID(),
+        ),
       ),
     ).rejects.toMatchObject({ code: "stale-runtime" });
     Vitest.expect(f.requests).toHaveLength(before);
@@ -496,6 +518,7 @@ Vitest.test(
     await Vitest.expect(
       Effect.runPromise(
         f.model.runtime.experimentalComm.invoke({
+          call: crypto.randomUUID(),
           namespace: "n",
           name: "f",
           args: {},
@@ -510,10 +533,13 @@ Vitest.test(
   async () => {
     const f = await fixture();
     f.authenticate(false);
-    const send = f.model.runtime.experimentalComm.send({
-      _tag: "SetValues",
-      values: { x: 1 },
-    });
+    const send = f.model.runtime.experimentalComm.send(
+      {
+        _tag: "SetValues",
+        values: { x: 1 },
+      },
+      crypto.randomUUID(),
+    );
     await Vitest.expect(Effect.runPromise(send)).rejects.toMatchObject({
       code: "authentication",
     });
@@ -562,18 +588,60 @@ Vitest.test(
     Vitest.expect(f.marimoStreams).toHaveLength(0);
 
     await Effect.runPromise(
-      f.model.runtime.experimentalComm.send({
-        _tag: "SetValues",
-        runtimeId: "rt",
-        values: { slider: 8 },
-      }),
+      f.model.runtime.experimentalComm.send(
+        {
+          _tag: "SetValues",
+          runtimeId: "rt",
+          values: { slider: 8 },
+        },
+        crypto.randomUUID(),
+      ),
     );
     Vitest.expect(f.requests).toEqual([
       {
         path: "/api/hosts/host/notebooks/n/runtime/experimental/comm",
+        key: Vitest.expect.any(String),
         body: { _tag: "SetValues", values: { slider: 8 } },
       },
     ]);
+  },
+);
+
+Vitest.test.each(["host", "legacy"])(
+  "%s comm preserves the request key on writes and live widget events",
+  async (mode) => {
+    const f = await fixture(mode === "host" ? ["runtime.experimental.comm"] : []);
+    const reader = f.subscribe();
+    const comm = f.model.runtime.experimentalComm;
+    await Effect.runPromise(
+      comm.send({ _tag: "SetValues", values: { slider: 9 } }, "slider-change"),
+    );
+    Vitest.expect(f.requests.at(-1)?.key).toBe("slider-change");
+    const notification = {
+      op: "send-ui-element-message",
+      ui_element: "slider",
+      message: { type: "marimo-ui-value-update", value: 9 },
+    } as const;
+    (mode === "host" ? f.custom : f.notify)(notification, "slider-change");
+    await vi.waitFor(() =>
+      Vitest.expect(reader.events).toContainEqual({
+        kind: "notification",
+        runtimeId: "rt",
+        requestId: "slider-change",
+        notification,
+      }),
+    );
+    const late = f.subscribe();
+    await vi.waitFor(() =>
+      Vitest.expect(late.events).toContainEqual(
+        Vitest.expect.objectContaining({
+          notification: Vitest.expect.objectContaining({
+            op: "kernel-ready",
+            ui_values: { slider: 9 },
+          }),
+        }),
+      ),
+    );
   },
 );
 
@@ -585,7 +653,9 @@ Vitest.test(
     const reader = f.subscribe();
     await f.ready();
 
-    await Effect.runPromise(comm.send({ _tag: "SetValues", values: { slider: 12 } }));
+    await Effect.runPromise(
+      comm.send({ _tag: "SetValues", values: { slider: 12 } }, crypto.randomUUID()),
+    );
     f.setOperations(["runtime.experimental.comm"]);
     await vi.waitFor(() => Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(true));
     const update = {
@@ -601,7 +671,9 @@ Vitest.test(
         notification: update,
       }),
     );
-    await Effect.runPromise(comm.send({ _tag: "SetValues", values: { slider: 14 } }));
+    await Effect.runPromise(
+      comm.send({ _tag: "SetValues", values: { slider: 14 } }, crypto.randomUUID()),
+    );
     Vitest.expect(f.requests.map(({ path }) => path)).toEqual([
       "/api/hosts/host/marimo/auth",
       "/api/hosts/host/marimo/api/kernel/set_ui_element_value",
@@ -617,10 +689,20 @@ Vitest.test(
     const comm = f.model.runtime.experimentalComm;
     const reader = f.subscribe();
     const pending = Vitest.expect(
-      Effect.runPromise(comm.invoke({ namespace: "table", name: "rows", args: {} })),
+      Effect.runPromise(
+        comm.invoke({
+          call: crypto.randomUUID(),
+          namespace: "table",
+          name: "rows",
+          args: {},
+        }),
+      ),
     ).rejects.toMatchObject({ code: "stale-runtime" });
     await vi.waitFor(() => Vitest.expect(f.requests).toHaveLength(1));
-    const send = comm.send({ _tag: "SetValues", values: { slider: 9 } });
+    const send = comm.send(
+      { _tag: "SetValues", values: { slider: 9 } },
+      crypto.randomUUID(),
+    );
 
     f.setOperations([]);
     await pending;
@@ -629,6 +711,7 @@ Vitest.test(
     await Effect.runPromise(send);
     Vitest.expect(f.requests.at(-1)).toEqual({
       path: "/api/hosts/host/marimo/api/kernel/set_ui_element_value",
+      key: Vitest.expect.any(String),
       body: { objectIds: ["slider"], values: [9] },
     });
     const notification = {
@@ -654,7 +737,12 @@ Vitest.test(
     const f = await fixture(["runtime.experimental.comm"]);
     function invoke(name: string) {
       return Effect.runPromise(
-        f.model.runtime.experimentalComm.invoke({ namespace: "table", name, args: {} }),
+        f.model.runtime.experimentalComm.invoke({
+          call: `call-${name}`,
+          namespace: "table",
+          name,
+          args: {},
+        }),
       );
     }
     const first = invoke("rows");
@@ -663,21 +751,29 @@ Vitest.test(
       message: "No columns",
     });
     await vi.waitFor(() => Vitest.expect(f.requests).toHaveLength(2));
-    const callId = (name: string) => {
-      const call = f.requests.find(({ body }) => body.name === name)?.body.call;
-      if (typeof call !== "string") throw new Error(`Missing call ID for ${name}`);
-      return call;
-    };
-    f.custom({
-      op: "function-call-result",
-      function_call_id: callId("columns"),
+    await Vitest.expect(invoke("rows")).rejects.toMatchObject({ code: "rpc" });
+    Vitest.expect(f.requests).toHaveLength(2);
+    function reply(
+      name: string,
+      result: Omit<
+        Extract<CommProtocol.Notification, { op: "function-call-result" }>,
+        "op" | "function_call_id"
+      >,
+    ) {
+      const request = f.requests.find(({ body }) => body.name === name);
+      if (!request?.key || request.key !== request.body.call)
+        throw new Error(`Missing call or request ID for ${name}`);
+      f.custom(
+        { op: "function-call-result", function_call_id: request.body.call, ...result },
+        request.key,
+      );
+    }
+    reply("columns", {
       found: true,
       status: { code: "error", title: null, message: "No columns" },
       return_value: null,
     });
-    f.custom({
-      op: "function-call-result",
-      function_call_id: callId("rows"),
+    reply("rows", {
       found: true,
       status: { code: "ok", title: null, message: null },
       return_value: [42],
@@ -692,7 +788,14 @@ Vitest.test(
     const f = await fixture(["runtime.experimental.comm"]);
     const comm = f.model.runtime.experimentalComm;
     const pending = Vitest.expect(
-      Effect.runPromise(comm.invoke({ namespace: "table", name: "rows", args: {} })),
+      Effect.runPromise(
+        comm.invoke({
+          call: crypto.randomUUID(),
+          namespace: "table",
+          name: "rows",
+          args: {},
+        }),
+      ),
     ).rejects.toMatchObject({ code: "stale-runtime" });
     await vi.waitFor(() => Vitest.expect(f.requests).toHaveLength(1));
     f.restart("replacement");
@@ -711,7 +814,10 @@ Vitest.test(
     );
     await Vitest.expect(
       Effect.runPromise(
-        comm.send({ _tag: "SetValues", runtimeId: "rt", values: { slider: 9 } }),
+        comm.send(
+          { _tag: "SetValues", runtimeId: "rt", values: { slider: 9 } },
+          crypto.randomUUID(),
+        ),
       ),
     ).rejects.toMatchObject({ code: "stale-runtime" });
     Vitest.expect(f.requests).toHaveLength(1);

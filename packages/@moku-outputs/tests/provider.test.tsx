@@ -21,20 +21,25 @@ Vitest.afterEach(async () => {
   document.body.replaceChildren();
 });
 
+type Notification = Parameters<RendererSession.Interface["handle"]>[0];
 type CommEvent = Stream.Success<Notebook["runtime"]["experimentalComm"]["events"]>;
 
 function fixture() {
   const sessions: {
     options: RendererSession.Options;
+    received: Notification[];
     dispose: ReturnType<typeof vi.fn>;
   }[] = [];
   renderer.createSession.mockImplementation((options: RendererSession.Options) => {
     const dispose = vi.fn();
-    sessions.push({ options, dispose });
+    const received: Notification[] = [];
+    sessions.push({ options, dispose, received });
     return {
       runtimeId: options.runtimeId,
       assetUrl: options.assetUrl,
-      handle: async () => {},
+      handle: async (notification: Notification) => {
+        received.push(notification);
+      },
       dispose,
     };
   });
@@ -162,16 +167,25 @@ Vitest.test(
     Vitest.expect(old.dispose).toHaveBeenCalledOnce();
     Vitest.expect(view.element.textContent).toBe("new");
     await old.options.sendComponentValues({ objectIds: ["a"], values: [7] });
-    Vitest.expect(f.runtime.experimentalComm.send).toHaveBeenCalledWith({
-      _tag: "SetValues",
-      runtimeId: "old",
-      values: { a: 7 },
-    });
+    Vitest.expect(f.runtime.experimentalComm.send).toHaveBeenCalledWith(
+      {
+        _tag: "SetValues",
+        runtimeId: "old",
+        values: { a: 7 },
+      },
+      Vitest.expect.any(String),
+    );
     const current = f.sessions[1].options;
     Vitest.expect(
-      await current.invoke({ namespace: "table", name: "fetch", args: {} }),
+      await current.invoke({
+        functionCallId: "table-page",
+        namespace: "table",
+        functionName: "fetch",
+        args: {},
+      }),
     ).toEqual({ answer: 42 });
     Vitest.expect(f.runtime.experimentalComm.invoke).toHaveBeenCalledWith({
+      call: "table-page",
       runtimeId: "new",
       namespace: "table",
       name: "fetch",
@@ -182,18 +196,120 @@ Vitest.test(
       message: { method: "custom", content: {} },
       buffers: ["AQ=="],
     });
-    Vitest.expect(f.runtime.experimentalComm.send).toHaveBeenCalledWith({
-      _tag: "Model",
-      runtimeId: "new",
-      model: "m",
-      message: { method: "custom", content: {} },
-      buffers: ["AQ=="],
-    });
+    Vitest.expect(f.runtime.experimentalComm.send).toHaveBeenCalledWith(
+      {
+        _tag: "Model",
+        runtimeId: "new",
+        model: "m",
+        message: { method: "custom", content: {} },
+        buffers: ["AQ=="],
+      },
+      Vitest.expect.any(String),
+    );
     await view.render(null);
     await Vitest.expect(
-      current.invoke({ namespace: "table", name: "fetch", args: {} }),
+      current.invoke({
+        functionCallId: "table-page",
+        namespace: "table",
+        functionName: "fetch",
+        args: {},
+      }),
     ).rejects.toThrow("session has ended");
     Vitest.expect(f.executeCall).toHaveBeenCalledTimes(1);
+  },
+);
+
+Vitest.test(
+  "the originating renderer skips its echoed values and model patches",
+  async () => {
+    const f = fixture();
+    await mount(
+      <Provider notebook={f}>
+        <Consumer />
+      </Provider>,
+    );
+    await vi.waitFor(() => Vitest.expect(f.readers()).toBe(1));
+    await React.act(async () => f.ready("rt"));
+    const { options, received } = f.sessions[0];
+    await options.sendComponentValues({ objectIds: ["a", "b"], values: [1, 2] });
+    await options.sendModelValue({
+      modelId: "m",
+      message: { method: "update", state: { x: null }, bufferPaths: [["x"]] },
+      buffers: ["AQ=="],
+    });
+    const keys = vi
+      .mocked(f.runtime.experimentalComm.send)
+      .mock.calls.map(([, key]) => {
+        if (!key) throw new Error("Missing idempotency key");
+        return key;
+      });
+    Vitest.expect(new Set(keys).size).toBe(2);
+    const ui = (id: string, value: number): Notification => ({
+      op: "send-ui-element-message",
+      ui_element: id,
+      message: { type: "marimo-ui-value-update", value },
+    });
+    const model = (buffer: string): Notification => ({
+      op: "model-lifecycle",
+      model_id: "m",
+      message: {
+        method: "update",
+        state: { x: null },
+        buffer_paths: [["x"]],
+        buffers: [buffer],
+      },
+    });
+    const emit = (notification: Notification, requestId?: string) =>
+      f.emit({
+        kind: "notification",
+        runtimeId: "rt",
+        notification,
+        ...(requestId && { requestId }),
+      });
+    await React.act(async () => {
+      emit(ui("a", 5), "other-slider-write");
+      emit(
+        {
+          op: "model-lifecycle",
+          model_id: "m",
+          message: {
+            method: "update",
+            state: { x: null, y: null },
+            buffer_paths: [["x"], ["y"]],
+            buffers: ["Ag==", "Aw=="],
+          },
+        },
+        "other-model-write",
+      );
+      emit(model("AQ=="), keys[1]);
+      emit(ui("b", 2), keys[0]);
+      emit(ui("a", 1), keys[0]);
+      emit(ui("a", 3), keys[0]);
+      emit(model("Ag=="), keys[1]);
+      emit(model("AQ=="), "peer");
+      emit(ui("a", 1));
+    });
+    Vitest.expect(received.slice(1)).toEqual([
+      {
+        op: "model-lifecycle",
+        model_id: "m",
+        message: {
+          method: "update",
+          state: { y: null },
+          buffer_paths: [["y"]],
+          buffers: ["Aw=="],
+        },
+      },
+      ui("a", 3),
+      model("Ag=="),
+      model("AQ=="),
+      ui("a", 1),
+    ]);
+    await React.act(async () => {
+      f.ready("rt");
+      emit(model("AQ=="), keys[1]);
+    });
+    Vitest.expect(f.sessions[1].received.at(-1)).toEqual(model("AQ=="));
   },
 );
 

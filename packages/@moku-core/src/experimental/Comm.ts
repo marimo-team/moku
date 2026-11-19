@@ -11,7 +11,7 @@ import { Cause, Data, Deferred, Effect, FiberSet, Queue, Schema, Stream } from "
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import type * as Events from "../notebook/events.ts";
 import * as CommProtocol from "../internal/comm-protocol.ts";
-import type { Client } from "../internal/client.ts";
+import type { Client, CommRequest } from "../internal/client.ts";
 import type * as Notebook from "../Notebook.ts";
 import * as Protocol from "../Protocol.ts";
 
@@ -29,6 +29,8 @@ type Event =
       readonly kind: "notification";
       /** The runtime that produced this message. */
       readonly runtimeId: string;
+      /** The mutation that caused the notification, when the host identified it. */
+      readonly requestId?: string;
       /** The decoded message for the output renderer. */
       readonly notification: CommProtocol.Notification;
     };
@@ -52,27 +54,9 @@ interface Target {
   /** Pass the ID that produced the output to reject a stale callback. Omit it to use the current runtime. */
   readonly runtimeId?: string;
 }
-interface UIValues extends Target {
-  /** Values keyed by UI element ID; omitted elements are unchanged. */
-  readonly values: Readonly<Record<string, Json>>;
-}
-interface Invoke extends Target {
-  /** The function registry that owns the callable. */
-  readonly namespace: string;
-  readonly name: string;
-  readonly args: Readonly<Record<string, Json>>;
-}
-/** An anywidget state patch or custom message with its binary attachments. */
-interface WidgetMessage extends Target {
-  /** The widget model that receives this message. */
-  readonly model: string;
-  /** A state patch or transient custom message. */
-  readonly message: (typeof CommProtocol.ModelValue.Type)["message"];
-  /** Encoded binary attachments; empty when the message has none. */
-  readonly buffers: readonly string[];
-}
-
-type Message = Data.TaggedEnum<{ SetValues: UIValues; Model: WidgetMessage }>;
+type Payload = CommRequest["payload"];
+type Message = Target & Exclude<Payload, { _tag: "Invoke" }>;
+type Invoke = Target & Omit<Extract<Payload, { _tag: "Invoke" }>, "_tag">;
 type Connection = Data.TaggedEnum<{
   /** No output attachment is active, including when no runtime is running. */
   Idle: {};
@@ -119,11 +103,18 @@ export interface Interface {
    * Sends a UI value or widget message and completes when the server accepts it.
    *
    * Kernel updates arrive on {@link Interface.events}. A failed request may
-   * already have reached the kernel, so sends are attempted once.
+   * already have reached the kernel, so sends are attempted once. Pass a fresh
+   * idempotency key to recognize your write on the event stream.
    */
-  readonly send: (message: Message) => Effect.Effect<void, CommError>;
+  readonly send: (
+    message: Message,
+    idempotencyKey: string,
+  ) => Effect.Effect<void, CommError>;
   /**
    * Calls a registered Python function and returns its result.
+   *
+   * The caller supplies a fresh call ID for each invocation. It is sent as the
+   * idempotency key and identifies the kernel reply on the notebook stream.
    *
    * The 30-second timeout includes connecting and waiting for the kernel’s
    * reply. Restarting the runtime fails calls that are still waiting.
@@ -138,9 +129,7 @@ interface Observation {
   readonly events: Stream.Stream<Events.Update>;
   readonly reconnect: Effect.Effect<void>;
   readonly id: typeof Protocol.NotebookId.Type;
-  readonly send: (
-    payload: Parameters<Client["Comm"]["send"]>[0]["payload"],
-  ) => Effect.Effect<typeof Protocol.Runtime.Type, Notebook.CommandError>;
+  readonly client: Client["Comm"];
   readonly viewer?: Events.Session | undefined;
 }
 
@@ -148,23 +137,6 @@ const problem = (code: CommError["code"], message: string) =>
   new CommError({ code, message });
 
 type PendingCalls = Map<string, Deferred.Deferred<Json, CommError>>;
-
-const invoke = Effect.fnUntraced(function* (
-  calls: PendingCalls,
-  post: (call: string) => Effect.Effect<void, CommError>,
-) {
-  const call = crypto.randomUUID();
-  const reply = yield* Deferred.make<Json, CommError>();
-  calls.set(call, reply);
-  return yield* post(call).pipe(
-    Effect.andThen(Deferred.await(reply)),
-    Effect.ensuring(
-      Effect.sync(() => {
-        calls.delete(call);
-      }),
-    ),
-  );
-});
 
 function replyToCall(calls: PendingCalls, notification: CommProtocol.Notification) {
   if (notification.op !== "function-call-result") return;
@@ -184,10 +156,6 @@ function replyToCall(calls: PendingCalls, notification: CommProtocol.Notificatio
           ),
     );
 }
-
-type Payload = Parameters<Client["Comm"]["send"]>[0]["payload"];
-
-type Post = (payload: Payload) => Effect.Effect<void, CommError>;
 
 interface Viewer {
   readonly sessionId: string;
@@ -227,7 +195,12 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
     registry.set(channel, Connection.Idle());
     emit({ kind: "reset", runtimeId: null });
   }
-  function deliver(runtimeId: string, raw: unknown, updatePermissions = true) {
+  function deliver(
+    runtimeId: string,
+    raw: unknown,
+    requestId?: string,
+    updatePermissions = true,
+  ) {
     const notification = snapshot.recordNotification(raw);
     if (!notification) return;
     if (
@@ -242,7 +215,12 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
         }),
       );
     replyToCall(calls, notification);
-    emit({ kind: "notification", runtimeId, notification });
+    emit({
+      kind: "notification",
+      runtimeId,
+      notification,
+      ...(requestId !== undefined && { requestId }),
+    });
     return notification;
   }
   yield* Effect.addFinalizer(() =>
@@ -305,12 +283,13 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
     if (!active) return;
     if (active.hostComm) {
       if (event.event === "custom" && event.data.custom.type === "marimo.notification")
-        deliver(active.id, event.data.custom.data);
+        deliver(active.id, event.data.custom.data, event.data.request_id);
     } else if (event.event === "marimo") {
       if (event.sessionId && active.viewer?.sessionId !== event.sessionId) return;
       const notification = deliver(
         active.id,
         event.data.marimo,
+        event.data.request_id,
         !active.viewer || !!event.sessionId,
       );
       if (event.sessionId && active.viewer && notification?.op === "kernel-ready")
@@ -362,8 +341,8 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
     return viewer;
   }
 
-  const post = (id: string, payload: Payload) =>
-    notebook.send(payload).pipe(
+  const sendToHost = (id: string, command: CommRequest) =>
+    notebook.client.send({ params: { notebookId: notebook.id }, ...command }).pipe(
       Effect.mapError(
         (cause) =>
           new CommError({
@@ -383,7 +362,8 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
 
   const request = Effect.fnUntraced(function* <A>(
     target: Target,
-    run: (post: Post) => Effect.Effect<A, CommError>,
+    command: CommRequest,
+    result: Effect.Effect<A, CommError>,
   ) {
     if (closed) return yield* problem("closed", "The notebook is closed.");
     const state = registry.get(notebook.state);
@@ -416,11 +396,11 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
         "Start the runtime to interact with outputs.",
       );
 
-    const perform = (send: Post) =>
+    const perform = (send: Effect.Effect<void, CommError>) =>
       Effect.suspend(() => {
         const connection = registry.get(channel);
         return connection._tag === "Connected" && connection.canInteract
-          ? run(send)
+          ? send.pipe(Effect.andThen(result))
           : Effect.fail(
               problem(
                 "unsupported",
@@ -432,11 +412,11 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
     if (!current.hostComm && legacy) {
       const viewer = attach(current, state.value.notebook, legacy);
       action = Deferred.await(viewer.ready).pipe(
-        Effect.andThen(perform((payload) => legacy.post(viewer.sessionId, payload))),
+        Effect.andThen(perform(legacy.post(viewer.sessionId, command))),
         Effect.raceFirst(Deferred.await(viewer.ended)),
       );
     } else {
-      action = perform((payload) => post(current.id, payload));
+      action = perform(sendToHost(current.id, command));
     }
     return yield* action.pipe(
       Effect.raceFirst(Deferred.await(current.ended)),
@@ -473,18 +453,37 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
       }
       return Effect.void;
     }),
-    send: (message) => request(message, (post) => post(message)),
-    invoke: (input) =>
-      request(input, (post) =>
-        invoke(calls, (call) =>
-          post({
+    send: (message, idempotencyKey) =>
+      request(message, { payload: message, headers: { idempotencyKey } }, Effect.void),
+    invoke: Effect.fnUntraced(function* (input: Invoke) {
+      const { call } = input;
+      if (calls.has(call))
+        return yield* problem(
+          "rpc",
+          "A Python call with this request ID is already pending.",
+        );
+      const reply = yield* Deferred.make<Json, CommError>();
+      calls.set(call, reply);
+      return yield* request(
+        input,
+        {
+          payload: {
             _tag: "Invoke",
             call,
-            namespace: input.namespace,
             name: input.name,
+            namespace: input.namespace,
             args: input.args,
+          },
+          headers: { idempotencyKey: call },
+        },
+        Deferred.await(reply),
+      ).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            calls.delete(call);
           }),
         ),
-      ),
+      );
+    }),
   } satisfies Interface;
 });

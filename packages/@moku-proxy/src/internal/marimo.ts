@@ -15,7 +15,7 @@ import {
   LegacySessionId,
   ViewerCredentials,
 } from "@moku/core/internal/comm-protocol";
-import { jsonPayload } from "./protocol.ts";
+import { prepare } from "./protocol.ts";
 import { json, readBody } from "./http.ts";
 
 const endpoints = Object.values(LegacyCommApi.groups.LegacyComm.endpoints);
@@ -62,7 +62,7 @@ export function create(
       const forward = Forward.create(res, requests, stream ? 45_000 : 30_000);
       try {
         if (endpoint?.identifier === "authorize") {
-          let input: { readonly token?: string };
+          let input: typeof ViewerCredentials.Type;
           try {
             input = Schema.decodeUnknownSync(ViewerCredentials)(await readBody(req));
           } catch {
@@ -125,20 +125,14 @@ export function create(
             return json(res, 400, { error: "Invalid output asset path." });
         }
         if (endpoint) {
-          const sessionId = req.headers["marimo-session-id"];
-          if (!isSessionId(sessionId))
-            return json(res, 400, { error: "The output session ID is missing." });
           try {
-            body = JSON.stringify(
-              Schema.decodeUnknownSync(jsonPayload(endpoint))(
-                await readBody(req, 8 * 1024 * 1024),
-              ),
-            );
+            const request = await prepare({ endpoint, params: {} }, req, url);
+            body = request.body;
+            request.headers.forEach((value, name) => headers.set(name, value));
           } catch {
             return json(res, 400, { error: "Invalid output interaction request." });
           }
           headers.set("Content-Type", "application/json");
-          headers.set("Marimo-Session-Id", sessionId);
           headers.set("Marimo-Server-Token", credential.serverToken);
         }
         if (forward.signal.aborted) return;

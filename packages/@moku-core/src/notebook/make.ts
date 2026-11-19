@@ -93,7 +93,7 @@ export const make = Effect.fnUntraced(function* (
       state,
       reconnect: observation.reconnect,
       events: Stream.fromQueue(updates),
-      send: (payload) => client.Comm.send({ params, payload }),
+      client: client.Comm,
       viewer: marimo && (yield* Events.session(marimo, observation.withSnapshot)),
     }),
     start: (payload = {}) =>

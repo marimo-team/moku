@@ -279,14 +279,14 @@ Vitest.test(
           url: req.url,
           body: body ? JSON.parse(body) : null,
         });
+        Vitest.expect(req.headers["idempotency-key"]).toEqual(
+          Vitest.expect.any(String),
+        );
         if (req.url?.endsWith("/runtime/experimental/comm")) {
           res.writeHead(202, { "Content-Type": "application/json" });
           res.end(JSON.stringify(runtime));
           return;
         }
-        Vitest.expect(req.headers["idempotency-key"]).toEqual(
-          Vitest.expect.any(String),
-        );
         if (req.url?.includes("/runtime/")) {
           res.writeHead(409, { "Content-Type": "application/problem+json" });
           res.end(JSON.stringify(upstreamProblem));
@@ -365,11 +365,14 @@ Vitest.test(
             }),
           );
           Vitest.expect(invalid.status).toBe(400);
-          yield* attached.runtime.experimentalComm.send({
-            _tag: "Model",
-            ...model,
-            runtimeId: "rt",
-          });
+          yield* attached.runtime.experimentalComm.send(
+            {
+              _tag: "Model",
+              ...model,
+              runtimeId: "rt",
+            },
+            crypto.randomUUID(),
+          );
           yield* host.notebooks.delete("n");
           authenticated = false;
           const error = yield* Effect.flip(host.notebooks.open("n"));
@@ -556,6 +559,16 @@ Vitest.test(
       (await post("/edits", "{}", { Cookie: headers.Cookie, Origin: origin })).status,
       400,
     );
+    NodeAssert.equal(
+      (
+        await post(
+          "/runtime/experimental/comm",
+          JSON.stringify({ _tag: "SetValues", values: { slider: 1 } }),
+          { Cookie: headers.Cookie, Origin: origin },
+        )
+      ).status,
+      400,
+    );
     for (const [path, body] of [
       ["/edits", "{}"],
       ["/edits", "{"],
@@ -690,7 +703,14 @@ Vitest.test(
     NodeAssert.deepEqual(JSON.parse(calls[2].body), body);
     NodeAssert.equal(calls[2].headers["marimo-server-token"], "server-secret");
     NodeAssert.equal(calls[2].headers["marimo-session-id"], "output-1");
-    NodeAssert.equal(calls[2].headers["idempotency-key"], undefined);
+    NodeAssert.equal(calls[2].headers["idempotency-key"], "request-1");
+    const missingKey = await post("/api/kernel/set_model_value", body, {
+      Cookie: headers.Cookie,
+      Origin: headers.Origin,
+      "Marimo-Session-Id": "output-1",
+    });
+    NodeAssert.equal(missingKey.status, 400);
+    NodeAssert.equal(calls.length, 3);
     const asset = await fetch(marimoUrl + "/@file/code.js", { headers });
     NodeAssert.equal(await asset.text(), "export default {};");
     NodeAssert.equal(asset.headers.get("content-type"), "text/javascript");

@@ -7,7 +7,7 @@
  * @module
  */
 import type * as Notebook from "@moku/core/Notebook";
-import { Cause, Clock, Effect, Exit, Semaphore, Stream } from "effect";
+import { Cause, Effect, Exit, Semaphore, Stream } from "effect";
 import type * as RendererSession from "./RendererSession.ts";
 import { WidgetUpdates } from "./WidgetUpdates.ts";
 import { loadRenderer } from "./renderer.ts";
@@ -111,19 +111,9 @@ const start = Effect.fnUntraced(function* (
       : Effect.runPromise(effect, { signal });
 
   yield* comm.events.pipe(
-    Stream.merge(Stream.tick("30 seconds"), { haltStrategy: "left" }),
     Stream.runForEach((event) =>
       lock.withPermit(
         Effect.gen(function* () {
-          if (!event) {
-            if (updates)
-              yield* Effect.forEach(
-                updates.expire(yield* Clock.currentTimeMillis),
-                apply,
-                { discard: true },
-              );
-            return;
-          }
           if (event.kind === "reset") {
             updates = undefined;
             entry.state.session?.dispose();
@@ -155,7 +145,6 @@ const start = Effect.fnUntraced(function* (
                   ),
                 ),
               );
-              receipt.accept(yield* Clock.currentTimeMillis);
             });
             const session = renderer.createSession({
               runtimeId,

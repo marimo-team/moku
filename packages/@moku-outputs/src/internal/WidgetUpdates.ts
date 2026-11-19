@@ -1,7 +1,7 @@
 /** Reconcile optimistic widget edits with the notebook's ordered stream. @module */
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/internal/comm-protocol";
-import { Equal } from "effect";
+import { Data, Equal } from "effect";
 
 type Write = Parameters<Notebook.Runtime["experimentalComm"]["send"]>[0];
 type Notification = Protocol.Notification;
@@ -52,40 +52,79 @@ function selectFields(patch: Patch, fields: Set<string>) {
   };
 }
 
-interface Field {
-  confirmed?: Notification;
-  lastKey?: string | undefined;
-  pending?: {
-    key: string;
-    expected: Notification;
-    expiresAt?: number;
-    deferred: boolean;
-  };
+type FieldState = Data.TaggedEnum<{
+  Following: {};
+  Pending: { key: string; expected: Notification };
+}>;
+const FieldState = Data.taggedEnum<FieldState>();
+
+type FieldEvent = Data.TaggedEnum<{
+  Begin: { key: string; expected: Notification };
+  Update: { key: string | undefined; value: Notification };
+  Reject: { key: string };
+  Snapshot: { value: Notification };
+  Remove: {};
+}>;
+const FieldEvent = Data.taggedEnum<FieldEvent>();
+
+class Field {
+  private state: FieldState = FieldState.Following();
+  private confirmed?: Notification;
+  private lastKey: string | undefined;
+
+  /** Returns the update to render, including a rollback when the owning write fails. */
+  transition(event: FieldEvent): Notification | undefined {
+    const state = this.state;
+    return FieldEvent.$match(event, {
+      Begin: ({ key, expected }) => {
+        this.state = FieldState.Pending({
+          key,
+          expected: structuredClone(expected),
+        });
+        return undefined;
+      },
+      Update: ({ key, value }) => {
+        const previous = this.confirmed;
+        const previousKey = this.lastKey;
+        // Even a suppressed peer update becomes the rollback value.
+        this.confirmed = value;
+        this.lastKey = key;
+        return FieldState.$match(state, {
+          Following: () =>
+            key !== undefined && key === previousKey && Equal.equals(previous, value)
+              ? undefined
+              : value,
+          Pending: (pending) => {
+            if (key !== undefined && key !== pending.key) return undefined;
+            this.state = FieldState.Following();
+            return key === undefined || !Equal.equals(pending.expected, value)
+              ? value
+              : undefined;
+          },
+        });
+      },
+      Reject: ({ key }) => {
+        if (state._tag !== "Pending" || state.key !== key) return undefined;
+        this.state = FieldState.Following();
+        return this.confirmed;
+      },
+      Snapshot: ({ value }) => {
+        this.confirmed = value;
+        return undefined;
+      },
+      Remove: () => {
+        // Outstanding receipts can still reference this field after removal.
+        this.state = FieldState.Following();
+        return undefined;
+      },
+    });
+  }
 }
 
 /** Tracks the latest local edit and confirmed stream value for each widget field in one renderer. */
 export class WidgetUpdates {
   private readonly ui = new Map<string, Field>();
   private readonly models = new Map<string, Map<string, Field>>();
-
-  private readonly pending = new Set<Field>();
-
-  private release(field: Field) {
-    this.pending.delete(field);
-    delete field.pending;
-  }
-
-  /** Recover the latest stream values if an accepted write never receives a tagged echo. */
-  expire(now: number) {
-    const updates: Notification[] = [];
-    for (const field of this.pending) {
-      const edit = field.pending;
-      if (edit?.expiresAt === undefined || edit.expiresAt > now) continue;
-      if (edit.deferred && field.confirmed) updates.push(field.confirmed);
-      this.release(field);
-    }
-    return updates;
-  }
 
   private model(id: string) {
     let fields = this.models.get(id);
@@ -98,7 +137,7 @@ export class WidgetUpdates {
   private field(fields: Map<string, Field>, name: string) {
     let field = fields.get(name);
     if (!field) {
-      field = {};
+      field = new Field();
       fields.set(name, field);
     }
     return field;
@@ -109,12 +148,7 @@ export class WidgetUpdates {
     const key = crypto.randomUUID();
     const touched: Field[] = [];
     const mark = (field: Field, expected: Notification) => {
-      this.pending.add(field);
-      field.pending = {
-        key,
-        expected: structuredClone(expected),
-        deferred: field.pending?.deferred ?? false,
-      };
+      field.transition(FieldEvent.Begin({ key, expected }));
       touched.push(field);
     };
     if (write._tag === "SetValues") {
@@ -135,46 +169,23 @@ export class WidgetUpdates {
     }
     return {
       key,
-      accept: (now: number) => {
-        for (const field of touched)
-          if (field.pending?.key === key) field.pending.expiresAt = now + 30_000;
-      },
       reject: () =>
-        touched.flatMap((field) => {
-          if (field.pending?.key !== key) return [];
-          this.release(field);
-          return field.confirmed ? [field.confirmed] : [];
-        }),
+        touched.flatMap((field) => field.transition(FieldEvent.Reject({ key })) ?? []),
     };
-  }
-
-  private apply(field: Field, update: Notification, key?: string) {
-    const repeated =
-      key !== undefined &&
-      key === field.lastKey &&
-      Equal.equals(field.confirmed, update);
-    field.confirmed = update;
-    field.lastKey = key;
-    const pending = field.pending;
-    if (!pending) return !repeated;
-    if (key !== undefined && key !== pending.key) {
-      pending.deferred = true;
-      return false;
-    }
-    this.release(field);
-    return key === undefined || !Equal.equals(pending.expected, update);
   }
 
   /** Return the fields that still need to reach the renderer. */
   receive(event: Notification, key?: string): Notification | undefined {
     if (event.op === "kernel-ready") {
       for (const [id, value] of Object.entries(event.ui_values ?? {}))
-        this.field(this.ui, id).confirmed = uiValue(id, value);
+        this.field(this.ui, id).transition(
+          FieldEvent.Snapshot({ value: uiValue(id, value) }),
+        );
     }
     if (event.op === "remove-ui-elements") {
       for (const [id, field] of this.ui)
         if (id.startsWith(event.cell_id + "-")) {
-          this.release(field);
+          field.transition(FieldEvent.Remove());
           this.ui.delete(id);
         }
     }
@@ -185,10 +196,8 @@ export class WidgetUpdates {
     ) {
       const value = uiValue(event.ui_element, event.message.value);
       if (
-        !this.apply(
-          this.field(this.ui, event.ui_element),
-          event.buffers?.length ? event : value,
-          key,
+        !this.field(this.ui, event.ui_element).transition(
+          FieldEvent.Update({ key, value: event.buffers?.length ? event : value }),
         )
       )
         return;
@@ -197,7 +206,7 @@ export class WidgetUpdates {
     const patch = event.message;
     if (patch.method === "open" || patch.method === "close") {
       for (const field of this.models.get(event.model_id)?.values() ?? [])
-        this.release(field);
+        field.transition(FieldEvent.Remove());
       this.models.delete(event.model_id);
     }
     if (patch.method !== "open" && patch.method !== "update") return event;
@@ -207,7 +216,10 @@ export class WidgetUpdates {
     const visible = new Set<string>();
     for (const [name, message] of splitPatch(patch)) {
       const update = { ...event, message };
-      if (this.apply(this.field(fields, name), update, key)) visible.add(name);
+      if (
+        this.field(fields, name).transition(FieldEvent.Update({ key, value: update }))
+      )
+        visible.add(name);
       else skipped = true;
     }
     if (!skipped) return event;

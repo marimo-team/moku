@@ -24,19 +24,6 @@ Vitest.test(
 );
 
 Vitest.test(
-  "an accepted write with no echo eventually releases the most recent peer update",
-  () => {
-    const updates = new WidgetUpdates();
-    const write = updates.begin({ _tag: "SetValues", values: { slider: 8 } });
-    write.accept(0);
-    Vitest.expect(updates.receive(slider(5), "other-tab")).toBeUndefined();
-    Vitest.expect(updates.expire(29_999)).toEqual([]);
-    Vitest.expect(updates.expire(30_000)).toEqual([slider(5)]);
-    Vitest.expect(updates.receive(slider(8), write.key)).toEqual(slider(8));
-  },
-);
-
-Vitest.test(
   "untagged changes take effect immediately and out-of-order echoes converge in host order",
   () => {
     const updates = new WidgetUpdates();
@@ -50,3 +37,13 @@ Vitest.test(
     Vitest.expect(updates.receive(slider(3), first.key)).toEqual(slider(3));
   },
 );
+
+Vitest.test("a late rejection cannot restore a removed widget's value", () => {
+  const updates = new WidgetUpdates();
+  const widget = (value: number) => ({ ...slider(value), ui_element: "cell-slider" });
+  updates.receive(widget(1));
+  const write = updates.begin({ _tag: "SetValues", values: { "cell-slider": 2 } });
+  updates.receive({ op: "remove-ui-elements", cell_id: "cell" });
+  Vitest.expect(updates.receive(widget(3))).toEqual(widget(3));
+  Vitest.expect(write.reject()).toEqual([]);
+});

@@ -1,3 +1,5 @@
+@layer ui-sdk;
+
 @import "@fontsource-variable/inter";
 
 :root {

@@ -1,4 +1,4 @@
-import * as React from "react";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@ui-sdk/react/menu";
 
 export function CellMenu({
   name,
@@ -16,142 +16,76 @@ export function CellMenu({
   };
   remove?: { readonly pending: boolean; readonly run: () => void };
 }) {
-  const id = React.useId();
-  const root = React.useRef<HTMLDivElement>(null);
-  const trigger = React.useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!open) return;
-    function outside(event: PointerEvent) {
-      if (event.target instanceof Node && !root.current?.contains(event.target)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("pointerdown", outside);
-    return () => document.removeEventListener("pointerdown", outside);
-  }, [open]);
-
-  function close(returnFocus = false) {
-    setOpen(false);
-    if (returnFocus) trigger.current?.focus({ preventScroll: true });
-  }
-
   if (!onToggleSource && !remove && !insert) return null;
   return (
     <div
-      ref={root}
       className="cell-actions"
-      data-open={open}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
-      }}
       onKeyDown={(event) => {
-        if (event.key === "Escape" && open) {
-          event.preventDefault();
-          event.stopPropagation();
-          close(true);
-        }
-        if (open && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
-          event.preventDefault();
-          const items = [
-            ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
-              "[role^='menuitem']:not(:disabled)",
-            ),
-          ];
-          const current = items.indexOf(document.activeElement as HTMLButtonElement);
-          const next =
-            event.key === "Home"
-              ? 0
-              : event.key === "End"
-                ? items.length - 1
-                : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) %
-                  items.length;
-          items[next]?.focus();
-        }
+        // A menu dismissal must not also trigger the cell's Escape shortcut.
+        if (event.key === "Escape" && event.defaultPrevented) event.stopPropagation();
       }}
     >
-      <button
-        ref={trigger}
-        className="cell-actions-trigger"
-        aria-label={`Actions for ${name}`}
-        title="Cell actions"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen(!open)}
-        onKeyDown={(event) => {
-          if (!open && event.key === "ArrowDown") {
-            event.preventDefault();
-            setOpen(true);
-          }
-        }}
-      >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-          aria-hidden="true"
+      <Menu modal={false}>
+        <MenuTrigger
+          className="cell-actions-trigger"
+          aria-label={`Actions for ${name}`}
+          title="Cell actions"
         >
-          <circle cx="3" cy="8" r="1" />
-          <circle cx="8" cy="8" r="1" />
-          <circle cx="13" cy="8" r="1" />
-        </svg>
-      </button>
-      {open && (
-        <div
-          id={id}
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <circle cx="3" cy="8" r="1" />
+            <circle cx="8" cy="8" r="1" />
+            <circle cx="13" cy="8" r="1" />
+          </svg>
+        </MenuTrigger>
+        <MenuContent
+          align="start"
+          sideOffset={4}
           className="cell-actions-menu"
-          role="menu"
           aria-label="Cell actions"
         >
           {onToggleSource && (
-            <button
-              role="menuitem"
-              autoFocus
-              onClick={(event) => {
-                onToggleSource();
-                close(event.detail === 0);
-              }}
+            <MenuItem
+              value="toggle-source"
+              render={<button type="button" />}
+              onSelect={() => onToggleSource()}
             >
               <span aria-hidden="true" />
               {sourceVisible ? "Hide Source" : "Show Source"}
-            </button>
+            </MenuItem>
           )}
           {insert &&
-            (["before", "after"] as const).map((position, index) => (
-              <button
+            (["before", "after"] as const).map((position) => (
+              <MenuItem
                 key={position}
-                role="menuitem"
-                autoFocus={!onToggleSource && index === 0}
+                value={`insert-${position}`}
+                render={<button type="button" />}
                 disabled={insert.pending}
-                onClick={(event) => {
-                  close(event.detail === 0);
-                  insert.at(position);
-                }}
+                onSelect={() => insert.at(position)}
               >
                 <span aria-hidden="true" />
                 Insert {position === "before" ? "above" : "below"}
-              </button>
+              </MenuItem>
             ))}
           {remove && (
-            <button
-              role="menuitem"
+            <MenuItem
+              value="delete"
+              render={<button type="button" />}
               className="cell-actions-delete"
               disabled={remove.pending}
-              autoFocus={!onToggleSource && !insert}
-              onClick={(event) => {
-                close(event.detail === 0);
-                remove.run();
-              }}
+              onSelect={() => remove.run()}
             >
               <span aria-hidden="true" />
               Delete cell
-            </button>
+            </MenuItem>
           )}
-        </div>
-      )}
+        </MenuContent>
+      </Menu>
     </div>
   );
 }

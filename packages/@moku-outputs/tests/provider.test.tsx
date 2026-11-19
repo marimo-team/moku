@@ -47,7 +47,7 @@ function fixture() {
   let readers = 0;
   const executeCall = vi.fn(() => ({ answer: 42 }));
   const comm: Notebook["runtime"]["experimentalComm"] = {
-    connection: Atom.make({ _tag: "Connected" as const, canInteract: true }),
+    connection: Atom.make({ _tag: "Connected" as const }),
     events: Stream.callback<CommEvent>((queue) =>
       Effect.acquireRelease(
         Effect.sync(() => {
@@ -83,9 +83,7 @@ function fixture() {
 }
 
 function Consumer() {
-  return (
-    <span>{React.useContext(OutputContext).session?.runtimeId ?? "disconnected"}</span>
-  );
+  return <span>{React.useContext(OutputContext)?.runtimeId ?? "disconnected"}</span>;
 }
 async function mount(node: React.ReactNode) {
   const registry = AtomRegistry.make();

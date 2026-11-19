@@ -159,7 +159,6 @@ export function DisplayRenderer({
   data,
   runtimeId,
   session,
-  canInteract = false,
 }: RendererSession.DisplayProps): ReactElement {
   const { theme } = useTheme();
   const connected =
@@ -191,11 +190,7 @@ export function DisplayRenderer({
   return (
     <Provider store={store}>
       <TooltipProvider>
-        <div
-          key={session?.runtimeId ?? "static"}
-          className={`marimo ${theme}`}
-          inert={connected && !canInteract}
-        >
+        <div key={session?.runtimeId ?? "static"} className={`marimo ${theme}`}>
           <OutputRenderer
             message={{ channel: "output", mimetype, data: normalized.data }}
             renderFallback={() => <pre>{data.data}</pre>}

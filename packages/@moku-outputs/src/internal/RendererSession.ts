@@ -42,10 +42,8 @@ export interface Interface {
   readonly dispose: () => void;
 }
 
-/** Output content with the renderer session and permissions available to its widgets. */
+/** Output content with the renderer session available to its widgets. */
 export interface DisplayProps extends DisplayViewProps {
   /** Missing or mismatched sessions leave runtime-bound outputs disconnected. */
   readonly session?: Interface | null;
-  /** Whether a connected widget may interact; defaults to false. */
-  readonly canInteract?: boolean;
 }

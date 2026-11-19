@@ -240,10 +240,7 @@ Vitest.test(
     stream.send("runtime", { runtime });
     stream.send("ready", {}, "1");
     await vi.waitFor(() =>
-      Vitest.expect(f.registry.get(comm.connection)).toMatchObject({
-        _tag: "Connected",
-        canInteract: false,
-      }),
+      Vitest.expect(f.registry.get(comm.connection)._tag).toBe("Connected"),
     );
     const live = f.run(comm.events.pipe(Stream.take(4), Stream.runCollect));
     const capabilities = {
@@ -259,29 +256,16 @@ Vitest.test(
       stream.send("custom", { custom: { type: "marimo.notification", data } });
     Vitest.expect(await live).toMatchObject([
       { kind: "reset", runtimeId: "rt" },
-      {
-        notification: {
-          op: "kernel-ready",
-          consumer_capabilities: { interact: false },
-        },
-      },
-      {
-        notification: {
-          op: "consumer-capabilities",
-          consumer_capabilities: { interact: false },
-        },
-      },
+      { notification: { op: "kernel-ready" } },
+      { notification: capabilities },
       { runtimeId: "rt", notification: update },
     ]);
-    Vitest.expect(f.registry.get(comm.connection)).toMatchObject({
-      canInteract: false,
-    });
     const replay = await f.run(comm.events.pipe(Stream.take(2), Stream.runCollect));
     Vitest.expect(replay[1]).toMatchObject({
       notification: {
         op: "kernel-ready",
         ui_values: { slider: 45 },
-        consumer_capabilities: { interact: false },
+        consumer_capabilities: capabilities.consumer_capabilities,
       },
     });
     await Vitest.expect(
@@ -290,6 +274,17 @@ Vitest.test(
           { _tag: "SetValues", runtimeId: "rt", values: { slider: 9 } },
           "change",
         ),
+      ),
+    ).rejects.toMatchObject({ code: "unsupported" });
+    await Vitest.expect(
+      f.run(
+        comm.invoke({
+          runtimeId: "rt",
+          call: "rows",
+          name: "rows",
+          namespace: "table",
+          args: {},
+        }),
       ),
     ).rejects.toMatchObject({ code: "unsupported" });
     Vitest.expect(

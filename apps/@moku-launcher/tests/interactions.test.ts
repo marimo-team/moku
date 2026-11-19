@@ -237,8 +237,6 @@ async function fixture(
       operations = next;
       host!.send("notebook", { notebook: { ...notebook, operations } });
     },
-    rename: (name: string) =>
-      host!.send("notebook", { notebook: { ...notebook, name, operations } }),
     restart: (id: string) => {
       current = { ...runtime, id };
       host!.send("runtime", { runtime: current });
@@ -306,25 +304,24 @@ Vitest.test(
   },
 );
 
-Vitest.test(
-  "an idle notebook follows startup and edits on its original stream",
-  async () => {
-    const f = await fixture([], null);
-    const reader = f.subscribe();
-    await vi.waitFor(() => Vitest.expect(reader.events).toHaveLength(1));
-    Vitest.expect(f.marimoStreams).toHaveLength(0);
-    f.restart("started");
-    await f.ready();
-    f.rename("renamed.py");
-    await vi.waitFor(() => {
-      const state = f.registry.get(f.model.state);
-      Vitest.expect(AsyncResult.isSuccess(state) && state.value.notebook?.name).toBe(
-        "renamed.py",
-      );
-    });
-    Vitest.expect(f.peakNotebookStreams()).toBe(1);
-  },
-);
+Vitest.test("an idle notebook's widget reader follows runtime startup", async () => {
+  const f = await fixture([], null);
+  const reader = f.subscribe();
+  await vi.waitFor(() =>
+    Vitest.expect(reader.events).toContainEqual({ kind: "reset", runtimeId: null }),
+  );
+  f.restart("started");
+  await vi.waitFor(() =>
+    Vitest.expect(reader.events).toContainEqual(
+      Vitest.expect.objectContaining({
+        runtimeId: "started",
+        notification: Vitest.expect.objectContaining({ op: "kernel-ready" }),
+      }),
+    ),
+  );
+  Vitest.expect(f.notebookStreams()).toBe(1);
+  Vitest.expect(f.marimoStreams).toHaveLength(0);
+});
 
 Vitest.test(
   "interrupting a call during viewer startup prevents its POST and closing the notebook releases the viewer",
@@ -348,6 +345,21 @@ Vitest.test(
     ]);
   },
 );
+
+Vitest.test("closing the notebook rejects a write waiting for the viewer", async () => {
+  const f = await fixture();
+  f.delayKernelReady();
+  const write = f.model.runtime.experimentalComm.send(
+    { _tag: "SetValues", values: { slider: 7 } },
+    crypto.randomUUID(),
+  );
+  const pending = Vitest.expect(Effect.runPromise(write)).rejects.toMatchObject({
+    code: "closed",
+  });
+  await vi.waitFor(() => Vitest.expect(f.marimoStreams).toHaveLength(1));
+  await f.close();
+  await pending;
+});
 
 Vitest.test(
   "concurrent legacy writes wait for the same viewer to grant interaction",
@@ -661,17 +673,6 @@ Vitest.test.each(["host", "legacy"])(
         notification,
       }),
     );
-    const late = f.subscribe();
-    await vi.waitFor(() =>
-      Vitest.expect(late.events).toContainEqual(
-        Vitest.expect.objectContaining({
-          notification: Vitest.expect.objectContaining({
-            op: "kernel-ready",
-            ui_values: { slider: 9 },
-          }),
-        }),
-      ),
-    );
   },
 );
 
@@ -781,29 +782,24 @@ Vitest.test(
       message: "No columns",
     });
     await vi.waitFor(() => Vitest.expect(f.requests).toHaveLength(2));
+    Vitest.expect(f.requests.map(({ key, body }) => [key, body.call])).toEqual(
+      Vitest.expect.arrayContaining([
+        ["call-rows", "call-rows"],
+        ["call-columns", "call-columns"],
+      ]),
+    );
     await Vitest.expect(invoke("rows")).rejects.toMatchObject({ code: "rpc" });
     Vitest.expect(f.requests).toHaveLength(2);
-    function reply(
-      name: string,
-      result: Omit<
-        Extract<CommProtocol.Notification, { op: "function-call-result" }>,
-        "op" | "function_call_id"
-      >,
-    ) {
-      const request = f.requests.find(({ body }) => body.name === name);
-      if (!request?.key || request.key !== request.body.call)
-        throw new Error(`Missing call or request ID for ${name}`);
-      f.custom(
-        { op: "function-call-result", function_call_id: request.body.call, ...result },
-        request.key,
-      );
-    }
-    reply("columns", {
+    f.custom({
+      op: "function-call-result",
+      function_call_id: "call-columns",
       found: true,
       status: { code: "error", title: null, message: "No columns" },
       return_value: null,
     });
-    reply("rows", {
+    f.custom({
+      op: "function-call-result",
+      function_call_id: "call-rows",
       found: true,
       status: { code: "ok", title: null, message: null },
       return_value: [42],

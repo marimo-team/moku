@@ -33,6 +33,6 @@
   "packageManager": "bun@1.4.4",
   "marimo": {
     "repository": "https://github.com/marimo-team/marimo.git",
-    "revision": "c74e9e4fee123273c60a0c5e73db41e16698bc2d"
+    "revision": "96b732be079405534a7619a16958efea5b69a07d"
   }
 }

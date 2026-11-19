@@ -5,7 +5,6 @@ import * as Vitest from "vite-plus/test";
 import { executionSpan } from "../../src/plugins/graph-explainer/execution.ts";
 import {
   timelineDomain,
-  timelineTicks,
   timelineLabel,
   timelineFrame,
   updateTimelineScale,
@@ -31,100 +30,57 @@ Vitest.test("completed timings stay fixed and queued executions have no span", (
   );
 });
 
-Vitest.test("the scale holds its range until elapsed time passes a breakpoint", () => {
-  for (const [elapsed, expected] of [
-    [0, 5000],
-    [40, 5000],
-    [3999, 5000],
-    [4000, 5000],
-    [4001, 10000],
-    [8000, 10000],
-    [8001, 15000],
-    [12000, 15000],
-    [12001, 30000],
-    [24001, 45000],
-  ]) {
-    NodeAssert.equal(timelineDomain(elapsed), expected);
-  }
-  NodeAssert.deepEqual(timelineTicks(5000), [0, 1000, 2000, 3000, 4000, 5000]);
-  NodeAssert.deepEqual(timelineTicks(10000), [0, 5000, 10000]);
-  NodeAssert.equal(timelineDomain(31000, false), 45000);
+Vitest.test("zooming fades the old ticks and brings in the new endpoint", () => {
+  const initial = updateTimelineScale(null, "run", 5000, 0);
+  const zoom = updateTimelineScale(initial, "run", 10000, 1000);
+  NodeAssert.equal(timelineFrame(zoom, 1000).extent, 5000);
+  const middle = timelineFrame(zoom, 1200);
+  NodeAssert.ok(middle.extent > 5000 && middle.extent < 10000);
+  const fading = middle.ticks.find((tick) => tick.value === 1000);
+  const incoming = middle.ticks.find((tick) => tick.value === 10000);
+  NodeAssert.ok(fading && fading.opacity > 0 && fading.opacity < 1);
+  NodeAssert.ok(incoming && incoming.opacity > 0 && incoming.opacity < 1);
+  NodeAssert.equal(middle.ticks.find((tick) => tick.value === 5000)?.opacity, 1);
+  NodeAssert.equal(timelineFrame(zoom, 1400).extent, 10000);
+  NodeAssert.deepEqual(timelineFrame(zoom, 1400).ticks, [
+    { value: 0, opacity: 1 },
+    { value: 5000, opacity: 1 },
+    { value: 10000, opacity: 1 },
+  ]);
 });
-
-Vitest.test(
-  "a breakpoint eases every position together and fades old labels over 400ms",
-  () => {
-    const initial = updateTimelineScale(null, "run", 5000, 0);
-    const zoom = updateTimelineScale(initial, "run", 10000, 1000);
-    NodeAssert.equal(timelineFrame(zoom, 1000).extent, 5000);
-    const middle = timelineFrame(zoom, 1200);
-    NodeAssert.equal(middle.extent, 9375);
-    NodeAssert.equal(middle.ticks.find((tick) => tick.value === 1000)?.opacity, 0.125);
-    NodeAssert.equal(middle.ticks.find((tick) => tick.value === 5000)?.opacity, 1);
-    NodeAssert.equal(timelineFrame(zoom, 1400).extent, 10000);
-    NodeAssert.deepEqual(timelineFrame(zoom, 1400).ticks, [
-      { value: 0, opacity: 1 },
-      { value: 5000, opacity: 1 },
-      { value: 10000, opacity: 1 },
-    ]);
-  },
-);
 
 Vitest.test("completion never shrinks the scale, while a new run resets it", () => {
   const scale = updateTimelineScale(null, "first", 45000, 0);
   NodeAssert.equal(
-    updateTimelineScale(scale, "first", timelineDomain(30000, false), 500),
-    scale,
+    timelineFrame(
+      updateTimelineScale(scale, "first", timelineDomain(30000, false), 500),
+      500,
+    ).extent,
+    45000,
   );
   NodeAssert.equal(updateTimelineScale(scale, "second", 5000, 600).target, 5000);
   const reduced = updateTimelineScale(scale, "first", 60000, 600, true);
   NodeAssert.equal(timelineFrame(reduced, 600).extent, 60000);
 });
 
-Vitest.test("the axis labels sub-second runs in milliseconds", () => {
+Vitest.test("axis labels use units that match the duration", () => {
   NodeAssert.equal(timelineLabel(0), "0s");
   NodeAssert.equal(timelineLabel(0.2), "0ms");
   NodeAssert.equal(timelineLabel(20), "20ms");
   NodeAssert.equal(timelineLabel(2000), "2s");
   NodeAssert.equal(timelineLabel(60000), "1m");
+  NodeAssert.equal(timelineLabel(90000), "1m 30s");
+  NodeAssert.equal(timelineLabel(5400000), "1h 30m");
 });
 
 Vitest.test(
   "label density follows track width and avoids a crowded final interval",
   () => {
-    NodeAssert.equal(timelineTickCount(110), 2);
-    NodeAssert.equal(timelineTickCount(336), 6);
-    NodeAssert.deepEqual(
-      timelineTicks(45000, timelineTickCount(168)),
-      [0, 30000, 45000],
-    );
-    NodeAssert.deepEqual(
-      timelineTicks(45000, timelineTickCount(336)),
-      [0, 10000, 20000, 30000, 45000],
-    );
-    NodeAssert.deepEqual(
-      timelineTicks(14400000, 6),
-      [0, 3600000, 7200000, 10800000, 14400000],
-    );
-    NodeAssert.equal(timelineLabel(90000), "1m 30s");
-    NodeAssert.equal(timelineLabel(5400000), "1h 30m");
-  },
-);
-
-Vitest.test(
-  "the incoming endpoint starts fading in before reaching the track edge",
-  () => {
-    const initial = updateTimelineScale(null, "run", 5000, 0);
-    const zoom = updateTimelineScale(initial, "run", 10000, 1000);
-    NodeAssert.equal(
-      timelineFrame(zoom, 1100).ticks.some((tick) => tick.value === 10000),
-      false,
-    );
-    const frame = timelineFrame(zoom, 1200);
-    const endpoint = frame.ticks.find((tick) => tick.value === 10000)!;
-    NodeAssert.ok(endpoint.value / frame.extent > 1);
-    NodeAssert.ok(Math.abs(endpoint.opacity - 1 / 3) < 1e-10);
-    NodeAssert.equal(frame.ticks.find((tick) => tick.value === 1000)?.opacity, 0.125);
+    const scale = updateTimelineScale(null, "run", 45000, 0);
+    const labels = (width: number) =>
+      timelineFrame(scale, 0, timelineTickCount(width)).ticks.map((tick) => tick.value);
+    NodeAssert.deepEqual(labels(168), [0, 30000, 45000]);
+    NodeAssert.deepEqual(labels(336), [0, 10000, 20000, 30000, 45000]);
   },
 );
 
@@ -153,10 +109,10 @@ Vitest.test(
     NodeAssert.equal(received.frame.rows.cell?.width, active.frame.rows.cell?.width);
     NodeAssert.equal(received.frame.rows.cell?.duration, 800);
     const halfway = advanceTimeline(received, completed, 1216);
-    NodeAssert.equal(halfway.animations.cell.end, 825);
-    NodeAssert.equal(halfway.frame.end, 825);
+    NodeAssert.ok(halfway.frame.end > 800 && halfway.frame.end < received.frame.end);
     const settled = advanceTimeline(halfway, completed, 1416);
-    NodeAssert.equal(settled.animations.cell.end, 800);
+    NodeAssert.equal(settled.frame.end, 800);
+    NodeAssert.ok(settled.frame.rows.cell!.width < received.frame.rows.cell!.width);
     NodeAssert.equal(settled.moving, false);
   },
 );

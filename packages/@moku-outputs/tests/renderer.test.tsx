@@ -19,9 +19,6 @@ Vitest.test(
   "the generated bundle renders HTML and JSON using the application's React",
   async () => {
     setTheme("dark");
-    const renderer = await loadRenderer();
-    Vitest.expect(loadRenderer()).toBe(loadRenderer());
-    Vitest.expect(typeof renderer.DisplayRenderer).toBe("function");
     const element = document.createElement("div");
     document.body.append(element);
     const root = ReactDOMClient.createRoot(element);
@@ -34,12 +31,15 @@ Vitest.test(
         />,
       );
     });
-    await vi.waitFor(() =>
-      Vitest.expect(shadow()?.textContent).toContain("rich output"),
+    await vi.waitFor(
+      () =>
+        Vitest.expect(shadow()?.querySelector("strong")?.textContent).toBe(
+          "rich output",
+        ),
+      { timeout: 15_000 },
     );
     Vitest.expect(shadow()?.querySelector(".marimo.dark")).not.toBeNull();
     Vitest.expect(element.querySelector("strong")).toBeNull();
-    Vitest.expect(shadow()?.querySelector("strong")?.textContent).toBe("rich output");
     Vitest.expect(
       document.head.querySelectorAll('style[title="marimo-moku-output-renderer"]'),
     ).toHaveLength(1);

@@ -304,7 +304,11 @@ Vitest.test(
       f.ready("rt");
       emit(model("AQ=="), keys[1]);
     });
-    Vitest.expect(f.sessions[1].received.at(-1)).toEqual(model("AQ=="));
+    Vitest.expect(f.sessions).toHaveLength(1);
+    Vitest.expect(received.slice(-2)).toEqual([
+      { op: "kernel-ready", ui_values: {} },
+      model("AQ=="),
+    ]);
   },
 );
 

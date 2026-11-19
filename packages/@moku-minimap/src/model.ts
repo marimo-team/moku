@@ -194,7 +194,7 @@ export function make(state: Notebook.Interface["state"]) {
     }).pipe(Atom.withEquality(sameRow)),
   );
 
-  return { ids, graph, selected, selection, row };
+  return { ids, selected, selection, row };
 }
 
 function sameArray<T>(a: readonly T[], b: readonly T[]): boolean {

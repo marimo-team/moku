@@ -14,13 +14,10 @@ export interface RailEdge extends Edge {
 }
 
 // A lane stays occupied until all of its node's outgoing edges have arrived.
-export function layoutGraph(ids: string[], edges: Edge[]) {
+function layoutGraph(ids: string[], edges: Edge[]) {
   const indices = new Map(ids.map((id, index) => [id, index]));
   const outgoing = new Map(
-    ids.map((id) => [
-      id,
-      edges.filter((edge) => edge.from === id && indices.has(edge.to)),
-    ]),
+    ids.map((id) => [id, edges.filter((edge) => edge.from === id)]),
   );
   const visiting = new Set<string>();
   const visited = new Set<string>();
@@ -38,9 +35,7 @@ export function layoutGraph(ids: string[], edges: Edge[]) {
     finish.push(id);
   }
   ids.forEach(visit);
-  const forward = edges.filter(
-    (edge) => !feedback.has(edge) && indices.has(edge.from) && indices.has(edge.to),
-  );
+  const forward = edges.filter((edge) => !feedback.has(edge));
   const depth = new Map(ids.map((id) => [id, 0]));
   for (const id of finish.reverse())
     for (const edge of outgoing.get(id) ?? []) {
@@ -58,7 +53,7 @@ export function layoutGraph(ids: string[], edges: Edge[]) {
       for (const edge of edges) {
         const neighbor =
           edge.from === current ? edge.to : edge.to === current ? edge.from : undefined;
-        if (neighbor && indices.has(neighbor) && !components.has(neighbor)) {
+        if (neighbor && !components.has(neighbor)) {
           components.set(neighbor, first);
           queue.push(neighbor);
         }

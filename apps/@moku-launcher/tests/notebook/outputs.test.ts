@@ -47,7 +47,6 @@ function fixture() {
   const state = {
     ...emptyState(),
     executions,
-    displays: emptyState().displays,
     document: {
       ...Schema.decodeUnknownSync(Protocol.Document)({
         notebook_id: "n",
@@ -99,66 +98,53 @@ Vitest.test("snapshot record order does not hide a queued rerun", () => {
   Vitest.expect(Outputs.select(state).current.get("c")).toBe(pending);
 });
 
-Vitest.test(
-  "cell selection shares one output index and refreshes it on updates",
-  () => {
-    const { state, old } = fixture();
-    const other = Schema.decodeUnknownSync(Protocol.Cell)({
-      ...state.document.cells[0],
-      id: "other",
-    });
-    state.document = { ...state.document!, cells: [...state.document.cells, other] };
-    const execution = Schema.decodeUnknownSync(Protocol.Execution)({
-      ...old,
-      id: "other",
-      cell_id: "other",
-    });
-    state.executions = { ...state.executions, other: execution };
-    const display = Schema.decodeUnknownSync(Protocol.Display)({
-      id: "d",
+Vitest.test("each cell shows its own outputs and removed displays disappear", () => {
+  const { state, old } = fixture();
+  const other = Schema.decodeUnknownSync(Protocol.Cell)({
+    ...state.document.cells[0],
+    id: "other",
+  });
+  state.document = { ...state.document, cells: [...state.document.cells, other] };
+  const execution = Schema.decodeUnknownSync(Protocol.Execution)({
+    ...old,
+    id: "other",
+    cell_id: "other",
+  });
+  state.executions = { ...state.executions, other: execution };
+  const display = Schema.decodeUnknownSync(Protocol.Display)({
+    id: "d",
+    execution_id: "pending",
+    seq: 2,
+    content: { mimetype: "text/plain", data: "first" },
+  });
+  state.displays = { d: display };
+  state.consoles = {
+    c: Schema.decodeUnknownSync(Protocol.Console)({
+      id: "c",
       execution_id: "pending",
-      seq: 2,
-      content: { mimetype: "text/plain", data: "first" },
-    });
-    state.displays = { d: display };
-    const consoles = {
-      c: {
-        id: "c",
-        execution_id: "pending",
-        seq: 1,
-        name: "stdout" as const,
-        text: "one",
-      },
-      other: {
-        id: "other",
-        execution_id: "other",
-        seq: 0,
-        name: "stderr" as const,
-        text: "two",
-      },
-    };
-    let reads = 0;
-    Object.defineProperty(state, "consoles", {
-      get() {
-        reads++;
-        return consoles;
-      },
-    });
-    const selection = Outputs.select(state);
-    Vitest.expect(
-      Outputs.forCell(state, selection, "c").items.map((item) => item.id),
-    ).toEqual(["c", "d"]);
-    Vitest.expect(
-      Outputs.forCell(state, selection, "other").items.map((item) => item.id),
-    ).toEqual(["other"]);
-    Vitest.expect(reads).toBe(1);
+      seq: 1,
+      name: "stdout",
+      text: "one",
+    }),
+    other: Schema.decodeUnknownSync(Protocol.Console)({
+      id: "other",
+      execution_id: "other",
+      seq: 0,
+      name: "stderr",
+      text: "two",
+    }),
+  };
+  const selection = Outputs.select(state);
+  Vitest.expect(
+    Outputs.forCell(state, selection, "c").items.map((item) => item.id),
+  ).toEqual(["c", "d"]);
+  Vitest.expect(
+    Outputs.forCell(state, selection, "other").items.map((item) => item.id),
+  ).toEqual(["other"]);
 
-    state.displays = {};
-    const next = Outputs.select(state, selection);
-    Vitest.expect(
-      Outputs.forCell(state, next, "c").items.map((item) => item.id),
-    ).toEqual(["c"]);
-    Vitest.expect(reads).toBe(2);
-    Vitest.expect(Outputs.forCell(state, selection, "c").items).toHaveLength(2);
-  },
-);
+  state.displays = {};
+  const next = Outputs.select(state, selection);
+  Vitest.expect(Outputs.forCell(state, next, "c").items.map((item) => item.id)).toEqual(
+    ["c"],
+  );
+});

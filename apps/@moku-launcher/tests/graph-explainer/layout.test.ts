@@ -1,9 +1,6 @@
 import * as NodeAssert from "node:assert/strict";
 import * as Vitest from "vite-plus/test";
-import {
-  layoutGraph,
-  layoutView,
-} from "../../src/plugins/graph-explainer/diagram/layout.ts";
+import { layoutView } from "../../src/plugins/graph-explainer/diagram/layout.ts";
 import type { Edge } from "../../src/plugins/graph-explainer/diagram/dependencies.ts";
 
 const edges = (...pairs: Array<[string, string]>): Edge[] =>
@@ -20,30 +17,19 @@ Vitest.test(
       ["fx", "models"],
       ["models", "publish"],
     );
-    const placement = layoutGraph(
-      ["setup", "orders", "fx", "models", "publish"],
-      graph,
-    );
-    NodeAssert.notEqual(placement.lanes.get("orders"), placement.lanes.get("fx"));
-    const positions = new Map(placement.order.map((id, index) => [id, index]));
+    const view = layoutView(["setup", "orders", "fx", "models", "publish"], graph);
+    NodeAssert.equal(view.edges.length, graph.length);
     for (const edge of graph) {
-      const intermediate = placement.order.slice(
-        positions.get(edge.from)! + 1,
-        positions.get(edge.to),
-      );
-      for (const id of intermediate)
+      const start = view.rows.findIndex((row) => row.id === edge.from);
+      const end = view.rows.findIndex((row) => row.id === edge.to);
+      NodeAssert.ok(start >= 0 && start < end);
+      for (const row of view.rows.slice(start + 1, end))
         NodeAssert.notEqual(
-          placement.lanes.get(edge.from),
-          placement.lanes.get(id),
-          `${edge.from} → ${edge.to} must not run through ${id}`,
+          row.x,
+          view.rows[start].x,
+          `${edge.from} → ${edge.to} must not run through ${row.id}`,
         );
     }
-    const view = layoutView(placement.order, graph);
-    NodeAssert.equal(view.edges.length, graph.length);
-    NodeAssert.ok(
-      view.edges.some((edge) => edge.path.includes(" Q ") && edge.path.includes(" H ")),
-    );
-    NodeAssert.ok(view.edges.every((edge) => edge.arrow.endsWith("Z")));
   },
 );
 

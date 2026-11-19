@@ -12,13 +12,13 @@ const TICK_STEPS = [
 ];
 export const ANIMATION_MS = 400;
 
-export function timelineDomain(span: number, live = true) {
+export function timelineDomain(span: number, live: boolean) {
   const padded = Math.max(0, span) * (live ? 1.25 : 1);
   const step = SCALE_STEPS.find(([limit]) => padded <= limit)![1];
   return Math.max(5_000, Math.ceil(padded / step) * step);
 }
 
-export function timelineTicks(extent: number, maxTicks = 6) {
+function timelineTicks(extent: number, maxTicks: number) {
   const step =
     extent < 6_000
       ? 1_000

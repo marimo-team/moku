@@ -130,6 +130,11 @@ const start = Effect.fnUntraced(function* (
             publish(entry, { session: null, error: null });
             return;
           }
+          if (entry.state.session?.runtimeId === event.runtimeId) {
+            const change = updates?.receive(event.notification, event.requestId);
+            if (change) yield* apply(change);
+            return;
+          }
           if (event.notification.op === "kernel-ready") {
             entry.state.session?.dispose();
             const runtimeId = event.runtimeId;
@@ -190,9 +195,6 @@ const start = Effect.fnUntraced(function* (
             local.receive(event.notification);
             yield* apply(event.notification);
             if (!signal.aborted) publish(entry, { session, error: null });
-          } else if (entry.state.session?.runtimeId === event.runtimeId) {
-            const change = updates?.receive(event.notification, event.requestId);
-            if (change) yield* apply(change);
           }
         }),
       ),

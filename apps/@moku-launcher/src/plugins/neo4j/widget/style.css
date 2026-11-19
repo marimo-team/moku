@@ -1,0 +1,281 @@
+/* Styles for the CypherGraph widget, inlined into the notebook's widget cell. */
+.moku-cypher-graph {
+  --cg-ink: light-dark(#1f2328, #e6e6e6);
+  --cg-muted: light-dark(#636c76, #a0a4a8);
+  --cg-faint: light-dark(#a0a7ae, #5d6166);
+  --cg-frame: light-dark(#ffffff, #1b1d20);
+  --cg-surface: light-dark(#f6f8f7, #222528);
+  --cg-hover: light-dark(#eef2f0, #2a2e31);
+  --cg-hairline: light-dark(#e4e7e5, #303438);
+  --cg-border: light-dark(#cfd5d2, #43484d);
+  --cg-strong: light-dark(#9aa39f, #6c7378);
+  --cg-accent: light-dark(#1d6b45, #6fcf97);
+  --cg-selection: light-dark(#1d6b4517, #6fcf9724);
+  --cg-warning: light-dark(#8a5a00, #e0b050);
+  --cg-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  color: var(--cg-ink);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.cypher-result {
+  border: 1px solid var(--cg-hairline);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--cg-frame);
+}
+.cypher-notice {
+  margin: 0;
+  padding: 8px 12px;
+  color: var(--cg-muted);
+}
+.cypher-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-bottom: 1px solid var(--cg-hairline);
+}
+.cypher-tabs button {
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--cg-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.cypher-tabs button:hover {
+  color: var(--cg-ink);
+}
+.cypher-tabs button[aria-selected="true"] {
+  background: var(--cg-hover);
+  color: var(--cg-ink);
+}
+.cypher-truncated {
+  margin-left: auto;
+  padding-right: 8px;
+  color: var(--cg-warning);
+}
+
+.cypher-graph {
+  position: relative;
+  background: var(--cg-surface);
+}
+.cypher-graph svg {
+  display: block;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.cypher-graph svg:active {
+  cursor: grabbing;
+}
+.cypher-link path {
+  fill: none;
+  stroke: var(--cg-strong);
+  stroke-width: 1.5;
+}
+.cypher-link path.cypher-link-hit {
+  stroke: transparent;
+  stroke-width: 12;
+  cursor: pointer;
+}
+.cypher-link text {
+  fill: var(--cg-muted);
+  font-size: 9px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.cypher-link[data-selected="true"] path:not(.cypher-link-hit) {
+  stroke: var(--cg-accent);
+  stroke-width: 2.5;
+}
+.cypher-arrowhead {
+  fill: var(--cg-strong);
+}
+.cypher-node {
+  cursor: pointer;
+}
+.cypher-node circle {
+  stroke: var(--cg-frame);
+  stroke-width: 2;
+}
+.cypher-node[data-selected="true"] circle {
+  stroke: var(--cg-accent);
+  stroke-width: 3;
+}
+.cypher-node circle {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.cypher-node[data-entering] circle {
+  animation: cypher-grow 450ms cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+}
+.cypher-node[data-entering] text,
+.cypher-link[data-entering] {
+  animation: cypher-fade 600ms ease-out both;
+}
+.cypher-node[data-expanding] circle {
+  animation: cypher-pulse 900ms ease-in-out infinite;
+}
+@keyframes cypher-grow {
+  from {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+}
+@keyframes cypher-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes cypher-pulse {
+  50% {
+    transform: scale(1.25);
+    stroke: var(--cg-accent);
+    stroke-width: 4;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cypher-node circle,
+  .cypher-node text,
+  .cypher-link {
+    animation: none !important;
+  }
+}
+.cypher-node text {
+  fill: var(--cg-ink);
+  font-size: 11px;
+  text-anchor: middle;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--cg-surface);
+  stroke-width: 3px;
+}
+.cypher-legend {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--cg-muted);
+  pointer-events: none;
+}
+.cypher-hint {
+  margin-left: auto;
+  color: var(--cg-faint);
+}
+.cypher-error {
+  margin-left: auto;
+  padding-right: 8px;
+  color: var(--cg-warning);
+}
+.cypher-legend i,
+.cypher-chip i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 50%;
+}
+.cypher-details {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 240px;
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  border: 1px solid var(--cg-border);
+  border-radius: 8px;
+  background: var(--cg-frame);
+}
+.cypher-details[hidden] {
+  display: none;
+}
+.cypher-details header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 4px 4px 12px;
+  border-bottom: 1px solid var(--cg-hairline);
+  font-family: var(--cg-mono);
+}
+.cypher-details header button {
+  border: 0;
+  background: transparent;
+  color: var(--cg-muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.cypher-details dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 8px 12px;
+}
+.cypher-details dt {
+  color: var(--cg-muted);
+}
+.cypher-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.cypher-table {
+  max-height: 420px;
+  overflow: auto;
+}
+.cypher-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.cypher-table th {
+  position: sticky;
+  top: 0;
+  background: var(--cg-frame);
+  color: var(--cg-muted);
+  font-weight: 500;
+  text-align: left;
+}
+.cypher-table th,
+.cypher-table td {
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--cg-hairline);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: top;
+}
+.cypher-table tr[aria-selected] {
+  cursor: pointer;
+}
+.cypher-table tbody tr:hover {
+  background: var(--cg-hover);
+}
+.cypher-table tr[aria-selected="true"] {
+  background: var(--cg-selection);
+}
+.cypher-table code {
+  font-family: var(--cg-mono);
+}
+.cypher-chip {
+  display: inline-flex;
+  align-items: center;
+}
+.cypher-path {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cypher-missing {
+  color: var(--cg-faint);
+}

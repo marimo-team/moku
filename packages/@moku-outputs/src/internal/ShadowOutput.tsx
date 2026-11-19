@@ -13,6 +13,8 @@ const frame = `
 }
 .output > .markdown > :first-child { margin-block-start: 0; }
 .output > .markdown > :last-child { margin-block-end: 0; }
+/* A long repr line ends in an ellipsis instead of widening the page. */
+.output > pre { overflow: hidden; text-overflow: ellipsis; }
 `;
 
 export function ShadowOutput({

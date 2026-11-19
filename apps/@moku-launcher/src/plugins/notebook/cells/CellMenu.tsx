@@ -12,7 +12,10 @@ export function CellMenu({
   onToggleSource?: () => void;
   insert?: {
     readonly pending: boolean;
-    readonly at: (position: "before" | "after") => void;
+    /** Inserts a cell, of the chosen kind when `kinds` is given. */
+    readonly at: (position: "before" | "after", kind?: string) => void;
+    /** Kinds of cell to choose from after picking a position, such as "Python". */
+    readonly kinds?: readonly string[];
   };
   remove?: { readonly pending: boolean; readonly run: () => void };
 }) {
@@ -20,6 +23,11 @@ export function CellMenu({
   const root = React.useRef<HTMLDivElement>(null);
   const trigger = React.useRef<HTMLButtonElement>(null);
   const [open, setOpen] = React.useState(false);
+  // The position chosen while the menu offers kinds of cell to insert there.
+  const [chosen, setChosen] = React.useState<"before" | "after">();
+  React.useEffect(() => {
+    if (!open) setChosen(undefined);
+  }, [open]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -106,49 +114,74 @@ export function CellMenu({
           role="menu"
           aria-label="Cell actions"
         >
-          {onToggleSource && (
-            <button
-              role="menuitem"
-              autoFocus
-              onClick={(event) => {
-                onToggleSource();
-                close(event.detail === 0);
-              }}
-            >
-              <span aria-hidden="true" />
-              {sourceVisible ? "Hide Source" : "Show Source"}
-            </button>
-          )}
-          {insert &&
-            (["before", "after"] as const).map((position, index) => (
+          {chosen && insert?.kinds ? (
+            insert.kinds.map((kind, index) => (
               <button
-                key={position}
+                key={kind}
                 role="menuitem"
-                autoFocus={!onToggleSource && index === 0}
+                autoFocus={index === 0}
                 disabled={insert.pending}
                 onClick={(event) => {
                   close(event.detail === 0);
-                  insert.at(position);
+                  insert.at(chosen, kind);
                 }}
               >
                 <span aria-hidden="true" />
-                Insert {position === "before" ? "above" : "below"}
+                {kind} {chosen === "before" ? "above" : "below"}
               </button>
-            ))}
-          {remove && (
-            <button
-              role="menuitem"
-              className="cell-actions-delete"
-              disabled={remove.pending}
-              autoFocus={!onToggleSource && !insert}
-              onClick={(event) => {
-                close(event.detail === 0);
-                remove.run();
-              }}
-            >
-              <span aria-hidden="true" />
-              Delete cell
-            </button>
+            ))
+          ) : (
+            <>
+              {onToggleSource && (
+                <button
+                  role="menuitem"
+                  autoFocus
+                  onClick={(event) => {
+                    onToggleSource();
+                    close(event.detail === 0);
+                  }}
+                >
+                  <span aria-hidden="true" />
+                  {sourceVisible ? "Hide Source" : "Show Source"}
+                </button>
+              )}
+              {insert &&
+                (["before", "after"] as const).map((position, index) => (
+                  <button
+                    key={position}
+                    role="menuitem"
+                    autoFocus={!onToggleSource && index === 0}
+                    disabled={insert.pending}
+                    onClick={(event) => {
+                      if (insert.kinds) {
+                        setChosen(position);
+                        return;
+                      }
+                      close(event.detail === 0);
+                      insert.at(position);
+                    }}
+                  >
+                    <span aria-hidden="true" />
+                    Insert {position === "before" ? "above" : "below"}
+                    {insert.kinds && "…"}
+                  </button>
+                ))}
+              {remove && (
+                <button
+                  role="menuitem"
+                  className="cell-actions-delete"
+                  disabled={remove.pending}
+                  autoFocus={!onToggleSource && !insert}
+                  onClick={(event) => {
+                    close(event.detail === 0);
+                    remove.run();
+                  }}
+                >
+                  <span aria-hidden="true" />
+                  Delete cell
+                </button>
+              )}
+            </>
           )}
         </div>
       )}

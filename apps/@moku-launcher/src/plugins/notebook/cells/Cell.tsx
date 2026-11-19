@@ -36,7 +36,10 @@ export function Cell({
   insert?: {
     readonly pending: boolean;
     readonly last: boolean;
-    readonly at: (position: "before" | "after") => void;
+    /** Inserts a cell; the cell menu passes a kind when `kinds` is given. */
+    readonly at: (position: "before" | "after", kind?: string) => void;
+    /** Kinds of cell the cell menu offers to insert. */
+    readonly kinds?: readonly string[];
   };
 }) {
   const sourceId = React.useId();

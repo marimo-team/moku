@@ -174,11 +174,20 @@ export class Snapshot {
     this.ready = undefined;
   }
 
-  /** Records a recognized output notification and returns it for live delivery. */
-  recordNotification(raw: unknown): Notification | undefined {
+  /** Records a recognized notification with the interaction capability available to this caller. */
+  recordNotification(raw: unknown, canWrite: boolean): Notification | undefined {
     const decoded = decode(raw);
     if (Result.isFailure(decoded)) return;
-    const message = decoded.success;
+    let message = decoded.success;
+    if (
+      !canWrite &&
+      (message.op === "kernel-ready" || message.op === "consumer-capabilities") &&
+      message.consumer_capabilities?.interact
+    )
+      message = {
+        ...message,
+        consumer_capabilities: { ...message.consumer_capabilities, interact: false },
+      };
     switch (message.op) {
       case "kernel-ready":
         this.ready = message;

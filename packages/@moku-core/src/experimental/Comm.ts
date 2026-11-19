@@ -197,12 +197,12 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
     emit({ kind: "reset", runtimeId: null });
   }
   function deliver(
-    runtimeId: string,
+    runtime: Runtime,
     raw: unknown,
     requestId?: string,
     updatePermissions = true,
   ) {
-    const notification = snapshot.recordNotification(raw);
+    const notification = snapshot.recordNotification(raw, runtime.hostComm || !!legacy);
     if (!notification) return;
     if (
       updatePermissions &&
@@ -218,7 +218,7 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
     replyToCall(calls, notification);
     emit({
       kind: "notification",
-      runtimeId,
+      runtimeId: runtime.id,
       notification,
       ...(requestId !== undefined && { requestId }),
     });
@@ -266,29 +266,25 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
     if (!state.runtime && state.phase === "snapshot" && event.event !== "reset") return;
     const hostComm =
       state.notebook?.operations.includes(CommProtocol.operation) ?? false;
-    const id =
-      state.runtime?.status === "running" && (hostComm || legacy)
-        ? state.runtime.id
-        : undefined;
+    const id = state.runtime?.status === "running" ? state.runtime.id : undefined;
     if (id !== active?.id || (active && active.hostComm !== hostComm)) {
       reset();
       if (id) {
         active = { id, hostComm, ended: Deferred.makeUnsafe() };
-        deliver(id, {
+        deliver(active, {
           op: "kernel-ready",
           ui_values: {},
-          consumer_capabilities: { edit: false, interact: true },
+          consumer_capabilities: { edit: false, interact: hostComm || !!legacy },
         });
       }
     }
     if (!active) return;
-    if (active.hostComm) {
-      if (event.event === "custom" && event.data.custom.type === "marimo.notification")
-        deliver(active.id, event.data.custom.data, event.data.request_id);
-    } else if (event.event === "marimo") {
+    if (event.event === "custom" && event.data.custom.type === "marimo.notification") {
+      deliver(active, event.data.custom.data, event.data.request_id, !active.viewer);
+    } else if (!active.hostComm && event.event === "marimo") {
       if (event.sessionId && active.viewer?.sessionId !== event.sessionId) return;
       const notification = deliver(
-        active.id,
+        active,
         event.data.marimo,
         event.data.request_id,
         !active.viewer || !!event.sessionId,

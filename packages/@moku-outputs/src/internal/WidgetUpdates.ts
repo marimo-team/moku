@@ -58,70 +58,54 @@ type FieldState = Data.TaggedEnum<{
 }>;
 const FieldState = Data.taggedEnum<FieldState>();
 
-type FieldEvent = Data.TaggedEnum<{
-  Begin: { key: string; expected: Notification };
-  Update: { key: string | undefined; value: Notification };
-  Release: { key: string; reason: "rejected" | "expired" };
-  Snapshot: { value: Notification };
-  Remove: {};
-}>;
-const FieldEvent = Data.taggedEnum<FieldEvent>();
-
 class Field {
   private state: FieldState = FieldState.Following();
   private confirmed?: Notification;
   private lastKey: string | undefined;
 
-  /** Returns the update to render, including a rollback when the owning write fails. */
-  transition(event: FieldEvent): Notification | undefined {
-    const state = this.state;
-    return FieldEvent.$match(event, {
-      Begin: ({ key, expected }) => {
-        this.state = FieldState.Pending({
-          key,
-          expected: structuredClone(expected),
-          deferred: state._tag === "Pending" && state.deferred,
-        });
-        return undefined;
-      },
-      Update: ({ key, value }) => {
-        const previous = this.confirmed;
-        const previousKey = this.lastKey;
-        // Even a suppressed peer update becomes the rollback value.
-        this.confirmed = value;
-        this.lastKey = key;
-        return FieldState.$match(state, {
-          Following: () =>
-            key !== undefined && key === previousKey && Equal.equals(previous, value)
-              ? undefined
-              : value,
-          Pending: (pending) => {
-            if (key !== undefined && key !== pending.key) {
-              this.state = FieldState.Pending({ ...pending, deferred: true });
-              return undefined;
-            }
-            this.state = FieldState.Following();
-            return key === undefined || !Equal.equals(pending.expected, value)
-              ? value
-              : undefined;
-          },
-        });
-      },
-      Release: ({ key, reason }) => {
-        if (state._tag !== "Pending" || state.key !== key) return undefined;
+  begin(key: string, expected: Notification) {
+    this.state = FieldState.Pending({
+      key,
+      expected: structuredClone(expected),
+      deferred: this.state._tag === "Pending" && this.state.deferred,
+    });
+  }
+
+  /** Record the stream value and return whether it should reach the renderer. */
+  update(key: string | undefined, value: Notification): boolean {
+    const previous = this.confirmed;
+    const previousKey = this.lastKey;
+    // Even a suppressed peer update becomes the rollback value.
+    this.confirmed = value;
+    this.lastKey = key;
+    return FieldState.$match(this.state, {
+      Following: () =>
+        key === undefined || key !== previousKey || !Equal.equals(previous, value),
+      Pending: (pending) => {
+        if (key !== undefined && key !== pending.key) {
+          this.state = FieldState.Pending({ ...pending, deferred: true });
+          return false;
+        }
         this.state = FieldState.Following();
-        return reason === "rejected" || state.deferred ? this.confirmed : undefined;
-      },
-      Snapshot: ({ value }) => {
-        this.confirmed = value;
-        return undefined;
-      },
-      Remove: () => {
-        // Outstanding receipts can still reference this field after removal.
-        this.state = FieldState.Following();
-        return undefined;
+        return key === undefined || !Equal.equals(pending.expected, value);
       },
     });
+  }
+
+  release(key: string, reason: "rejected" | "expired"): Notification | undefined {
+    const state = this.state;
+    if (state._tag !== "Pending" || state.key !== key) return undefined;
+    this.state = FieldState.Following();
+    return reason === "rejected" || state.deferred ? this.confirmed : undefined;
+  }
+
+  snapshot(value: Notification) {
+    this.confirmed = value;
+  }
+
+  remove() {
+    // Outstanding receipts can still reference this field after removal.
+    this.state = FieldState.Following();
   }
 }
 
@@ -152,7 +136,7 @@ export class WidgetUpdates {
     const key = crypto.randomUUID();
     const touched: Field[] = [];
     const mark = (field: Field, expected: Notification) => {
-      field.transition(FieldEvent.Begin({ key, expected }));
+      field.begin(key, expected);
       touched.push(field);
     };
     if (write._tag === "SetValues") {
@@ -172,9 +156,7 @@ export class WidgetUpdates {
         });
     }
     const release = (reason: "rejected" | "expired") =>
-      touched.flatMap(
-        (field) => field.transition(FieldEvent.Release({ key, reason })) ?? [],
-      );
+      touched.flatMap((field) => field.release(key, reason) ?? []);
     return {
       key,
       reject: () => release("rejected"),
@@ -186,14 +168,12 @@ export class WidgetUpdates {
   receive(event: Notification, key?: string): Notification | undefined {
     if (event.op === "kernel-ready") {
       for (const [id, value] of Object.entries(event.ui_values ?? {}))
-        this.field(this.ui, id).transition(
-          FieldEvent.Snapshot({ value: uiValue(id, value) }),
-        );
+        this.field(this.ui, id).snapshot(uiValue(id, value));
     }
     if (event.op === "remove-ui-elements") {
       for (const [id, field] of this.ui)
         if (id.startsWith(event.cell_id + "-")) {
-          field.transition(FieldEvent.Remove());
+          field.remove();
           this.ui.delete(id);
         }
     }
@@ -202,19 +182,16 @@ export class WidgetUpdates {
       event.message.type === "marimo-ui-value-update" &&
       "value" in event.message
     ) {
-      const value = uiValue(event.ui_element, event.message.value);
-      if (
-        !this.field(this.ui, event.ui_element).transition(
-          FieldEvent.Update({ key, value: event.buffers?.length ? event : value }),
-        )
-      )
-        return;
+      const value = event.buffers?.length
+        ? event
+        : uiValue(event.ui_element, event.message.value);
+      if (!this.field(this.ui, event.ui_element).update(key, value)) return;
     }
     if (event.op !== "model-lifecycle") return event;
     const patch = event.message;
     if (patch.method === "open" || patch.method === "close") {
       for (const field of this.models.get(event.model_id)?.values() ?? [])
-        field.transition(FieldEvent.Remove());
+        field.remove();
       this.models.delete(event.model_id);
     }
     if (patch.method !== "open" && patch.method !== "update") return event;
@@ -223,10 +200,7 @@ export class WidgetUpdates {
     let skipped = false;
     const visible = new Set<string>();
     for (const [name, message] of splitPatch(patch)) {
-      const update = { ...event, message };
-      if (
-        this.field(fields, name).transition(FieldEvent.Update({ key, value: update }))
-      )
+      if (this.field(fields, name).update(key, { ...event, message }))
         visible.add(name);
       else skipped = true;
     }

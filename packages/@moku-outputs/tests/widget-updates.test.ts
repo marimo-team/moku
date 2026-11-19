@@ -7,6 +7,28 @@ const slider = (value: number) => ({
   message: { type: "marimo-ui-value-update", value },
 });
 
+Vitest.test.each(["reject", "expire"] as const)(
+  "a kernel-ready snapshot during a slider drag is only rendered on rejection (%s)",
+  (release) => {
+    const updates = new WidgetUpdates();
+    const write = updates.begin({ _tag: "SetValues", values: { slider: 3 } });
+    const ready = {
+      op: "kernel-ready" as const,
+      ui_values: { slider: 1, toggle: false },
+      consumer_capabilities: { edit: false, interact: true },
+    };
+    Vitest.expect(updates.receive(ready)).toEqual({
+      ...ready,
+      ui_values: { toggle: false },
+    });
+    Vitest.expect(updates.receive({ ...ready, ui_values: { slider: 2 } })).toEqual({
+      ...ready,
+      ui_values: {},
+    });
+    Vitest.expect(write[release]?.()).toEqual(release === "reject" ? [slider(2)] : []);
+  },
+);
+
 Vitest.test(
   "a rejection restores the latest stream value only for fields the failed write still owns",
   () => {

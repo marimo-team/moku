@@ -99,8 +99,9 @@ class Field {
     return reason === "rejected" || state.deferred ? this.confirmed : undefined;
   }
 
-  snapshot(value: Notification) {
+  snapshot(value: Notification): boolean {
     this.confirmed = value;
+    return this.state._tag === "Following";
   }
 
   remove() {
@@ -166,9 +167,14 @@ export class WidgetUpdates {
 
   /** Return the fields that still need to reach the renderer. */
   receive(event: Notification, key?: string): Notification | undefined {
-    if (event.op === "kernel-ready") {
-      for (const [id, value] of Object.entries(event.ui_values ?? {}))
-        this.field(this.ui, id).snapshot(uiValue(id, value));
+    if (event.op === "kernel-ready" && event.ui_values) {
+      const entries = Object.entries(event.ui_values);
+      const visible = entries.filter(([id, value]) =>
+        this.field(this.ui, id).snapshot(uiValue(id, value)),
+      );
+      return visible.length === entries.length
+        ? event
+        : { ...event, ui_values: Object.fromEntries(visible) };
     }
     if (event.op === "remove-ui-elements") {
       for (const [id, field] of this.ui)

@@ -1,10 +1,9 @@
-import { Cause, Schema } from "effect";
+import { Cause, Effect, Exit, Redacted, Schema, Scope } from "effect";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import { Effect, Exit, Scope, Layer } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
-import { FetchHttpClient } from "effect/http";
-import { Redacted } from "effect";
+import { FetchHttpClient, HttpClient, HttpServerResponse } from "effect/http";
+import { TestClock } from "effect/testing";
 import * as Host from "../src/Host.ts";
 import { emptyState } from "./fixtures.ts";
 import * as Notebook from "../src/Notebook.ts";
@@ -167,14 +166,13 @@ async function fixture(start?: () => Promise<Response>) {
     await close();
     registry.dispose();
   });
-  const transport = await run(Layer.build(FetchHttpClient.layer));
   const connect = (host = "host-a", options: Pick<Host.Options, "retryWindow"> = {}) =>
     Host.make({
       ...options,
       baseUrl: `http://host.test/${encodeURIComponent(host)}/api/marimo/v1`,
       token: Redacted.make("host-token"),
     }).pipe(
-      Effect.provideContext(transport),
+      Effect.provide(FetchHttpClient.layer),
       Effect.provideService(FetchHttpClient.Fetch, fetch),
     );
   const attach = (host = "host-a", notebookId = "n") =>
@@ -1378,34 +1376,33 @@ for (const status of [403, 429, 503]) {
   Vitest.test(`unknown ${status} problems classify stream retries`, async () => {
     const registry = AtomRegistry.make();
     let requests = 0;
-    const fetch: typeof globalThis.fetch = async () => {
-      requests++;
-      return Response.json(problem, {
-        status,
-        headers: { "Content-Type": "application/problem+json; charset=utf-8" },
-      });
-    };
+    const client = HttpClient.make((request) =>
+      Effect.sync(() => {
+        requests++;
+        const response = HttpServerResponse.jsonUnsafe(problem, {
+          status,
+          contentType: "application/problem+json; charset=utf-8",
+        });
+        return HttpServerResponse.toClientResponse(response, { request });
+      }),
+    );
     try {
       await Effect.runPromise(
         Effect.scoped(
           Effect.gen(function* () {
             const host = yield* Host.make({ baseUrl: "http://host.test" });
-            yield* Effect.promise(() =>
-              vi.waitFor(() => {
-                const state = registry.get(host.state);
-                Vitest.expect(state._tag).toBe("Failure");
-                if (state._tag !== "Failure") throw new Error("Expected failure");
-                Vitest.expect(Cause.squash(state.cause)).toEqual(problem);
-                Vitest.expect(state.waiting).toBe(status >= 500);
-              }),
+            const failure = yield* Effect.flip(
+              AtomRegistry.getResult(registry, host.state),
             );
-            // The first retry is after 250ms; rejected connections must stay stopped.
-            yield* Effect.sleep("400 millis");
-            Vitest.expect(requests > 1).toBe(status >= 500);
+            Vitest.expect(failure).toEqual(problem);
+            Vitest.expect(registry.get(host.state).waiting).toBe(status >= 500);
+            Vitest.expect(requests).toBe(1);
+            yield* TestClock.adjust("250 millis");
+            Vitest.expect(requests).toBe(status >= 500 ? 2 : 1);
           }),
         ).pipe(
-          Effect.provide(FetchHttpClient.layer),
-          Effect.provideService(FetchHttpClient.Fetch, fetch),
+          Effect.provide(TestClock.layer()),
+          Effect.provideService(HttpClient.HttpClient, client),
           Effect.provideService(AtomRegistry.AtomRegistry, registry),
         ),
       );

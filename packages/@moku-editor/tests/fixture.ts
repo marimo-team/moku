@@ -1,13 +1,18 @@
-import { Schema } from "effect";
 import * as Vitest from "vite-plus/test";
-import { Context, Effect, Exit, Layer, Scope } from "effect";
+import { Effect, Exit, Schema, Scope, Stream } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Protocol from "@moku/core/Protocol";
 import * as Notebook from "@moku/core/Notebook";
 import { emptyState } from "../../@moku-core/tests/fixtures.ts";
 import type { Source } from "../src/internal/state.ts";
 import * as Host from "@moku/core/Host";
-import { FetchHttpClient } from "effect/http";
+import {
+  HttpClient,
+  HttpClientError,
+  HttpIncomingMessage,
+  HttpServerRequest,
+  HttpServerResponse,
+} from "effect/http";
 import * as Document from "../src/Document.ts";
 
 export const cell = Schema.decodeUnknownSync(Protocol.Cell)({
@@ -61,57 +66,61 @@ export async function setup(
     respond: (version: number) => void;
   }[] = [];
   const scope = Effect.runSync(Scope.make());
-  const fetch: typeof globalThis.fetch = async (input, init) => {
-    const request = new Request(input, init);
-    if (request.url.endsWith("/events"))
-      return new Response(new ReadableStream(), {
-        headers: { "Content-Type": "text/event-stream" },
-      });
-    if (!request.url.endsWith("/edits"))
-      throw new Error(`Unexpected request: ${request.url}`);
-    const payload = Schema.decodeUnknownSync(Protocol.EditRequest)(
-      await request.json(),
-    );
-    const key = request.headers.get("idempotency-key")!;
-    const operation = edit
-      ? edit({ request: payload, requestId: key })
-      : Effect.callback<unknown>((resume) => {
-          calls.push({
-            request: payload,
-            key,
-            respond: (version) =>
-              resume(
-                Effect.succeed({
-                  document: { ...document, etag: `doc-${version}`, version },
-                  cells: {},
-                }),
-              ),
-          });
+  const client = HttpClient.make(
+    Effect.fnUntraced(function* (request, url) {
+      if (url.pathname.endsWith("/events")) {
+        const response = HttpServerResponse.stream(Stream.never, {
+          contentType: "text/event-stream",
         });
-    return Effect.runPromise(
-      operation.pipe(
-        Effect.match({
-          onSuccess: (body) => Response.json(body),
-          onFailure: (cause) => {
-            const problem = Schema.decodeUnknownOption(
-              Schema.Union([Protocol.Problem, Protocol.UnknownProblem]),
-            )(cause);
-            if (problem._tag === "Some")
-              return Response.json(problem.value, {
+        return HttpServerResponse.toClientResponse(response, { request });
+      }
+      if (!url.pathname.endsWith("/edits"))
+        return yield* Effect.die(new Error(`Unexpected request to ${url.pathname}`));
+      const payload = yield* HttpIncomingMessage.schemaBodyJson(Protocol.EditRequest)(
+        HttpServerRequest.fromClientRequest(request),
+      ).pipe(Effect.orDie);
+      const key = request.headers["idempotency-key"];
+      const operation = edit
+        ? edit({ request: payload, requestId: key })
+        : Effect.callback<unknown>((resume) => {
+            calls.push({
+              request: payload,
+              key,
+              respond: (version) =>
+                resume(
+                  Effect.succeed({
+                    document: { ...document, etag: `doc-${version}`, version },
+                    cells: {},
+                  }),
+                ),
+            });
+          });
+      const response = yield* operation.pipe(
+        Effect.map((body) => HttpServerResponse.jsonUnsafe(body)),
+        Effect.catch((cause) => {
+          const problem = Schema.decodeUnknownOption(
+            Schema.Union([Protocol.Problem, Protocol.UnknownProblem]),
+          )(cause);
+          if (problem._tag === "Some")
+            return Effect.succeed(
+              HttpServerResponse.jsonUnsafe(problem.value, {
                 status: problem.value.status,
-                headers: { "Content-Type": "application/problem+json" },
-              });
-            throw cause;
-          },
+                contentType: "application/problem+json",
+              }),
+            );
+          return Effect.fail(
+            new HttpClientError.HttpClientError({
+              reason: new HttpClientError.TransportError({ request, cause }),
+            }),
+          );
         }),
-      ),
-      { signal: request.signal },
-    );
-  };
+      );
+      return HttpServerResponse.toClientResponse(response, { request });
+    }),
+  );
   const host = await Effect.runPromise(
     Host.make({ baseUrl: "http://host.test", ...options }).pipe(
-      Effect.provide(FetchHttpClient.layer),
-      Effect.provideService(FetchHttpClient.Fetch, fetch),
+      Effect.provideService(HttpClient.HttpClient, client),
       Effect.provideService(AtomRegistry.AtomRegistry, registry),
       Effect.provideService(Scope.Scope, scope),
     ),
@@ -140,8 +149,7 @@ export async function setup(
   };
   const make = () =>
     Effect.runPromise(
-      Layer.buildWithScope(Document.layer(notebook), scope).pipe(
-        Effect.map((context) => Context.get(context, Document.Service)),
+      Document.make(notebook).pipe(
         Effect.provideService(AtomRegistry.AtomRegistry, registry),
         Effect.provideService(Scope.Scope, scope),
       ),

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import type * as CommProtocol from "@moku/core/internal/comm-protocol";
-import * as Http from "./http.ts";
+import { FetchHttpClient } from "effect/http";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import { Cause, Effect, Exit, Fiber, Scope, Stream } from "effect";
@@ -165,7 +165,8 @@ async function fixture(
         notebookId: "n",
       });
     }).pipe(
-      Effect.provide(Http.layer(fetch)),
+      Effect.provide(FetchHttpClient.layer),
+      Effect.provideService(FetchHttpClient.Fetch, fetch),
       Effect.provideService(AtomRegistry.AtomRegistry, registry),
       Effect.provideService(Scope.Scope, scope),
     ),

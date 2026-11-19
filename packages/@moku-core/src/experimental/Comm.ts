@@ -7,7 +7,16 @@
  *
  * @module
  */
-import { Cause, Data, Deferred, Effect, FiberSet, Queue, Schema, Stream } from "effect";
+import {
+  Cause,
+  Data,
+  Deferred,
+  Effect,
+  Queue,
+  Schema,
+  type Scope,
+  Stream,
+} from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import type * as Events from "../notebook/events.ts";
 import * as CommProtocol from "../internal/comm-protocol.ts";
@@ -166,7 +175,7 @@ interface Runtime {
 export const make = Effect.fnUntraced(function* (notebook: Observation) {
   const registry = yield* AtomRegistry.AtomRegistry;
   const legacy = notebook.viewer;
-  const runViewer = yield* FiberSet.makeRuntime();
+  const viewerContext = yield* Effect.context<Scope.Scope>();
   const snapshot = new CommProtocol.Snapshot();
   const readers = new Set<Queue.Queue<Event, Cause.Done>>();
   const calls = new Map<string, Deferred.Deferred<Json, CommError>>();
@@ -293,7 +302,7 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
     Effect.forkScoped,
   );
 
-  function attach(
+  const attach = Effect.fnUntraced(function* (
     current: Runtime,
     record: typeof Protocol.Notebook.Type,
     session: Events.Session,
@@ -306,8 +315,9 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
     };
     current.viewer = viewer;
     registry.set(channel, Connection.Connecting());
-    runViewer(
-      session.open({ runtimeId: current.id, sessionId: viewer.sessionId }, record).pipe(
+    yield* session
+      .open({ runtimeId: current.id, sessionId: viewer.sessionId }, record)
+      .pipe(
         Effect.raceFirst(
           Deferred.await(viewer.ready).pipe(
             Effect.timeoutOrElse({
@@ -328,10 +338,11 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
               registry.set(channel, Connection.Failed({ error }));
           }),
         ),
-      ),
-    );
+        Effect.forkScoped,
+        Effect.setContext(viewerContext),
+      );
     return viewer;
-  }
+  }, Effect.uninterruptible);
 
   const sendToHost = (id: string, command: CommRequest) =>
     notebook.client.send({ params: { notebookId: notebook.id }, ...command }).pipe(
@@ -402,7 +413,7 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
       });
     let action: Effect.Effect<A, CommError>;
     if (!current.hostComm && legacy) {
-      const viewer = attach(current, state.value.notebook, legacy);
+      const viewer = yield* attach(current, state.value.notebook, legacy);
       action = Deferred.await(viewer.ready).pipe(
         Effect.andThen(perform(legacy.post(viewer.sessionId, command))),
         Effect.raceFirst(Deferred.await(viewer.ended)),
@@ -428,15 +439,14 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
       return result.waiting ? Connection.Connecting() : get(channel);
     }),
     events,
-    retry: Effect.suspend(() => {
+    retry: Effect.gen(function* () {
       if (!active?.viewer || registry.get(channel)._tag !== "Failed")
-        return notebook.reconnect;
+        return yield* notebook.reconnect;
       const state = registry.get(notebook.state);
       if (legacy && AsyncResult.isSuccess(state) && state.value.notebook) {
         delete active.viewer;
-        attach(active, state.value.notebook, legacy);
+        yield* attach(active, state.value.notebook, legacy);
       }
-      return Effect.void;
     }),
     send: (message, idempotencyKey) =>
       request(message, { payload: message, headers: { idempotencyKey } }, Effect.void),

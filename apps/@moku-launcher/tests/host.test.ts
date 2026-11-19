@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
-import * as Http from "./http.ts";
+import { HttpClient, HttpServerResponse } from "effect/http";
+import { Effect, Layer } from "effect";
+import { notebookEvents } from "../../../packages/@moku-core/tests/fixtures.ts";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
@@ -8,46 +10,34 @@ import * as Application from "../src/app/Application.ts";
 Vitest.test(
   "catalogs and notebook views share hosts until their last consumer closes",
   async () => {
-    const requests: { url: string; closed: boolean }[] = [];
-    const fetch: typeof globalThis.fetch = async (input, init) => {
-      const request = new Request(input, init);
-      if (new URL(request.url).pathname === "/api/session")
-        return Response.json({ authenticated: true });
-      if (new URL(request.url).pathname === "/api/hosts") return Response.json([]);
-      const entry = { url: request.url, closed: false };
-      requests.push(entry);
-      return new Response(
-        new ReadableStream({
-          start(controller) {
-            const notebook = {
-              id:
-                new URL(request.url).pathname.match(/notebooks\/([^/]+)\//)?.[1] ?? "n",
-              project_id: "p",
-              name: "example.py",
-              path: "example.py",
-              operations: [],
-              updated_at: null,
-            };
-            controller.enqueue(
-              new TextEncoder().encode(
-                `event: notebook\ndata: ${JSON.stringify({ notebook })}\n\nevent: ready\nid: 1\ndata: {}\n\n`,
-              ),
-            );
-            request.signal.addEventListener(
-              "abort",
-              () => {
-                entry.closed = true;
-                controller.close();
-              },
-              { once: true },
-            );
-          },
-        }),
-        { headers: { "Content-Type": "text/event-stream" } },
-      );
-    };
+    const requests: { path: string; signal: AbortSignal }[] = [];
+    function respond(path: string, signal: AbortSignal) {
+      if (path === "/api/session")
+        return HttpServerResponse.jsonUnsafe({ authenticated: true });
+      if (path === "/api/hosts") return HttpServerResponse.jsonUnsafe([]);
+      if (!path.endsWith("/events")) throw new Error(`Unexpected request to ${path}`);
+      requests.push({ path, signal });
+      return notebookEvents({
+        id: path.match(/notebooks\/([^/]+)\//)?.[1] ?? "n",
+        project_id: "p",
+        name: "example.py",
+        path: "example.py",
+        operations: [],
+        updated_at: null,
+      });
+    }
+    const client = HttpClient.make((request, url, signal) =>
+      Effect.sync(() =>
+        HttpServerResponse.toClientResponse(respond(url.pathname, signal), { request }),
+      ),
+    );
     const registry = AtomRegistry.make({
-      initialValues: [Atom.initialValue(Application.runtime.layer, Http.layer(fetch))],
+      initialValues: [
+        Atom.initialValue(
+          Application.runtime.layer,
+          Layer.succeed(HttpClient.HttpClient, client),
+        ),
+      ],
     });
     Vitest.onTestFinished(() => registry.dispose());
     const application = Application.make({
@@ -73,26 +63,28 @@ Vitest.test(
     );
     await vi.waitFor(() => Vitest.expect(requests).toHaveLength(3));
     Vitest.expect(
-      requests.filter((request) => request.url.endsWith("/host-a/events")),
+      requests.filter((request) => request.path.endsWith("/host-a/events")),
     ).toHaveLength(1);
     closeCatalog();
     closeFirst();
     closeSecond();
-    await vi.waitFor(() => Vitest.expect(requests[1].closed).toBe(true));
-    Vitest.expect(requests[0].closed).toBe(false);
-    Vitest.expect(requests[2].closed).toBe(false);
+    await vi.waitFor(() => Vitest.expect(requests[1].signal.aborted).toBe(true));
+    Vitest.expect(requests[0].signal.aborted).toBe(false);
+    Vitest.expect(requests[2].signal.aborted).toBe(false);
     const closeOtherHost = registry.mount(
       application.notebook({ connectionId: "host-b", notebookId: "n" }),
     );
     await vi.waitFor(() => Vitest.expect(requests).toHaveLength(5));
     closeAnotherNotebook();
     await vi.waitFor(() =>
-      Vitest.expect(requests.slice(0, 3).every((request) => request.closed)).toBe(true),
+      Vitest.expect(
+        requests.slice(0, 3).every((request) => request.signal.aborted),
+      ).toBe(true),
     );
-    Vitest.expect(requests[3].closed).toBe(false);
+    Vitest.expect(requests[3].signal.aborted).toBe(false);
     closeOtherHost();
     await vi.waitFor(() =>
-      Vitest.expect(requests.every((request) => request.closed)).toBe(true),
+      Vitest.expect(requests.every((request) => request.signal.aborted)).toBe(true),
     );
   },
 );

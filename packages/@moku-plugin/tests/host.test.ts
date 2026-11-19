@@ -3,9 +3,10 @@ import * as ReactDOMServer from "react-dom/server";
 import type { ViewProps } from "@moku/plugin";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import { FetchHttpClient } from "effect/http";
+import { HttpClient, HttpServerResponse } from "effect/http";
+import { notebookEvents } from "../../@moku-core/tests/fixtures.ts";
 import * as CoreHost from "@moku/core/Host";
-import { Context, Effect, Exit, Scope, Layer } from "effect";
+import { Context, Effect, Exit, Scope } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { Plugin } from "@moku/plugin";
 
@@ -143,53 +144,32 @@ Vitest.test(
           }),
       }),
     ]);
-    const streams: { closed: boolean }[] = [];
-    const fetch: typeof globalThis.fetch = async (input, init) => {
-      const request = new Request(input, init);
-      Vitest.expect(new URL(request.url).pathname.endsWith("/events")).toBe(true);
-      const stream = { closed: false };
-      streams.push(stream);
-      return new Response(
-        new ReadableStream({
-          start(controller) {
-            const notebook = {
-              id: "n",
-              project_id: "p",
-              name: "standalone.py",
-              path: "standalone.py",
-              operations: [],
-              updated_at: null,
-            };
-            controller.enqueue(
-              new TextEncoder().encode(
-                `event: notebook\ndata: ${JSON.stringify({ notebook })}\n\nevent: ready\nid: 1\ndata: {}\n\n`,
-              ),
-            );
-            request.signal.addEventListener(
-              "abort",
-              () => {
-                if (!stream.closed) controller.close();
-                stream.closed = true;
-              },
-              { once: true },
-            );
-          },
-          cancel() {
-            stream.closed = true;
-          },
-        }),
-        { headers: { "Content-Type": "text/event-stream" } },
-      );
-    };
+    const streams: AbortSignal[] = [];
+    const client = HttpClient.make((request, url, signal) =>
+      Effect.sync(() => {
+        Vitest.expect(url.pathname.endsWith("/events")).toBe(true);
+        streams.push(signal);
+        return HttpServerResponse.toClientResponse(
+          notebookEvents({
+            id: "n",
+            project_id: "p",
+            name: "standalone.py",
+            path: "standalone.py",
+            operations: [],
+            updated_at: null,
+          }),
+          { request },
+        );
+      }),
+    );
     const notebook = await Effect.runPromise(
       Effect.gen(function* () {
-        const transport = yield* Layer.build(FetchHttpClient.layer);
         const host = yield* CoreHost.make({
           baseUrl: "http://standalone.test/api/marimo/v1",
-        }).pipe(Effect.provideContext(transport));
+        });
         return yield* host.notebooks.attach("n");
       }).pipe(
-        Effect.provideService(FetchHttpClient.Fetch, fetch),
+        Effect.provideService(HttpClient.HttpClient, client),
         Effect.provideService(AtomRegistry.AtomRegistry, f.registry),
         Effect.provideService(Scope.Scope, f.scope),
       ),
@@ -214,7 +194,7 @@ Vitest.test(
     Vitest.expect(render()).toContain("n");
     await f.close();
     Vitest.expect(streams).toHaveLength(2);
-    Vitest.expect(streams.every((stream) => stream.closed)).toBe(true);
+    Vitest.expect(streams.every((signal) => signal.aborted)).toBe(true);
     Vitest.expect(f.state().views).toEqual([]);
   },
 );

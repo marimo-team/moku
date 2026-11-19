@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-import * as Http from "./http.ts";
+import { HttpClient, HttpServerResponse } from "effect/http";
+import { notebookEvents } from "../../../packages/@moku-core/tests/fixtures.ts";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import * as React from "react";
@@ -9,7 +10,7 @@ import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import { Plugin, type ViewProps } from "@moku/plugin";
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 import { App } from "../src/app/App.tsx";
 import * as Application from "../src/app/Application.ts";
 import { parseRoute, viewHref, type Route } from "../src/app/routes.ts";
@@ -27,13 +28,12 @@ async function mount(route: Route) {
     }, [notebook]);
     return <h1>{notebook.id}</h1>;
   }
-  const fetch: typeof globalThis.fetch = async (input, init) => {
-    const request = new Request(input, init);
-    const path = new URL(request.url).pathname;
+  function respond(path: string, signal: AbortSignal) {
     requests.push(path);
-    if (path === "/api/session") return Response.json({ authenticated: true });
+    if (path === "/api/session")
+      return HttpServerResponse.jsonUnsafe({ authenticated: true });
     if (path === "/api/hosts")
-      return Response.json([
+      return HttpServerResponse.jsonUnsafe([
         {
           id: "a",
           name: "First host",
@@ -48,38 +48,25 @@ async function mount(route: Route) {
           source: "manual",
         },
       ]);
-    if (path.endsWith("/open")) return Response.json({ url: "http://host.test/" });
-    return new Response(
-      new ReadableStream({
-        start(controller) {
-          const notebook = {
-            id: "n",
-            project_id: "p",
-            name: "example.py",
-            path: path.includes("/hosts/a/")
-              ? "example.py"
-              : "/other/project/example.py",
-            operations: path.includes("/hosts/a/") ? ["notebook.open"] : [],
-            updated_at: path.includes("/hosts/a/") ? "2026-11-12T12:00:00Z" : null,
-          };
-          controller.enqueue(
-            new TextEncoder().encode(
-              `event: notebook\ndata: ${JSON.stringify({ notebook })}\n\nevent: ready\nid: 1\ndata: {}\n\n`,
-            ),
-          );
-          request.signal.addEventListener(
-            "abort",
-            () => {
-              closed.push(path);
-              controller.close();
-            },
-            { once: true },
-          );
-        },
-      }),
-      { headers: { "Content-Type": "text/event-stream" } },
-    );
-  };
+    if (path.endsWith("/open"))
+      return HttpServerResponse.jsonUnsafe({ url: "http://host.test/" });
+    if (!path.endsWith("/events")) throw new Error(`Unexpected request to ${path}`);
+    signal.addEventListener("abort", () => closed.push(path), { once: true });
+    const firstHost = path.includes("/hosts/a/");
+    return notebookEvents({
+      id: "n",
+      project_id: "p",
+      name: "example.py",
+      path: firstHost ? "example.py" : "/other/project/example.py",
+      operations: firstHost ? ["notebook.open"] : [],
+      updated_at: firstHost ? "2026-11-12T12:00:00Z" : null,
+    });
+  }
+  const client = HttpClient.make((request, url, signal) =>
+    Effect.sync(() =>
+      HttpServerResponse.toClientResponse(respond(url.pathname, signal), { request }),
+    ),
+  );
   const application = Application.make({
     plugins: [
       Plugin.define({
@@ -101,7 +88,12 @@ async function mount(route: Route) {
     ],
   });
   const registry = AtomRegistry.make({
-    initialValues: [Atom.initialValue(Application.runtime.layer, Http.layer(fetch))],
+    initialValues: [
+      Atom.initialValue(
+        Application.runtime.layer,
+        Layer.succeed(HttpClient.HttpClient, client),
+      ),
+    ],
   });
   const element = document.createElement("div");
   document.body.append(element);

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import * as Http from "./http.ts";
+import { FetchHttpClient } from "effect/http";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import { Effect, Exit, Scope } from "effect";
@@ -102,7 +102,10 @@ async function fixture(launchKey?: string) {
   return {
     run,
     workspace: await run(
-      Workspace.make({ launchKey }).pipe(Effect.provide(Http.layer(fetch))),
+      Workspace.make({ launchKey }).pipe(
+        Effect.provide(FetchHttpClient.layer),
+        Effect.provideService(FetchHttpClient.Fetch, fetch),
+      ),
     ),
     registry,
     requests,

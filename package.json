@@ -12,6 +12,7 @@
     "build": "bun run --cwd apps/@moku-launcher --silent build",
     "preview": "bun run --cwd apps/@moku-launcher --silent preview",
     "check": "vp check",
+    "knip": "knip",
     "format": "vp fmt",
     "test": "vp test run",
     "test:coverage": "vp test run --coverage",
@@ -22,6 +23,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitest/coverage-v8": "5.1.0",
+    "knip": "^6.39.0",
     "vite-plus": "1.5.0"
   },
   "overrides": {

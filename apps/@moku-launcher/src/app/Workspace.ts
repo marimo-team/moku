@@ -22,7 +22,7 @@ export const Connection = Schema.Struct({
 });
 export type Connection = typeof Connection.Type;
 /** Credentials for registering a host with the launcher proxy. */
-export interface ConnectInput {
+interface ConnectInput {
   /** The versioned host protocol API URL. */
   readonly url: string;
   /** Bearer token the proxy will send to that API. */

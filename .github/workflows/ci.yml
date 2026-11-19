@@ -56,6 +56,9 @@ jobs:
       - name: Check
         run: bun run check
 
+      - name: Knip
+        run: bun run knip
+
   test:
     name: Test
     runs-on: "${{ vars.CI_RUNNER_SMALL || 'ubuntu-latest' }}"

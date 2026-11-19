@@ -1,6 +1,6 @@
+// @vitest-environment happy-dom
 import type * as Notebook from "@moku/core/Notebook";
 import { Schema } from "effect";
-// @vitest-environment happy-dom
 import * as React from "react";
 import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";

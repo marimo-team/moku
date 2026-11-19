@@ -6,7 +6,7 @@
 import type * as Protocol from "../Protocol.ts";
 
 /** The cell records and revision belong to the same complete host update. */
-export interface Confirmed {
+interface Confirmed {
   readonly revision: typeof Protocol.Document.Type;
   readonly cells: ReadonlyMap<string, typeof Protocol.Cell.Type>;
 }

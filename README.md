@@ -60,6 +60,7 @@ Open the authenticated link printed in the terminal.
 
 ```sh
 bun run check
+bun run knip
 bun run test
 bun run test:coverage  # coverage/index.html
 ```

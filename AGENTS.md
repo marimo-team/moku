@@ -190,6 +190,7 @@ These PRs and commit messages show how the explanation can fit the change.
 
 ```sh
 bun run check
+bun run knip
 bun run format
 bun run test
 bun run test:coverage

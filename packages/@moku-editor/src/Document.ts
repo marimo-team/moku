@@ -105,7 +105,8 @@ export class Service extends Context.Service<Service, Interface>()("@moku/Docume
 /**
  * Creates an editable document for a notebook.
  *
- * Edits synchronize after 400 ms of inactivity. Use `flush` to send them sooner
+ * The first unsent edit starts a 100 ms batch. Edits made while a batch is in
+ * flight are sent as soon as the host confirms it. Use `flush` to send early
  * and wait for confirmation. Failures leave the draft available for `retry`.
  *
  * Use the same AtomRegistry as the notebook. Keep the scope alive across cell

@@ -33,8 +33,8 @@ export class SyncError extends Data.TaggedError("DocumentSyncError")<{
 /**
  * The document's progress from local edits to host confirmation.
  *
- * `pending` waits for the debounce interval; `sending` waits for the request;
- * `confirming` waits for the stream to reach the accepted revision.
+ * `pending` collects edits in the first batch. `sending` waits for the request
+ * and `confirming` waits for the stream to reach the accepted revision.
  * A confirmation timeout reports an error that clears when confirmation arrives.
  * `unavailable` means source or edit permission is missing.
  */
@@ -302,12 +302,13 @@ export function synchronize(
           return;
         }
         setProgress(Progress.Pending());
-        while (waiters.size === 0) {
-          const changed = yield* Queue.take(wake).pipe(
-            Effect.timeoutOption("400 millis"),
-          );
-          if (Option.isNone(changed)) break;
-        }
+        // One deadline for the whole batch. A flush or a reverted draft ends it early.
+        yield* Queue.take(wake).pipe(
+          Effect.repeat({
+            while: () => waiters.size === 0 && !Draft.isEmptyDraft(model.get().draft),
+          }),
+          Effect.timeoutOption("100 millis"),
+        );
       }
       const result = yield* Effect.exit(
         Effect.gen(function* () {

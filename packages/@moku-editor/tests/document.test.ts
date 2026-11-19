@@ -44,11 +44,20 @@ for (const ordering of ["response-first", "stream-first"]) {
 }
 
 Vitest.test("flush callers share one immutable submission", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+  Vitest.onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const h = await setup();
   h.change("edited");
+  await vi.advanceTimersByTimeAsync(50);
+  Vitest.expect(h.calls).toHaveLength(0);
   const a = Effect.runPromise(h.model.flush);
   const b = Effect.runPromise(h.model.flush);
-  await vi.waitFor(() => Vitest.expect(h.calls).toHaveLength(1));
+  // Let the HTTP client run while the batch clock stays at 50 ms.
+  await vi.waitFor(() => Vitest.expect(h.calls).toHaveLength(1), {
+    interval: 0,
+  });
   h.calls[0].respond(2);
   h.publish("edited", 2);
   const [one, two] = await Promise.all([a, b]);
@@ -326,12 +335,12 @@ Vitest.test(
 );
 
 Vitest.test(
-  "closing before debounce prevents a write and releases flush callers",
+  "closing before the batch is sent prevents a write and releases flush callers",
   async () => {
     const h = await setup();
     h.change("local");
     await h.close();
-    await new Promise((resolve) => setTimeout(resolve, 450));
+    await new Promise((resolve) => setTimeout(resolve, 150));
     Vitest.expect(h.calls).toHaveLength(0);
     await Vitest.expect(Effect.runPromise(h.model.flush)).rejects.toThrow("closed");
   },
@@ -521,21 +530,38 @@ Vitest.test(
 );
 
 Vitest.test(
-  "autosynchronization sends the latest draft after typing settles",
+  "continuous typing shares a fixed batch window and resumes on host confirmation",
   async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    Vitest.onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const h = await setup();
     h.change("first");
+    await vi.advanceTimersByTimeAsync(99);
     h.change("latest");
     Vitest.expect(h.calls).toHaveLength(0);
-    await vi.waitFor(() => Vitest.expect(h.calls).toHaveLength(1), { timeout: 1500 });
+    await vi.advanceTimersByTimeAsync(1);
+    Vitest.expect(h.calls).toHaveLength(1);
     Vitest.expect(h.calls[0].request.changes[0]).toMatchObject({
       cell: { code: "latest" },
     });
     h.calls[0].respond(2);
+    h.change("typing");
+    await vi.advanceTimersByTimeAsync(150);
+    h.change("finished");
+    Vitest.expect(h.calls).toHaveLength(1);
     h.publish("latest", 2);
-    await vi.waitFor(() =>
-      Vitest.expect(h.registry.get(h.model.state).dirty).toBe(false),
-    );
+    await vi.advanceTimersByTimeAsync(0);
+    Vitest.expect(h.calls).toHaveLength(2);
+    Vitest.expect(h.calls[1].request.changes[0]).toMatchObject({
+      base_etag: "cell-v2",
+      cell: { code: "finished" },
+    });
+    h.calls[1].respond(3);
+    h.publish("finished", 3);
+    await vi.advanceTimersByTimeAsync(0);
+    Vitest.expect(h.registry.get(h.model.state).dirty).toBe(false);
     Vitest.expect(h.registry.get(h.model.state).status).toEqual({ status: "idle" });
   },
 );

@@ -218,7 +218,7 @@ async function fixture(
     ready: () =>
       vi.waitFor(() =>
         Vitest.expect(
-          registry.get(model.runtime.experimentalComm.state).connection._tag,
+          registry.get(model.runtime.experimentalComm.connection)._tag,
         ).toBe("Connected"),
       ),
     notify: (notification: CommProtocol.Notification, request_id?: string) =>
@@ -492,11 +492,12 @@ Vitest.test(
     );
     f.restart("rt2");
     Vitest.expect(await pending).toMatchObject({ code: "stale-runtime" });
-    await vi.waitFor(() =>
-      Vitest.expect(
-        f.registry.get(f.model.runtime.experimentalComm.state).runtime?.id,
-      ).toBe("rt2"),
-    );
+    await vi.waitFor(() => {
+      const state = f.registry.get(f.model.state);
+      Vitest.expect(AsyncResult.isSuccess(state) && state.value.runtime?.id).toBe(
+        "rt2",
+      );
+    });
     await f.ready();
     Vitest.expect(f.marimoStreams[0].signal.aborted).toBe(true);
     const before = f.requests.length;
@@ -545,7 +546,7 @@ Vitest.test(
     });
     await vi.waitFor(() =>
       Vitest.expect(
-        f.registry.get(f.model.runtime.experimentalComm.state).connection,
+        f.registry.get(f.model.runtime.experimentalComm.connection),
       ).toMatchObject({
         _tag: "Failed",
         error: { code: "authentication" },
@@ -557,7 +558,7 @@ Vitest.test(
     await Effect.runPromise(f.model.runtime.experimentalComm.retry);
     await vi.waitFor(() =>
       Vitest.expect(
-        f.registry.get(f.model.runtime.experimentalComm.state).connection,
+        f.registry.get(f.model.runtime.experimentalComm.connection),
       ).toMatchObject({
         _tag: "Failed",
         error: { code: "stale-runtime" },

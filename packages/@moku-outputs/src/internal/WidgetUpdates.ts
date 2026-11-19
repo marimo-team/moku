@@ -65,8 +65,6 @@ interface Field {
 
 /** Tracks the latest local edit and confirmed stream value for each widget field in one renderer. */
 export class WidgetUpdates {
-  private readonly prefix = crypto.randomUUID();
-  private sequence = 0;
   private readonly ui = new Map<string, Field>();
   private readonly models = new Map<string, Map<string, Field>>();
 
@@ -108,7 +106,7 @@ export class WidgetUpdates {
 
   /** Register the fields the widget already changed before sending its HTTP request. */
   begin(write: Write) {
-    const key = `${this.prefix}:${++this.sequence}`;
+    const key = crypto.randomUUID();
     const touched: Field[] = [];
     const mark = (field: Field, expected: Notification) => {
       this.pending.add(field);

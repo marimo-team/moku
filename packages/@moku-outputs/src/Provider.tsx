@@ -47,7 +47,7 @@ export const OutputContext = React.createContext<{
 export function Provider({ notebook, children }: ProviderProps) {
   const comm = notebook.runtime.experimentalComm;
   const { assetUrl } = notebook;
-  const connection = useAtomValue(comm.state, (state) => state.connection);
+  const connection = useAtomValue(comm.connection);
   const [reconnecting, reconnect] = useAtom(
     React.useMemo(() => Atom.fn(() => comm.retry).pipe(Atom.setIdleTTL(0)), [comm]),
   );

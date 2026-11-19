@@ -47,10 +47,7 @@ function fixture() {
   let readers = 0;
   const executeCall = vi.fn(() => ({ answer: 42 }));
   const comm: Notebook["runtime"]["experimentalComm"] = {
-    state: Atom.readable(() => ({
-      runtime: null,
-      connection: { _tag: "Connected" as const, canInteract: true },
-    })),
+    connection: Atom.make({ _tag: "Connected" as const, canInteract: true }),
     events: Stream.callback<CommEvent>((queue) =>
       Effect.acquireRelease(
         Effect.sync(() => {

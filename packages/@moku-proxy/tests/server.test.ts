@@ -351,9 +351,9 @@ Vitest.test(
           const registry = yield* AtomRegistry.AtomRegistry;
           yield* AtomRegistry.toStream(
             registry,
-            attached.runtime.experimentalComm.state,
+            attached.runtime.experimentalComm.connection,
           ).pipe(
-            Stream.filter((state) => state.connection._tag === "Connected"),
+            Stream.filter((connection) => connection._tag === "Connected"),
             Stream.runHead,
             Effect.timeout("2 seconds"),
           );

@@ -1,6 +1,7 @@
 /** Host messages and marimo session messages for the experimental output channel. @module */
 import { Result, Schema } from "effect";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
+import * as Notebook from "@marimo-team/host-protocol/Notebook";
 import * as S from "@marimo-team/host-protocol/Schemas";
 import * as Problems from "@marimo-team/host-protocol/Problems";
 
@@ -116,15 +117,13 @@ export const LegacySessionId = Schema.String.check(
   Schema.isPattern(/^[a-zA-Z0-9_-]{1,128}$/),
 );
 
-const mutationFields = { idempotencyKey: Schema.String };
-const mutationKeys = { idempotencyKey: "idempotency-key" } as const;
 const SessionHeaders = Schema.Struct({
   sessionId: LegacySessionId,
-  ...mutationFields,
+  idempotencyKey: Schema.String,
 }).pipe(
   Schema.encodeKeys({
     sessionId: "marimo-session-id",
-    ...mutationKeys,
+    idempotencyKey: "idempotency-key",
   }),
 );
 const Acknowledgement = Schema.Struct({ success: Schema.Literal(true) });
@@ -263,13 +262,18 @@ const Command = Schema.TaggedUnion({
   },
 });
 
+// SAFETY: Edit stores its declared path and header codecs on these properties.
+// @ts-expect-error HttpApiEndpoint widens both properties to Schema.Top | undefined.
+const mutation: {
+  params: HttpApiEndpoint.Params<typeof Notebook.Edit>;
+  headers: HttpApiEndpoint.Headers<typeof Notebook.Edit>;
+} = Notebook.Edit;
+
 /** The HTTP contract shared by the notebook client and the proxy. */
 export const CommGroup = HttpApiGroup.make("Comm").add(
   HttpApiEndpoint.post("send", "/notebooks/:notebook_id/runtime/experimental/comm", {
-    params: Schema.Struct({ notebookId: S.NotebookId }).pipe(
-      Schema.encodeKeys({ notebookId: "notebook_id" }),
-    ),
-    headers: Schema.Struct(mutationFields).pipe(Schema.encodeKeys(mutationKeys)),
+    params: mutation.params,
+    headers: mutation.headers,
     payload: Command,
     success: S.Runtime.pipe(HttpApiSchema.status(202)),
     error: [

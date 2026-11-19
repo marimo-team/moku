@@ -75,14 +75,6 @@ type Connection = Data.TaggedEnum<{
 }>;
 const Connection = Data.taggedEnum<Connection>();
 
-/** Kernel identity and the availability of its output connection. */
-interface State {
-  /** The notebook's observed runtime, or null when none exists. */
-  readonly runtime: typeof Protocol.Runtime.Type | null;
-  /** Availability of widget notifications and requests. */
-  readonly connection: Connection;
-}
-
 /**
  * Widget state and actions for an attached notebook.
  *
@@ -90,7 +82,7 @@ interface State {
  */
 export interface Interface {
   /** Reports connection status and whether widgets can send updates. Reading it does not open a session. */
-  readonly state: Atom.Atom<State>;
+  readonly connection: Atom.Atom<Connection>;
   /**
    * Restores the renderer’s current widget state and delivers subsequent updates.
    *
@@ -120,7 +112,7 @@ export interface Interface {
    * reply. Restarting the runtime fails calls that are still waiting.
    */
   readonly invoke: (options: Invoke) => Effect.Effect<Json, CommError>;
-  /** Requests a reconnect. Observe {@link Interface.state} to see when widgets can interact again. */
+  /** Requests a reconnect. Observe {@link Interface.connection} to see when widgets can interact again. */
   readonly retry: Effect.Effect<void>;
 }
 
@@ -427,20 +419,13 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
     );
   });
   return {
-    state: Atom.readable((get) => {
+    connection: Atom.readable((get) => {
       const result = get(notebook.state);
-      const runtime = AsyncResult.getOrElse(result, () => undefined)?.runtime ?? null;
       if (AsyncResult.isFailure(result) && !result.waiting)
-        return {
-          runtime,
-          connection: Connection.Failed({
-            error: problem("transport", "The notebook event stream failed."),
-          }),
-        };
-      return {
-        runtime,
-        connection: result.waiting ? Connection.Connecting() : get(channel),
-      };
+        return Connection.Failed({
+          error: problem("transport", "The notebook event stream failed."),
+        });
+      return result.waiting ? Connection.Connecting() : get(channel);
     }),
     events,
     retry: Effect.suspend(() => {

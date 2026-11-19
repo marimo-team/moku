@@ -25,10 +25,9 @@ export interface ProviderProps {
   readonly children: React.ReactNode;
 }
 
-export const OutputContext = React.createContext<{
-  session: RendererSession.Interface | null;
-  canInteract: boolean;
-}>({ session: null, canInteract: false });
+export const OutputContext = React.createContext<RendererSession.Interface | null>(
+  null,
+);
 
 /**
  * Connects descendant widgets to the runtime that produced their outputs.
@@ -66,9 +65,8 @@ export function Provider({ notebook, children }: ProviderProps) {
     }
   }, [comm, assetUrl]);
   const error = state.error ?? (connection._tag === "Failed" ? connection.error : null);
-  const canInteract = connection._tag === "Connected" && connection.canInteract;
   return (
-    <OutputContext.Provider value={{ session: state.session, canInteract }}>
+    <OutputContext.Provider value={state.session}>
       {error && (
         <div className="moku-output-notice" role="alert">
           {error.message}

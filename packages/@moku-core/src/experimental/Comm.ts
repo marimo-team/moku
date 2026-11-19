@@ -72,10 +72,7 @@ type Connection = Data.TaggedEnum<{
   /** Opening the session stream and confirming its runtime. */
   Connecting: {};
   /** The notebook is delivering widget notifications. */
-  Connected: {
-    /** Whether widgets may attempt a write. A legacy viewer confirms permission on the first request. */
-    readonly canInteract: boolean;
-  };
+  Connected: {};
   /** The notebook stream or its widget session failed. */
   Failed: {
     /** The failure to display while awaiting retry or a runtime change. */
@@ -90,7 +87,7 @@ const Connection = Data.taggedEnum<Connection>();
  * Closing the notebook ends subscriptions and cancels pending calls.
  */
 export interface Interface {
-  /** Reports connection status and whether widgets can send updates. Reading it does not open a session. */
+  /** Reports the widget connection status. Reading it does not open a session. */
   readonly connection: Atom.Atom<Connection>;
   /**
    * Restores the renderer’s current widget state and delivers subsequent updates.
@@ -121,7 +118,7 @@ export interface Interface {
    * reply. Restarting the runtime fails calls that are still waiting.
    */
   readonly invoke: (options: Invoke) => Effect.Effect<Json, CommError>;
-  /** Requests a reconnect. Observe {@link Interface.connection} to see when widgets can interact again. */
+  /** Requests a reconnect. Observe {@link Interface.connection} for its status. */
   readonly retry: Effect.Effect<void>;
 }
 
@@ -162,6 +159,7 @@ interface Viewer {
   readonly sessionId: string;
   readonly ready: Deferred.Deferred<void>;
   readonly ended: Deferred.Deferred<never, CommError>;
+  interact: boolean;
 }
 
 interface Runtime {
@@ -196,29 +194,13 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
     registry.set(channel, Connection.Idle());
     emit({ kind: "reset", runtimeId: null });
   }
-  function deliver(
-    runtime: Runtime,
-    raw: unknown,
-    requestId?: string,
-    updatePermissions = true,
-  ) {
-    const notification = snapshot.recordNotification(raw, runtime.hostComm || !!legacy);
+  function deliver(runtimeId: string, raw: unknown, requestId?: string) {
+    const notification = snapshot.recordNotification(raw);
     if (!notification) return;
-    if (
-      updatePermissions &&
-      (notification.op === "kernel-ready" ||
-        notification.op === "consumer-capabilities")
-    )
-      registry.set(
-        channel,
-        Connection.Connected({
-          canInteract: notification.consumer_capabilities?.interact === true,
-        }),
-      );
     replyToCall(calls, notification);
     emit({
       kind: "notification",
-      runtimeId: runtime.id,
+      runtimeId,
       notification,
       ...(requestId !== undefined && { requestId }),
     });
@@ -271,26 +253,27 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
       reset();
       if (id) {
         active = { id, hostComm, ended: Deferred.makeUnsafe() };
-        deliver(active, {
-          op: "kernel-ready",
-          ui_values: {},
-          consumer_capabilities: { edit: false, interact: hostComm || !!legacy },
-        });
+        registry.set(channel, Connection.Connected());
+        deliver(id, { op: "kernel-ready", ui_values: {} });
       }
     }
     if (!active) return;
     if (event.event === "custom" && event.data.custom.type === "marimo.notification") {
-      deliver(active, event.data.custom.data, event.data.request_id, !active.viewer);
+      deliver(active.id, event.data.custom.data, event.data.request_id);
     } else if (!active.hostComm && event.event === "marimo") {
-      if (event.sessionId && active.viewer?.sessionId !== event.sessionId) return;
-      const notification = deliver(
-        active,
-        event.data.marimo,
-        event.data.request_id,
-        !active.viewer || !!event.sessionId,
-      );
-      if (event.sessionId && active.viewer && notification?.op === "kernel-ready")
-        Deferred.doneUnsafe(active.viewer.ready, Effect.void);
+      const viewer = active.viewer;
+      if (event.sessionId && viewer?.sessionId !== event.sessionId) return;
+      const notification = deliver(active.id, event.data.marimo, event.data.request_id);
+      if (!event.sessionId || !viewer) return;
+      if (
+        notification?.op === "kernel-ready" ||
+        notification?.op === "consumer-capabilities"
+      )
+        viewer.interact = notification.consumer_capabilities?.interact === true;
+      if (notification?.op === "kernel-ready") {
+        registry.set(channel, Connection.Connected());
+        Deferred.doneUnsafe(viewer.ready, Effect.void);
+      }
     }
   }
   yield* notebook.events.pipe(
@@ -308,6 +291,7 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
       sessionId: crypto.randomUUID(),
       ready: Deferred.makeUnsafe(),
       ended: Deferred.makeUnsafe(),
+      interact: false,
     };
     current.viewer = viewer;
     registry.set(channel, Connection.Connecting());
@@ -395,27 +379,27 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
         "Start the runtime to interact with outputs.",
       );
 
-    const perform = (send: Effect.Effect<void, CommError>) =>
-      Effect.suspend(() => {
-        const connection = registry.get(channel);
-        return connection._tag === "Connected" && connection.canInteract
-          ? send.pipe(Effect.andThen(result))
-          : Effect.fail(
-              problem(
-                "unsupported",
-                "The runtime does not permit output interactions.",
-              ),
-            );
-      });
     let action: Effect.Effect<A, CommError>;
     if (!current.hostComm && legacy) {
       const viewer = yield* attach(current, state.value.notebook, legacy);
+      if (Deferred.isDoneUnsafe(viewer.ended))
+        return yield* Deferred.await(viewer.ended);
       action = Deferred.await(viewer.ready).pipe(
-        Effect.andThen(perform(legacy.post(viewer.sessionId, command))),
+        Effect.andThen(() =>
+          viewer.interact
+            ? legacy.post(viewer.sessionId, command)
+            : Effect.fail(
+                problem(
+                  "unsupported",
+                  "The viewer does not permit output interactions.",
+                ),
+              ),
+        ),
+        Effect.andThen(result),
         Effect.raceFirst(Deferred.await(viewer.ended)),
       );
     } else {
-      action = perform(sendToHost(current.id, command));
+      action = sendToHost(current.id, command).pipe(Effect.andThen(result));
     }
     return yield* action.pipe(
       Effect.raceFirst(Deferred.await(current.ended)),

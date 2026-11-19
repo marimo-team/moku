@@ -91,8 +91,19 @@ Vitest.test(
         root.render(
           <renderer.DisplayRenderer
             session={session}
+            runtimeId="current"
+            data={{ mimetype: "text/html", data: '<a href="#detail">Details</a>' }}
+          />,
+        );
+      });
+      const link = element.querySelector('a[href="#detail"]');
+      Vitest.expect(link).not.toBeNull();
+      Vitest.expect(link?.closest("[inert]")).toBeNull();
+      await React.act(async () => {
+        root.render(
+          <renderer.DisplayRenderer
+            session={session}
             runtimeId="previous"
-            canInteract
             data={{
               mimetype: "text/html",
               data: '<marimo-ui-element object-id="cell-0"><marimo-slider></marimo-slider></marimo-ui-element>',

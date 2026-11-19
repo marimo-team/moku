@@ -13,10 +13,10 @@ import "./style.css";
 function RichDisplay(props: DisplayViewProps): React.ReactElement {
   const { DisplayRenderer } = React.use(loadRenderer());
   const css = React.use(loadStyles());
-  const context = React.useContext(OutputContext);
+  const session = React.useContext(OutputContext);
   return (
     <ShadowOutput css={css}>
-      <DisplayRenderer {...props} {...context} />
+      <DisplayRenderer {...props} session={session} />
     </ShadowOutput>
   );
 }

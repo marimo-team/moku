@@ -376,6 +376,22 @@ Vitest.test(
     Vitest.expect(f.requests.map(({ path }) => path)).toEqual([
       "/api/hosts/host/marimo/auth",
     ]);
+    f.notify({
+      op: "consumer-capabilities",
+      consumer_capabilities: { edit: false, interact: true },
+    });
+    const reader = f.subscribe();
+    await vi.waitFor(() =>
+      Vitest.expect(reader.events).toContainEqual(
+        Vitest.expect.objectContaining({
+          notification: Vitest.expect.objectContaining({
+            consumer_capabilities: { edit: false, interact: true },
+          }),
+        }),
+      ),
+    );
+    await Effect.runPromise(send);
+    Vitest.expect(f.requests.at(-1)?.path).toMatch(/set_ui_element_value$/);
     Vitest.expect(f.peakNotebookStreams()).toBe(1);
   },
 );
@@ -589,6 +605,18 @@ Vitest.test(
     Vitest.expect(f.notebookStreams()).toBe(1);
     Vitest.expect(f.marimoStreams).toHaveLength(0);
 
+    const capabilities = {
+      op: "consumer-capabilities",
+      consumer_capabilities: { edit: false, interact: false },
+    } as const;
+    f.custom(capabilities);
+    await vi.waitFor(() =>
+      Vitest.expect(reader.events).toContainEqual({
+        kind: "notification",
+        runtimeId: "rt",
+        notification: capabilities,
+      }),
+    );
     await Effect.runPromise(
       f.model.runtime.experimentalComm.send(
         {

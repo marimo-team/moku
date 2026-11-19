@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit, Redacted, Schema, Scope } from "effect";
+import { Cause, Effect, Exit, Redacted, Schema, Scope, Stream } from "effect";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
@@ -228,6 +228,75 @@ function snapshot(stream: TestStream) {
 const settled = async () => {
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
 };
+
+Vitest.test(
+  "a read-only host caller receives live and replayed widget values",
+  async () => {
+    const f = await fixture();
+    const handle = await f.attach();
+    const comm = handle.runtime.experimentalComm;
+    const stream = await f.stream();
+    stream.send("notebook", { notebook: { ...notebook, operations: [] } });
+    stream.send("runtime", { runtime });
+    stream.send("ready", {}, "1");
+    await vi.waitFor(() =>
+      Vitest.expect(f.registry.get(comm.connection)).toMatchObject({
+        _tag: "Connected",
+        canInteract: false,
+      }),
+    );
+    const live = f.run(comm.events.pipe(Stream.take(4), Stream.runCollect));
+    const capabilities = {
+      op: "consumer-capabilities",
+      consumer_capabilities: { edit: false, interact: true },
+    };
+    const update = {
+      op: "send-ui-element-message",
+      ui_element: "slider",
+      message: { type: "marimo-ui-value-update", value: 45 },
+    };
+    for (const data of [capabilities, update])
+      stream.send("custom", { custom: { type: "marimo.notification", data } });
+    Vitest.expect(await live).toMatchObject([
+      { kind: "reset", runtimeId: "rt" },
+      {
+        notification: {
+          op: "kernel-ready",
+          consumer_capabilities: { interact: false },
+        },
+      },
+      {
+        notification: {
+          op: "consumer-capabilities",
+          consumer_capabilities: { interact: false },
+        },
+      },
+      { runtimeId: "rt", notification: update },
+    ]);
+    Vitest.expect(f.registry.get(comm.connection)).toMatchObject({
+      canInteract: false,
+    });
+    const replay = await f.run(comm.events.pipe(Stream.take(2), Stream.runCollect));
+    Vitest.expect(replay[1]).toMatchObject({
+      notification: {
+        op: "kernel-ready",
+        ui_values: { slider: 45 },
+        consumer_capabilities: { interact: false },
+      },
+    });
+    await Vitest.expect(
+      f.run(
+        comm.send(
+          { _tag: "SetValues", runtimeId: "rt", values: { slider: 9 } },
+          "change",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "unsupported" });
+    Vitest.expect(
+      f.requests.filter((request) => request.method === "POST"),
+    ).toHaveLength(0);
+  },
+);
 
 Vitest.test(
   "only coherent document revisions become editable; output replacement, removal, and reset remain intact",

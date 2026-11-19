@@ -219,7 +219,7 @@ export class Snapshot {
         this.models.set(message.model_id, {
           method: "open",
           state: { ...previous.state, ...next.state },
-          esm_spec: next.esm_spec === undefined ? previous.esm_spec : next.esm_spec,
+          esm_spec: next.esm_spec ?? previous.esm_spec,
           buffer_paths: [...kept.map((item) => item.path), ...next.buffer_paths],
           buffers: [...kept.map((item) => item.buffer), ...next.buffers],
         });

@@ -7,7 +7,7 @@
  * @module
  */
 import type * as Notebook from "@moku/core/Notebook";
-import { Cause, Effect, Exit, Semaphore, Stream } from "effect";
+import { Cause, Effect, Exit, FiberSet, Semaphore, Stream } from "effect";
 import type * as RendererSession from "./RendererSession.ts";
 import { WidgetUpdates } from "./WidgetUpdates.ts";
 import { loadRenderer } from "./renderer.ts";
@@ -53,6 +53,7 @@ export function acquire(
     const owner = entry;
     Effect.runFork(
       start(owner, assetUrl).pipe(
+        Effect.scoped,
         Effect.onExit((exit) =>
           Effect.sync(() => {
             if (owner.controller.signal.aborted) return;
@@ -86,6 +87,7 @@ function publish(entry: Entry, state: State) {
 }
 
 type Write = Parameters<Notebook.Runtime["experimentalComm"]["send"]>[0];
+type Notification = Parameters<RendererSession.Interface["handle"]>[0];
 const start = Effect.fnUntraced(function* (
   entry: Entry,
   assetUrl: (path: string) => string,
@@ -96,9 +98,15 @@ const start = Effect.fnUntraced(function* (
   } = entry;
   const renderer = yield* Effect.tryPromise(loadRenderer);
   const lock = yield* Semaphore.make(1);
+  const expiries = yield* FiberSet.make<void, Cause.UnknownError>();
   let updates: WidgetUpdates | undefined;
 
-  const apply = (notification: Parameters<RendererSession.Interface["handle"]>[0]) => {
+  const disposeSession = Effect.gen(function* () {
+    updates = undefined;
+    yield* FiberSet.clear(expiries);
+    entry.state.session?.dispose();
+  });
+  const apply = (notification: Notification) => {
     const session = entry.state.session;
     return session
       ? Effect.tryPromise(() => session.handle(notification))
@@ -115,8 +123,7 @@ const start = Effect.fnUntraced(function* (
       lock.withPermit(
         Effect.gen(function* () {
           if (event.kind === "reset") {
-            updates = undefined;
-            entry.state.session?.dispose();
+            yield* disposeSession;
             publish(entry, { session: null, error: null });
             return;
           }
@@ -126,25 +133,28 @@ const start = Effect.fnUntraced(function* (
             return;
           }
           if (event.notification.op === "kernel-ready") {
-            entry.state.session?.dispose();
+            yield* disposeSession;
             const runtimeId = event.runtimeId;
             const local = new WidgetUpdates();
             updates = local;
-            const send = Effect.fnUntraced(function* (write: Write) {
-              const receipt = local.begin(write);
-              yield* comm.send(write, receipt.key).pipe(
-                Effect.catch((error) =>
-                  lock.withPermit(
-                    Effect.gen(function* () {
-                      if (updates === local)
-                        yield* Effect.forEach(receipt.reject(), apply, {
-                          discard: true,
-                        });
-                      return yield* error;
-                    }),
-                  ),
+            const reconcile = (release: () => Notification[]) =>
+              lock.withPermit(
+                Effect.suspend(() =>
+                  updates === local
+                    ? Effect.forEach(release(), apply, { discard: true })
+                    : Effect.void,
                 ),
               );
+            const send = Effect.fnUntraced(function* (write: Write) {
+              const receipt = local.begin(write);
+              yield* comm
+                .send(write, receipt.key)
+                .pipe(Effect.tapError(() => reconcile(receipt.reject)));
+              if (receipt.expire && updates === local)
+                yield* reconcile(receipt.expire).pipe(
+                  Effect.delay("30 seconds"),
+                  FiberSet.run(expiries),
+                );
             });
             const session = renderer.createSession({
               runtimeId,
@@ -188,5 +198,6 @@ const start = Effect.fnUntraced(function* (
         }),
       ),
     ),
+    Effect.raceFirst(FiberSet.join(expiries)),
   );
 });

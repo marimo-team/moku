@@ -47,3 +47,20 @@ Vitest.test("a late rejection cannot restore a removed widget's value", () => {
   Vitest.expect(updates.receive(widget(3))).toEqual(widget(3));
   Vitest.expect(write.reject()).toEqual([]);
 });
+
+Vitest.test("expiry releases only fields still owned by the accepted write", () => {
+  const updates = new WidgetUpdates();
+  updates.receive(slider(1));
+  const write = (value: number) =>
+    updates.begin({ _tag: "SetValues", values: { slider: value } });
+  const first = write(2);
+  Vitest.expect(updates.receive(slider(3), "peer")).toBeUndefined();
+  const second = write(4);
+  Vitest.expect(first.expire?.()).toEqual([]);
+  Vitest.expect(second.expire?.()).toEqual([slider(3)]);
+  Vitest.expect(updates.receive(slider(5), "peer")).toEqual(slider(5));
+
+  const quiet = write(6);
+  Vitest.expect(quiet.expire?.()).toEqual([]);
+  Vitest.expect(updates.receive(slider(7), "peer")).toEqual(slider(7));
+});

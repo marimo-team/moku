@@ -54,14 +54,14 @@ function selectFields(patch: Patch, fields: Set<string>) {
 
 type FieldState = Data.TaggedEnum<{
   Following: {};
-  Pending: { key: string; expected: Notification };
+  Pending: { key: string; expected: Notification; deferred: boolean };
 }>;
 const FieldState = Data.taggedEnum<FieldState>();
 
 type FieldEvent = Data.TaggedEnum<{
   Begin: { key: string; expected: Notification };
   Update: { key: string | undefined; value: Notification };
-  Reject: { key: string };
+  Release: { key: string; reason: "rejected" | "expired" };
   Snapshot: { value: Notification };
   Remove: {};
 }>;
@@ -80,6 +80,7 @@ class Field {
         this.state = FieldState.Pending({
           key,
           expected: structuredClone(expected),
+          deferred: state._tag === "Pending" && state.deferred,
         });
         return undefined;
       },
@@ -95,7 +96,10 @@ class Field {
               ? undefined
               : value,
           Pending: (pending) => {
-            if (key !== undefined && key !== pending.key) return undefined;
+            if (key !== undefined && key !== pending.key) {
+              this.state = FieldState.Pending({ ...pending, deferred: true });
+              return undefined;
+            }
             this.state = FieldState.Following();
             return key === undefined || !Equal.equals(pending.expected, value)
               ? value
@@ -103,10 +107,10 @@ class Field {
           },
         });
       },
-      Reject: ({ key }) => {
+      Release: ({ key, reason }) => {
         if (state._tag !== "Pending" || state.key !== key) return undefined;
         this.state = FieldState.Following();
-        return this.confirmed;
+        return reason === "rejected" || state.deferred ? this.confirmed : undefined;
       },
       Snapshot: ({ value }) => {
         this.confirmed = value;
@@ -167,10 +171,14 @@ export class WidgetUpdates {
           message,
         });
     }
+    const release = (reason: "rejected" | "expired") =>
+      touched.flatMap(
+        (field) => field.transition(FieldEvent.Release({ key, reason })) ?? [],
+      );
     return {
       key,
-      reject: () =>
-        touched.flatMap((field) => field.transition(FieldEvent.Reject({ key })) ?? []),
+      reject: () => release("rejected"),
+      expire: touched.length ? () => release("expired") : undefined,
     };
   }
 

@@ -341,3 +341,50 @@ Vitest.test("a second notebook cannot take over the active renderer", async () =
   Vitest.expect(first.readers()).toBe(1);
   Vitest.expect(other.readers()).toBe(0);
 });
+
+Vitest.test(
+  "a write without an echo renders the latest peer value 30 seconds after acceptance",
+  async () => {
+    const f = fixture();
+    await mount(
+      <Provider notebook={f}>
+        <Consumer />
+      </Provider>,
+    );
+    await vi.waitFor(() => Vitest.expect(f.readers()).toBe(1));
+    await React.act(async () => f.ready("rt"));
+    const { options, received } = f.sessions[0];
+    const peer = (value: number): Notification => ({
+      op: "send-ui-element-message",
+      ui_element: "slider",
+      message: { type: "marimo-ui-value-update", value },
+    });
+    const accepted = Promise.withResolvers<void>();
+    vi.mocked(f.runtime.experimentalComm.send).mockReturnValue(
+      Effect.promise(() => accepted.promise),
+    );
+    vi.useFakeTimers();
+    try {
+      const send = options.sendComponentValues({ objectIds: ["slider"], values: [8] });
+      await React.act(async () => {
+        for (const value of [5, 6])
+          f.emit({
+            kind: "notification",
+            runtimeId: "rt",
+            requestId: "peer",
+            notification: peer(value),
+          });
+      });
+      await vi.advanceTimersByTimeAsync(30_000);
+      Vitest.expect(received.slice(1)).toEqual([]);
+      accepted.resolve();
+      await send;
+      await vi.advanceTimersByTimeAsync(29_999);
+      Vitest.expect(received.slice(1)).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      Vitest.expect(received.slice(1)).toEqual([peer(6)]);
+    } finally {
+      vi.useRealTimers();
+    }
+  },
+);

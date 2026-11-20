@@ -212,7 +212,6 @@ Vitest.test(
           id: Schema.decodeUnknownSync(Protocol.ExecutionId)("queued"),
           state: { status: "queued" },
         },
-        failed,
       },
     });
     Vitest.expect(label.mock.calls.map(([cell]) => cell.id)).toEqual(["source"]);

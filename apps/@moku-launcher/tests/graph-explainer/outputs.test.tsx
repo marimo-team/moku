@@ -55,12 +55,12 @@ function fixture() {
       outcome: { kind: "succeeded" },
     },
   });
-  const execution = (id: string, runId: string) =>
+  const execution = (id: string, runId: string, cellId: string | null) =>
     Schema.decodeUnknownSync(Protocol.Execution)({
       id,
       run_id: runId,
       runtime_id: "rt",
-      cell_id: "c",
+      cell_id: cellId,
       code_fingerprint: "v1",
       caused_by_id: null,
       created_at: null,
@@ -88,6 +88,23 @@ function fixture() {
       seq,
       content: { kind: "media", media: { mimetype: "text/plain", data: id } },
     });
+  const cells = ["c", "other"].map((id) =>
+    Schema.decodeUnknownSync(Protocol.Cell)({
+      id,
+      notebook_id: "n",
+      code: "x = 1",
+      name: "_",
+      config: {
+        column: null,
+        disabled: false,
+        hide_code: false,
+        expand_output: false,
+      },
+      etag: "v1",
+      code_fingerprint: "v1",
+      version: 1,
+    }),
+  );
   const state = {
     ready: true,
     phase: "live",
@@ -98,34 +115,20 @@ function fixture() {
     variables: {},
     inputs: {},
     runs: { current: run } as Record<string, typeof Protocol.Run.Type>,
-    cells: {
-      c: Schema.decodeUnknownSync(Protocol.Cell)({
-        id: "c",
-        notebook_id: "n",
-        code: "x = 1",
-        name: "_",
-        config: {
-          column: null,
-          disabled: false,
-          hide_code: false,
-          expand_output: false,
-        },
-        etag: "v1",
-        code_fingerprint: "v1",
-        version: 1,
-      }),
-    },
     executions: {
-      old: execution("old", "previous"),
-      selected: execution("selected", run.id),
+      old: execution("old", "previous", null),
+      selected: execution("selected", run.id, "c"),
+      other: execution("other", run.id, "other"),
     },
     consoles: {
+      second: chunk("second", "other", 1),
+      start: chunk("start", "other", 0),
       tail: chunk("tail", "selected", 3, "stderr"),
       stale: chunk("stale", "old", 0),
-      first: chunk("first", "selected", 1),
+      first: chunk("first", "selected", 0),
       later: display("later", "selected", 4),
       obsolete: display("obsolete", "old", 0),
-      earlier: display("earlier", "selected", 2),
+      earlier: display("earlier", "selected", 1),
     },
     outputs: {
       selected: Schema.decodeUnknownSync(Protocol.Output)({
@@ -141,7 +144,7 @@ function fixture() {
       document: {
         ...Schema.decodeUnknownSync(Protocol.Document)({
           notebook_id: "n",
-          order: ["c"],
+          order: cells.map((cell) => cell.id),
           app_config: {},
           etag: "v1",
           saved_etag: "v1",
@@ -149,7 +152,7 @@ function fixture() {
           app_config_etag: "v1",
           version: 1,
         }),
-        cells: Object.values(state.cells),
+        cells,
       },
     } satisfies NotebookState,
     run,
@@ -178,12 +181,12 @@ Vitest.test(
     await view.click("Run log");
     const logs = view.element.querySelectorAll(".run-log");
     Vitest.expect(logs).toHaveLength(1);
-    Vitest.expect(logs[0].textContent).toBe("firstearliertaillater");
+    Vitest.expect(logs[0].textContent).toBe("firstearliertaillaterstartsecond");
     Vitest.expect(
       [...view.element.querySelectorAll('[aria-label="Console output"]')]
         .map((entry) => entry.textContent)
         .join(""),
-    ).toBe("firsttail");
+    ).toBe("firsttailstartsecond");
   },
 );
 
@@ -283,14 +286,6 @@ Vitest.test(
       state: { status: "ready" },
     });
     let state = { ...initial, runtime };
-    state.executions.old = {
-      ...state.executions.old,
-      created_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T11:00:00Z"),
-    };
-    state.executions.selected = {
-      ...state.executions.selected,
-      created_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T12:00:00Z"),
-    };
     state.runs.downstream = {
       ...run,
       id: Schema.decodeUnknownSync(Protocol.RunId)("downstream"),

@@ -1,4 +1,3 @@
-import * as Notebook from "@moku/core/Notebook";
 import * as React from "react";
 import type * as Protocol from "@moku/core/Protocol";
 import * as Outputs from "@moku/core/Outputs";
@@ -19,22 +18,19 @@ export function CellDetails({
   const [tab, setTab] = React.useState("Source");
   const cell = state.document?.cells.find((cell) => cell.id === cellId);
   if (!cell) return null;
-  const execution = Object.values(state.executions)
-    .filter(
-      (e) =>
-        e.cell_id === cellId &&
-        (run ? e.run_id === run.id : e.runtime_id === state.runtime?.id),
-    )
-    .sort((a, b) => Notebook.executionTime(b) - Notebook.executionTime(a))[0];
+  const execution = Object.values(state.executions).find(
+    (e) =>
+      e.cell_id === cellId &&
+      (run ? e.run_id === run.id : e.runtime_id === state.runtime?.id),
+  );
   const outputs: Outputs.Snapshot = execution
     ? Outputs.forExecution(state, execution.id)
     : { runtimeId: null, items: [], output: null, outcome: null };
   const logs = outputs.items.filter((item) => item.content.kind === "text");
-  const displays = outputs.items.filter((item) => item.content.kind === "media");
-  const hasOutput =
-    displays.length > 0 ||
-    outputs.output?.media != null ||
-    (outputs.outcome !== null && outputs.outcome.kind !== "succeeded");
+  const rendered = {
+    ...outputs,
+    items: outputs.items.filter((item) => item.content.kind === "media"),
+  };
   const variables = Object.values(state.variables).filter(
     (v) => v.execution_id === execution?.id,
   );
@@ -113,13 +109,8 @@ export function CellDetails({
             <p className="empty-detail">No console output for this execution.</p>
           ))}
         {tab === "Output" &&
-          (hasOutput ? (
-            <CellOutputs
-              output={outputs.output}
-              items={displays}
-              outcome={outputs.outcome}
-              runtimeId={outputs.runtimeId}
-            />
+          (Outputs.hasContent(rendered) ? (
+            <CellOutputs {...rendered} />
           ) : (
             <p className="empty-detail">No rendered output for this execution.</p>
           ))}

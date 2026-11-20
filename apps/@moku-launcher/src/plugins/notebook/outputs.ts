@@ -2,7 +2,6 @@ import * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
 import * as Outputs from "@moku/core/Outputs";
 
-export type CellOutputs = Outputs.Snapshot;
 export interface Selection {
   readonly runtimeId: string | null;
   readonly current: ReadonlyMap<string, typeof Protocol.Execution.Type>;
@@ -53,7 +52,7 @@ export function forCell(
   state: Notebook.State,
   selection: Selection,
   cellId: string,
-): CellOutputs {
+): Outputs.Snapshot {
   const current = selection.current.get(cellId);
   const result = selection.results.get(cellId);
   const outputs = current
@@ -68,12 +67,4 @@ export function forCell(
         ? null
         : result.state.outcome,
   };
-}
-
-export function hasContent({ outcome, items, output }: CellOutputs): boolean {
-  return (
-    items.length > 0 ||
-    output?.media != null ||
-    (outcome !== null && outcome.kind !== "succeeded")
-  );
 }

@@ -1,4 +1,3 @@
-import * as Notebook from "@moku/core/Notebook";
 import { empty } from "../empty.ts";
 import { useAtom, useAtomValue } from "@effect/atom-react";
 import { AsyncResult, Atom } from "effect/reactivity";
@@ -67,14 +66,10 @@ function CellPicker({
   const cellId = order.includes(selected) ? selected : order[0];
   const cell = cellId ? draft.document?.cells.get(cellId) : undefined;
 
-  // Show the selected cell’s active execution, or its latest result in this runtime.
-  const executions = Object.values(state.executions).filter(
+  const execution = Object.values(state.executions).find(
     (execution) =>
       execution.cell_id === cellId && execution.runtime_id === state.runtime?.id,
   );
-  const execution =
-    executions.find((entry) => entry.state.status !== "completed") ??
-    executions.sort((a, b) => Notebook.executionTime(b) - Notebook.executionTime(a))[0];
   const busy =
     pending === "run" ||
     (execution !== undefined && execution.state.status !== "completed");

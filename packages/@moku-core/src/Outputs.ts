@@ -20,6 +20,19 @@ export interface Snapshot extends Records {
   readonly outcome: typeof Protocol.ExecutionOutcome.Type | null;
 }
 
+/** Whether an execution has console entries, output media, or an outcome to show. */
+export function hasContent({
+  outcome,
+  items,
+  output,
+}: Pick<Snapshot, "items" | "output" | "outcome">): boolean {
+  return (
+    items.length > 0 ||
+    output?.media != null ||
+    (outcome !== null && outcome.kind !== "succeeded")
+  );
+}
+
 type State = Pick<Notebook.State, "executions" | "consoles" | "outputs">;
 
 /** Group records by execution when selecting multiple results from one snapshot. */

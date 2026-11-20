@@ -4,6 +4,7 @@
  * @module
  */
 import type * as React from "react";
+import * as Outputs from "@moku/core/Outputs";
 import type { CellOutputsProps, Outcome } from "./types.ts";
 import { DisplayView } from "./DisplayView.tsx";
 import { ConsoleOutput } from "./ConsoleOutput.tsx";
@@ -67,8 +68,7 @@ function OutcomeView({
  * Renders the console in sequence order, followed by the output and outcome.
  *
  * Adjacent console chunks are grouped. A display matching the outcome's
- * traceback is omitted to avoid showing the same traceback twice. Renders
- * nothing when neither the items nor the outcome have visible content.
+ * traceback is omitted to avoid showing the same traceback twice.
  *
  * @example Render a selected execution
  * ```tsx
@@ -87,8 +87,7 @@ function OutcomeView({
  */
 export function CellOutputs(props: CellOutputsProps): React.ReactElement | null {
   const { outcome, items, output, className, runtimeId } = props;
-  if (!items.length && !output?.media && (!outcome || outcome.kind === "succeeded"))
-    return null;
+  if (!Outputs.hasContent(props)) return null;
   const traceback = outcome?.kind === "failed" ? outcome.error.traceback : null;
   const chunks = traceback
     ? items.filter(

@@ -18,10 +18,24 @@ export function RunLog({
   const runningCell = state.document?.cells.find(
     (cell) => cell.id === running?.cell_id,
   );
-  const executionIds = new Set(executions.map((e) => e.id));
-  const logs = Object.values(state.consoles).filter((log) =>
-    executionIds.has(log.execution_id),
-  );
+  const logs = [];
+  if (logOpen) {
+    const byExecution = Map.groupBy(
+      Object.values(state.consoles),
+      (item) => item.execution_id,
+    );
+    for (const execution of executions) {
+      const chunks = byExecution.get(execution.id);
+      if (chunks)
+        logs.push(
+          <ConsoleOutput
+            key={execution.id}
+            chunks={chunks}
+            runtimeId={execution.runtime_id}
+          />,
+        );
+    }
+  }
   return (
     <>
       <button
@@ -35,11 +49,7 @@ export function RunLog({
       </button>
       {logOpen &&
         (logs.length ? (
-          <ConsoleOutput
-            className="run-log"
-            chunks={logs}
-            runtimeId={run?.runtime_id}
-          />
+          <div className="run-log">{logs}</div>
         ) : (
           <p className="run-log">No console output for this run.</p>
         ))}

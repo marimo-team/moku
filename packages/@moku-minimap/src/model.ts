@@ -114,14 +114,20 @@ export function make(state: Notebook.Interface["state"]) {
   });
   const executions = Atom.map(value, (state) => state?.executions ?? {});
   const runtime = Atom.map(value, (state) => state?.runtime?.id);
-  const latest = Atom.readable((get) =>
-    latestExecutions(get(executions), get(runtime)),
-  );
+  const byCell = Atom.readable((get) => {
+    const current = new Map<string, typeof Protocol.Execution.Type>();
+    const runtimeId = get(runtime);
+    for (const execution of Object.values(get(executions))) {
+      if (execution.cell_id !== null && execution.runtime_id === runtimeId)
+        current.set(execution.cell_id, execution);
+    }
+    return current;
+  });
   const source = Atom.family((id: string) =>
     Atom.map(cells, (cells) => cells?.get(id)),
   );
   const execution = Atom.family((id: string) =>
-    Atom.map(latest, (latest) => latest.get(id)),
+    Atom.map(byCell, (entries) => entries.get(id)),
   );
 
   const row = Atom.family((id: string) =>
@@ -235,28 +241,4 @@ function sameRow(a: Row | null, b: Row | null): boolean {
     a.cell.highlighted.size === b.cell.highlighted.size &&
     [...a.cell.highlighted].every((name) => b.cell.highlighted.has(name))
   );
-}
-
-/** Active work takes precedence over completed results in the current runtime. */
-function latestExecutions(
-  executions: Readonly<Record<string, typeof Protocol.Execution.Type>>,
-  runtimeId: string | undefined,
-): ReadonlyMap<string, typeof Protocol.Execution.Type> {
-  const current = new Map<string, typeof Protocol.Execution.Type>();
-  for (const execution of Object.values(executions)) {
-    const id = execution.cell_id;
-    if (id === null || execution.runtime_id !== runtimeId) continue;
-    const previous = current.get(id);
-    if (
-      !previous ||
-      (previous.state.status === "completed" &&
-        execution.state.status !== "completed") ||
-      ((previous.state.status === "completed") ===
-        (execution.state.status === "completed") &&
-        Notebook.executionTime(execution) >= Notebook.executionTime(previous))
-    ) {
-      current.set(id, execution);
-    }
-  }
-  return current;
 }

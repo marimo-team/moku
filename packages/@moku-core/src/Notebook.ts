@@ -218,20 +218,6 @@ export function createCellId(
   });
 }
 
-/**
- * Returns the execution's scheduling time in milliseconds since the Unix epoch.
- *
- * Restored results use their recorded start or completion time, or zero when both
- * are unknown.
- */
-export function executionTime(execution: typeof Protocol.Execution.Type): number {
-  const state = execution.state;
-  const timestamp =
-    execution.created_at ??
-    (state.status === "completed" ? (state.started_at ?? state.completed_at) : null);
-  return timestamp === null ? 0 : Date.parse(timestamp);
-}
-
 /** The progress or failure message supplied by the runtime. */
 export function runtimeMessage(
   runtime: typeof Protocol.Runtime.Type | null | undefined,

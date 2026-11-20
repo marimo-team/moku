@@ -23,20 +23,6 @@ type Cell = typeof Protocol.Cell.Type;
 type Execution = typeof Protocol.Execution.Type;
 type Variable = typeof Protocol.Variable.Type;
 
-interface CellFreshness {
-  /** This cell's source differs from its pending execution, or its last result. */
-  readonly sourceChanged: boolean;
-  /**
-   * A value the result read changed since, by a rerun or an update, here
-   * or upstream. An ancestor that was only edited does not count: its
-   * values are still the ones this result read.
-   */
-  readonly inputsChanged: boolean;
-}
-
-/** Current, and also a cell with no completed execution to compare. */
-const CURRENT: CellFreshness = { sourceChanged: false, inputsChanged: false };
-
 /** What freshness is derived from. */
 export interface CellFreshnessInputs {
   /** The document's cells, for the fingerprint of each cell's source. */
@@ -48,45 +34,24 @@ export interface CellFreshnessInputs {
   readonly results: ReadonlyMap<string, Execution | null>;
 }
 
-/** Freshness by cell id, as `freshnessOf` builds it. */
-export type CellFreshnessLookup = (id: string) => CellFreshness;
+export type Reason = "Not run" | "Source changed" | "Inputs changed";
 
-/** The variables bound in the namespace right now, by name. */
-function boundVariables(
-  variables: ReadonlyMap<string, Variable>,
-): ReadonlyMap<string, Variable[]> {
-  const byName = new Map<string, Variable[]>();
-  for (const variable of variables.values()) {
-    const bound = byName.get(variable.name);
-    if (bound === undefined) {
-      byName.set(variable.name, [variable]);
-    } else {
-      bound.push(variable);
-    }
-  }
-  return byName;
-}
-
-/**
- * Compares results against the document and the namespace.
- *
- * Build one per set of inputs and ask it about each cell, since the
- * bound variables are indexed once and a binding execution's freshness is
- * computed once however many results depend on it.
- */
-function freshnessOf(inputs: CellFreshnessInputs): CellFreshnessLookup {
-  const bound = boundVariables(inputs.variables);
-  const memo = new Map<string, CellFreshness>();
-  const pendingByCell = new Map<string, Execution>();
+/** One lookup per confirmed snapshot; pending local edits do not affect it. */
+export function forNotebook(inputs: CellFreshnessInputs) {
+  const bound = Map.groupBy(inputs.variables.values(), (variable) => variable.name);
+  const memo = new Map<string, boolean>();
+  const pending = new Set<string>();
   for (const execution of inputs.executions.values()) {
     if (execution.cell_id !== null && execution.state.status !== "completed") {
-      pendingByCell.set(execution.cell_id, execution);
+      pending.add(execution.cell_id);
     }
   }
-  const recordOf = (id: string) => inputs.executions.get(id);
 
   /** Whether a value the record read has changed, or one upstream has. */
-  function inputsChanged(record: Execution, visiting: ReadonlySet<string>): boolean {
+  function checkDependencies(
+    record: Execution,
+    visiting: ReadonlySet<string>,
+  ): boolean {
     const state = record.state;
     if (state.status !== "completed") return false;
     const path = new Set(visiting).add(record.id);
@@ -97,7 +62,7 @@ function freshnessOf(inputs: CellFreshnessInputs): CellFreshnessLookup {
         // the result even if its runtime has since stopped.
         if (
           variables.some((v) => {
-            const binder = recordOf(v.execution_id);
+            const binder = inputs.executions.get(v.execution_id);
             if (binder === undefined) {
               return false;
             }
@@ -125,70 +90,32 @@ function freshnessOf(inputs: CellFreshnessInputs): CellFreshnessLookup {
       if (variable === undefined || variable.revision.update !== revision.update) {
         return true;
       }
-      const binder = recordOf(variable.execution_id);
+      const binder = inputs.executions.get(variable.execution_id);
       if (binder === undefined) {
         return true;
       }
-      if (!path.has(binder.id) && ofRecord(binder, path).inputsChanged) {
+      if (!path.has(binder.id) && inputsChanged(binder, path)) {
         return true;
       }
     }
     return false;
   }
 
-  /** Compare against pending work before the result it will replace. */
-  function sourceChanged(cell: Cell, result: Execution): boolean {
-    const pending = pendingByCell.get(cell.id);
-    const source =
-      pending !== undefined && pending.state.status !== "completed" ? pending : result;
-    return cell.code_fingerprint !== source.code_fingerprint;
-  }
-
-  function ofRecord(record: Execution, visiting: ReadonlySet<string>): CellFreshness {
+  function inputsChanged(record: Execution, visiting: ReadonlySet<string>): boolean {
     const known = memo.get(record.id);
-    if (known !== undefined) {
-      return known;
-    }
-    const cell = record.cell_id === null ? undefined : inputs.cells.get(record.cell_id);
-    const freshness: CellFreshness = {
-      sourceChanged: cell === undefined || sourceChanged(cell, record),
-      inputsChanged: inputsChanged(record, visiting),
-    };
-    memo.set(record.id, freshness);
-    return freshness;
+    if (known !== undefined) return known;
+    const changed = checkDependencies(record, visiting);
+    memo.set(record.id, changed);
+    return changed;
   }
 
-  return (id) => {
-    const result = inputs.results.get(id);
-    return result === null || result === undefined
-      ? CURRENT
-      : ofRecord(result, new Set());
-  };
-}
-
-export type Reason = "Not run" | "Source changed" | "Inputs changed";
-
-/** One lookup per confirmed snapshot; pending local edits do not affect it. */
-export function forNotebook(inputs: CellFreshnessInputs) {
-  const freshness = freshnessOf(inputs);
-  const pending = new Map<string, Execution>();
-  for (const execution of inputs.executions.values()) {
-    if (execution.cell_id !== null && execution.state.status !== "completed") {
-      pending.set(execution.cell_id, execution);
-    }
-  }
   return (id: string): Reason | null => {
-    const confirmed = inputs.cells.get(id);
-    if (!confirmed) return null;
+    const cell = inputs.cells.get(id);
+    if (!cell || pending.has(id)) return null;
     const result = inputs.results.get(id);
-    const active = pending.get(id);
-    // The old result is still displayed while its replacement runs. Wait for
-    // that work to resolve instead of marking the result it is replacing.
-    if (active) return null;
     if (!result) return "Not run";
-    const currentness = freshness(id);
-    if (currentness.sourceChanged) return "Source changed";
-    if (currentness.inputsChanged) return "Inputs changed";
+    if (cell.code_fingerprint !== result.code_fingerprint) return "Source changed";
+    if (inputsChanged(result, new Set())) return "Inputs changed";
     return null;
   };
 }

@@ -25,7 +25,7 @@ function progressLabel(status: CellStatus) {
       return "Failed";
     case "waiting":
       return "Input";
-    case "interrupted":
+    case "cancelled":
       return "Stopped";
     default:
       return "—";
@@ -59,7 +59,8 @@ export function createGraphView(
       label: cellLabel(cell, index),
       status,
       progress: progressLabel(status),
-      bindings: execution?.status === "completed" ? [...(analysis?.defs ?? [])] : [],
+      bindings:
+        execution?.state.status === "completed" ? [...(analysis?.defs ?? [])] : [],
       warning: edited ? "Code changed since execution" : analysis?.errors[0]?.message,
       edited,
       disabled: cell.config.disabled,
@@ -67,25 +68,29 @@ export function createGraphView(
   });
 
   const starts = executions.flatMap((execution) =>
-    execution.started_at ? [Date.parse(execution.started_at)] : [],
+    execution.state.status !== "queued" && execution.state.started_at
+      ? [Date.parse(execution.state.started_at)]
+      : [],
   );
   const start = starts.length
     ? Math.min(...starts)
-    : run?.started_at
-      ? Date.parse(run.started_at)
+    : run && run.state.status !== "queued" && run.state.started_at
+      ? Date.parse(run.state.started_at)
       : Date.now();
   const completed = executions.flatMap((execution) =>
-    execution.completed_at ? [Date.parse(execution.completed_at)] : [],
+    execution.state.status === "completed" && execution.state.completed_at
+      ? [Date.parse(execution.state.completed_at)]
+      : [],
   );
   const end = Math.max(
     start,
     ...completed,
-    run?.completed_at ? Date.parse(run.completed_at) : start,
+    run?.state.status === "completed" ? Date.parse(run.state.completed_at) : start,
   );
   const spans = Object.fromEntries(
     layout.map((row) => {
       const execution = byCell.get(row.id);
-      const timing = executionSpan(execution, end);
+      const timing = executionSpan(execution?.state, end);
       return [
         row.id,
         timing
@@ -98,7 +103,7 @@ export function createGraphView(
       ];
     }),
   );
-  const live = !!run && run.status !== "completed";
+  const live = !!run && run.state.status !== "completed";
   const timeline: TimelineInput = {
     runId: run?.id ?? "idle",
     start,
@@ -108,7 +113,7 @@ export function createGraphView(
     spans,
   };
   const runningCount = executions.filter(
-    (execution) => execution.status === "running",
+    (execution) => execution.state.status === "running",
   ).length;
   return { rows, timeline, runningCount };
 }

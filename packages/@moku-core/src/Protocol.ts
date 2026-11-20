@@ -4,5 +4,5 @@ export * from "@marimo-team/host-protocol/Problems";
 export {
   Analysis,
   CellAnalysis,
-  NotebookEvent,
+  NotebookStreamEvent as NotebookEvent,
 } from "@marimo-team/host-protocol/experimental/Analysis";

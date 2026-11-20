@@ -46,28 +46,32 @@ function fixture() {
     id: "current",
     notebook_id: "n",
     runtime_id: "rt",
-    cells: ["c"],
-    status: "completed",
-    outcome: "succeeded",
-    started_at: null,
-    completed_at: "2026-11-05T12:00:00Z",
+    created_at: "2026-11-05T12:00:00Z",
+    origin: { kind: "cells", cell_ids: ["c"] },
+    state: {
+      status: "completed",
+      started_at: "2026-11-05T12:00:00Z",
+      completed_at: "2026-11-05T12:00:00Z",
+      outcome: { kind: "succeeded" },
+    },
   });
   const execution = (id: string, runId: string) =>
     Schema.decodeUnknownSync(Protocol.Execution)({
       id,
       run_id: runId,
       runtime_id: "rt",
-      caused_by: null,
       cell_id: "c",
-      code: null,
       code_fingerprint: "v1",
-      depends_on: {},
-      status: "completed",
-      started_at: null,
-      completed_at: run.completed_at,
-      outcome: {
-        kind: "value",
-        display: { mimetype: "text/plain", data: `${id} result` },
+      caused_by_id: null,
+      created_at: null,
+      state: {
+        status: "completed",
+        started_at: null,
+        completed_at: run.created_at,
+        depends_on: {},
+        outcome: {
+          kind: "succeeded",
+        },
       },
     });
   const chunk = (id: string, executionId: string, seq: number, name = "stdout") =>
@@ -75,15 +79,14 @@ function fixture() {
       id,
       execution_id: executionId,
       seq,
-      name,
-      text: id,
+      content: { kind: "text", stream: name, text: id },
     });
   const display = (id: string, executionId: string, seq: number) =>
-    Schema.decodeUnknownSync(Protocol.Display)({
+    Schema.decodeUnknownSync(Protocol.Console)({
       id,
       execution_id: executionId,
       seq,
-      content: { mimetype: "text/plain", data: id },
+      content: { kind: "media", media: { mimetype: "text/plain", data: id } },
     });
   const state = {
     ready: true,
@@ -120,11 +123,16 @@ function fixture() {
       tail: chunk("tail", "selected", 3, "stderr"),
       stale: chunk("stale", "old", 0),
       first: chunk("first", "selected", 1),
-    },
-    displays: {
       later: display("later", "selected", 4),
       obsolete: display("obsolete", "old", 0),
       earlier: display("earlier", "selected", 2),
+    },
+    outputs: {
+      selected: Schema.decodeUnknownSync(Protocol.Output)({
+        id: "out",
+        execution_id: "selected",
+        media: { mimetype: "text/plain", data: "selected result" },
+      }),
     },
   };
   return {
@@ -169,7 +177,9 @@ Vitest.test(
     await view.render(<RunLog state={state} run={run} />);
     await view.click("Run log");
     Vitest.expect(
-      view.element.querySelector('[aria-label="Console output"]')?.textContent,
+      [...view.element.querySelectorAll('[aria-label="Console output"]')]
+        .map((entry) => entry.textContent)
+        .join(""),
     ).toBe("firsttail");
   },
 );
@@ -186,27 +196,34 @@ Vitest.test(
         ...initial.state.executions,
         selected: {
           ...initial.state.executions.selected,
-          outcome: {
-            kind: "error",
-            error: Schema.decodeUnknownSync(Protocol.Error)({
-              kind: "exception",
-              name: "ValueError",
-              message: "bad value",
-              source: "marimo",
-              severity: "error",
-              range: null,
-              related: [],
-              traceback,
-            }),
+          state: {
+            status: "completed",
+            started_at: null,
+            completed_at: null,
+            depends_on: {},
+            outcome: {
+              kind: "failed",
+              error: Schema.decodeUnknownSync(Protocol.Error)({
+                kind: "exception",
+                name: "ValueError",
+                message: "bad value",
+                source: "marimo",
+                severity: "error",
+                range: null,
+                related: [],
+                traceback,
+              }),
+            },
           },
         },
       },
-      displays: {
+      outputs: {},
+      consoles: {
         duplicate: {
           id: Schema.decodeUnknownSync(Protocol.ItemId)("duplicate"),
           execution_id: Schema.decodeUnknownSync(Protocol.ExecutionId)("selected"),
           seq: 0,
-          content: traceback,
+          content: { kind: "media", media: traceback },
         },
       },
     };
@@ -223,12 +240,21 @@ Vitest.test(
       ...state,
       executions: {
         ...state.executions,
-        selected: { ...state.executions.selected, outcome: { kind: "interrupted" } },
+        selected: {
+          ...state.executions.selected,
+          state: {
+            status: "completed",
+            started_at: null,
+            completed_at: null,
+            depends_on: {},
+            outcome: { kind: "cancelled" },
+          },
+        },
       },
-      displays: {},
+      consoles: {},
     };
     await view.render(render());
-    Vitest.expect(view.panel().textContent).toBe("Interrupted");
+    Vitest.expect(view.panel().textContent).toBe("Cancelled");
 
     state = { ...state, executions: {} };
     await view.render(render());
@@ -249,27 +275,27 @@ Vitest.test(
     const runtime = Schema.decodeUnknownSync(Protocol.Runtime)({
       id: "rt",
       notebook_id: "n",
-      status: "running",
-      message: null,
       marimo_version: null,
-      started_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T11:00:00Z"),
+      created_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T11:00:00Z"),
+      state: { status: "ready" },
     });
     let state = { ...initial, runtime };
     state.executions.old = {
       ...state.executions.old,
-      started_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T11:00:00Z"),
+      created_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T11:00:00Z"),
     };
     state.executions.selected = {
       ...state.executions.selected,
-      started_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T12:00:00Z"),
+      created_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T12:00:00Z"),
     };
     state.runs.downstream = {
       ...run,
       id: Schema.decodeUnknownSync(Protocol.RunId)("downstream"),
-      cells: [Schema.decodeUnknownSync(Protocol.CellId)("other")],
-      completed_at: Schema.decodeUnknownSync(Protocol.Timestamp)(
-        "2026-11-05T13:00:00Z",
-      ),
+      origin: {
+        kind: "cells",
+        cell_ids: [Schema.decodeUnknownSync(Protocol.CellId)("other")],
+      },
+      created_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T13:00:00Z"),
     };
     const render = () => <CellDetails state={state} cellId="c" onClose={() => {}} />;
     const view = await mount(render());

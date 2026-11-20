@@ -92,7 +92,7 @@ Vitest.test(
     const hosts: { id: string }[] = JSON.parse(raw);
     const base = `${origin}/api/hosts/${hosts[0].id}`;
     const stream = await fetch(
-      `${base}/events?types=notebook&target=http://example.com`,
+      `${base}/events?kinds=notebook&target=http://example.com`,
       {
         headers: { Cookie: cookie, "Last-Event-ID": "resume-here" },
       },
@@ -101,7 +101,7 @@ Vitest.test(
     NodeAssert.match(await stream.text(), /cursor-1/);
     NodeAssert.equal(upstreamHeaders.authorization, `Bearer ${record.token}`);
     NodeAssert.equal(upstreamHeaders["last-event-id"], "resume-here");
-    NodeAssert.equal(upstreamUrl, "/api/marimo/v1/events?types=notebook");
+    NodeAssert.equal(upstreamUrl, "/api/marimo/v1/events?kinds=notebook");
     NodeAssert.equal(upstreamHeaders.cookie, undefined);
     NodeAssert.equal(upstreamHeaders["marimo-attachment-name"], "fixture");
     NodeAssert.equal(
@@ -232,15 +232,14 @@ Vitest.test(
       name: "demo.py",
       path: "demo.py",
       operations: ["runtime.experimental.comm"],
-      updated_at: null,
+      modified_at: null,
     };
     const runtime = Schema.decodeUnknownSync(Protocol.Runtime)({
       id: "rt",
       notebook_id: "n",
-      status: "running",
-      message: null,
-      started_at: "2026-11-12T12:00:00Z",
       marimo_version: null,
+      created_at: "2026-11-12T12:00:00Z",
+      state: { status: "ready" },
     });
     const model = {
       model: "image",
@@ -484,7 +483,8 @@ Vitest.test(
         path: "/edits",
         body: {
           changes: [
-            { kind: "put_cell", base_etag: null, cell: { id: "a", code }, before: "b" },
+            { kind: "create_cell", cell: { id: "a", code } },
+            { kind: "set_order", base_etag: "order-1", order: ["a", "b"] },
           ],
         },
       },
@@ -518,8 +518,7 @@ Vitest.test(
       );
       NodeAssert.equal(request.headers.cookie, undefined);
     }
-    NodeAssert.equal(JSON.parse(received[0].body).changes[0].cell.code, code);
-    NodeAssert.equal(JSON.parse(received[0].body).changes[0].before, "b");
+    NodeAssert.deepEqual(JSON.parse(received[0].body), routes[0].body);
     NodeAssert.equal(received[4].body, "");
     NodeAssert.equal(received[5].body, "");
     const conflict = await fetch(`${base}/notebooks/n/save`, {

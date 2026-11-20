@@ -15,7 +15,7 @@ const notebook = {
   name: "demo.py",
   path: "demo.py",
   operations: ["notebook.edit", "runtime.run"],
-  updated_at: null,
+  modified_at: null,
 };
 const cell = Schema.decodeUnknownSync(Protocol.Cell)({
   id: "a",
@@ -40,20 +40,17 @@ const document = Schema.decodeUnknownSync(Protocol.Document)({
 const runtime = {
   id: "rt",
   notebook_id: "n",
-  status: "running",
-  message: null,
   marimo_version: null,
-  started_at: "2026-11-11T12:00:00Z",
+  created_at: "2026-11-11T12:00:00Z",
+  state: { status: "ready" },
 };
 const runRecord = {
   id: "run-1",
   notebook_id: "n",
   runtime_id: "rt",
-  cells: ["a"],
-  status: "running",
-  outcome: null,
-  started_at: null,
-  completed_at: null,
+  created_at: "2026-11-05T12:00:00Z",
+  origin: { kind: "cells", cell_ids: ["a"] },
+  state: { status: "running", started_at: "2026-11-05T12:00:00Z" },
 };
 
 interface TestStream {
@@ -351,8 +348,7 @@ Vitest.test(
           id: "log",
           execution_id: "exec",
           seq: 1,
-          name: "stdout",
-          text: "first",
+          content: { kind: "text", stream: "stdout", text: "first" },
         },
       },
       "6",
@@ -364,8 +360,7 @@ Vitest.test(
           id: "log",
           execution_id: "exec",
           seq: 1,
-          name: "stdout",
-          text: "replacement",
+          content: { kind: "text", stream: "stdout", text: "replacement" },
         },
       },
       "7",
@@ -395,7 +390,7 @@ Vitest.test(
     Vitest.expect(read(f.registry.get(handle.state)).runs["run-1"].id).toBe("run-1");
     Vitest.expect(
       Object.values(read(f.registry.get(handle.state)).consoles).map(
-        (item) => item.text,
+        (item) => item.content.kind === "text" && item.content.text,
       ),
     ).toEqual(["replacement"]);
     stream.send("execution.removed", { id: "exec" }, "9");
@@ -526,7 +521,7 @@ Vitest.test(
     Vitest.expect(await commands[0].json()).toEqual({
       changes: [
         {
-          kind: "put_cell",
+          kind: "replace_cell",
           base_etag: "cell-1",
           cell: { id: "a", code: "x = 2", name: "_", config: cell.config },
         },
@@ -563,7 +558,7 @@ Vitest.test(
   },
 );
 
-Vitest.test.each(["running", "failed", "removed"] as const)(
+Vitest.test.each(["ready", "ended", "removed"] as const)(
   "runtime startup retains %s observed before the command response",
   async (outcome) => {
     const response = Promise.withResolvers<Response>();
@@ -580,9 +575,13 @@ Vitest.test.each(["running", "failed", "removed"] as const)(
       (error: Error) => error.message,
     );
     await vi.waitFor(() => Vitest.expect(start).toHaveBeenCalledOnce());
-    stream.send("runtime", { runtime: { ...runtime, status: "starting" } }, "2");
+    stream.send(
+      "runtime",
+      { runtime: { ...runtime, state: { status: "starting", message: null } } },
+      "2",
+    );
     await vi.waitFor(() =>
-      Vitest.expect(read(f.registry.get(handle.state)).runtime?.status).toBe(
+      Vitest.expect(read(f.registry.get(handle.state)).runtime?.state.status).toBe(
         "starting",
       ),
     );
@@ -591,24 +590,42 @@ Vitest.test.each(["running", "failed", "removed"] as const)(
     } else {
       stream.send(
         "runtime",
-        { runtime: { ...runtime, status: outcome, message: "Startup failed" } },
+        {
+          runtime: {
+            ...runtime,
+            state:
+              outcome === "ready"
+                ? { status: "ready" }
+                : {
+                    status: "ended",
+                    ended_at: runtime.created_at,
+                    outcome: { kind: "failed", message: "Startup failed" },
+                  },
+          },
+        },
         "3",
       );
     }
     await vi.waitFor(() =>
       Vitest.expect(
-        read(f.registry.get(handle.state)).runtime?.status ?? "removed",
+        read(f.registry.get(handle.state)).runtime?.state.status ?? "removed",
       ).toBe(outcome),
     );
     // Even a successful HTTP response must not revive a removed runtime.
     response.resolve(
       Response.json(
-        { ...runtime, status: outcome === "removed" ? "running" : "starting" },
+        {
+          ...runtime,
+          state:
+            outcome === "removed"
+              ? { status: "ready" }
+              : { status: "starting", message: null },
+        },
         { status: 202 },
       ),
     );
     Vitest.expect(await result).toBe(
-      outcome === "failed"
+      outcome === "ended"
         ? "Startup failed"
         : outcome === "removed"
           ? "The runtime stopped during startup."
@@ -621,7 +638,10 @@ Vitest.test(
   "runtime startup waits for its identity after the command response",
   async () => {
     const start = vi.fn(async () =>
-      Response.json({ ...runtime, status: "starting" }, { status: 202 }),
+      Response.json(
+        { ...runtime, state: { status: "starting", message: null } },
+        { status: 202 },
+      ),
     );
     const f = await fixture(start);
     const handle = await f.attach();
@@ -658,9 +678,13 @@ Vitest.test(
     snapshot(stream);
     const result = f.run(handle.ensureRunning);
     await vi.waitFor(() => Vitest.expect(start).toHaveBeenCalledOnce());
-    stream.send("runtime", { runtime: { ...runtime, status: "starting" } }, "2");
+    stream.send(
+      "runtime",
+      { runtime: { ...runtime, state: { status: "starting", message: null } } },
+      "2",
+    );
     await vi.waitFor(() =>
-      Vitest.expect(read(f.registry.get(handle.state)).runtime?.status).toBe(
+      Vitest.expect(read(f.registry.get(handle.state)).runtime?.state.status).toBe(
         "starting",
       ),
     );
@@ -676,9 +700,13 @@ Vitest.test(
     const handle = await f.attach();
     const stream = await f.stream();
     snapshot(stream);
-    stream.send("runtime", { runtime: { ...runtime, status: "starting" } }, "2");
+    stream.send(
+      "runtime",
+      { runtime: { ...runtime, state: { status: "starting", message: null } } },
+      "2",
+    );
     await vi.waitFor(() =>
-      Vitest.expect(read(f.registry.get(handle.state)).runtime?.status).toBe(
+      Vitest.expect(read(f.registry.get(handle.state)).runtime?.state.status).toBe(
         "starting",
       ),
     );
@@ -738,7 +766,9 @@ Vitest.test(
     // The stream can confirm startup even when its HTTP response was lost.
     stream.send("runtime", { runtime }, "2");
     await vi.waitFor(() =>
-      Vitest.expect(read(f.registry.get(handle.state)).runtime?.status).toBe("running"),
+      Vitest.expect(read(f.registry.get(handle.state)).runtime?.state.status).toBe(
+        "ready",
+      ),
     );
     await f.run(handle.ensureRunning);
     stream.send("runtime.removed", { id: runtime.id }, "3");
@@ -758,7 +788,10 @@ Vitest.test.each(["interruption", "timeout"] as const)(
   "runtime startup releases observation on %s",
   async (end) => {
     const start = vi.fn(async () =>
-      Response.json({ ...runtime, status: "starting" }, { status: 202 }),
+      Response.json(
+        { ...runtime, state: { status: "starting", message: null } },
+        { status: 202 },
+      ),
     );
     const f = await fixture(start);
     const handle = await f.attach();
@@ -873,14 +906,14 @@ Vitest.test(
     Vitest.expect(await request.json()).toMatchObject({
       changes: [
         {
-          kind: "put_cell",
+          kind: "replace_cell",
           base_etag: cell.etag,
           cell: {
             code: "x = 2",
             config: { hide_code: true, disabled: true, expand_output: false },
           },
         },
-        { kind: "put_cell", base_etag: null, cell: { id: created, code: "y = 4" } },
+        { kind: "create_cell", cell: { id: created, code: "y = 4" } },
         {
           kind: "set_order",
           base_etag: document.order_etag,
@@ -1098,7 +1131,9 @@ Vitest.test(
     snapshot(first);
     first.send("runtime", { runtime }, "2");
     await vi.waitFor(() =>
-      Vitest.expect(read(f.registry.get(handle.state)).runtime?.status).toBe("running"),
+      Vitest.expect(read(f.registry.get(handle.state)).runtime?.state.status).toBe(
+        "ready",
+      ),
     );
     first.end();
     const second = await f.stream(1);
@@ -1245,7 +1280,9 @@ Vitest.test(
     snapshot(first);
     first.send("runtime", { runtime }, "2");
     await vi.waitFor(() =>
-      Vitest.expect(read(f.registry.get(handle.state)).runtime?.status).toBe("running"),
+      Vitest.expect(read(f.registry.get(handle.state)).runtime?.state.status).toBe(
+        "ready",
+      ),
     );
     first.end();
     const second = await f.stream(1);
@@ -1389,6 +1426,10 @@ for (const updateFirst of [false, true]) {
     async () => {
       const f = await fixture();
       const handle = await f.attach();
+      snapshot(await f.stream());
+      await vi.waitFor(() =>
+        Vitest.expect(isReady(f.registry.get(handle.state))).toBe(true),
+      );
       let replacement: typeof Protocol.CellId.Type | undefined;
       await f.run(
         handle.edit((tx) => {
@@ -1401,12 +1442,11 @@ for (const updateFirst of [false, true]) {
       Vitest.expect(await request.json()).toEqual({
         changes: [
           {
-            kind: "put_cell",
-            base_etag: null,
+            kind: "create_cell",
             cell: { id: replacement, code: "replacement = 1" },
-            after: cell.id,
           },
           { kind: "delete_cell", id: cell.id, base_etag: cell.etag },
+          { kind: "set_order", order: [replacement], base_etag: document.order_etag },
         ],
       });
     },

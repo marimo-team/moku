@@ -1,6 +1,6 @@
 # @moku/outputs
 
-React views for a marimo execution's displays, console output, and result.
+React views for a marimo execution's console, rendered output, and outcome.
 
 ```tsx
 import { useAtomValue } from "@effect/atom-react";

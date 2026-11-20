@@ -2,7 +2,7 @@
 import { Effect, Queue, Schema, Stream, type Duration } from "effect";
 import { AsyncResult, AtomRegistry } from "effect/reactivity";
 import * as Protocol from "../Protocol.ts";
-import type * as Notebook from "../Notebook.ts";
+import * as Notebook from "../Notebook.ts";
 import { makeCommands, ModelError, type Client } from "../internal/client.ts";
 import { observe } from "../internal/observe.ts";
 import { emptyNotebook, reduceNotebook } from "./state.ts";
@@ -190,9 +190,11 @@ export const make = Effect.fnUntraced(function* (
       if (AsyncResult.isFailure(initial) && !initial.waiting)
         return yield* Effect.failCause(initial.cause);
       const current = AsyncResult.getOrElse(initial, () => undefined)?.runtime;
-      if (current?.status === "running") return;
+      if (current?.state.status === "ready") return;
       const started =
-        current?.status === "starting" ? current : yield* (startup ??= runtime.start());
+        current?.state.status === "starting"
+          ? current
+          : yield* (startup ??= runtime.start());
       let latest = started;
       let seen = false;
       while (true) {
@@ -207,7 +209,10 @@ export const make = Effect.fnUntraced(function* (
           const observed = value.value.runtime;
           if (observed?.id === started.id) {
             seen = true;
-            if (observed.status !== "starting" || latest.status === "starting")
+            if (
+              observed.state.status !== "starting" ||
+              latest.state.status === "starting"
+            )
               latest = observed;
           } else if (seen)
             return yield* Effect.fail(
@@ -217,12 +222,14 @@ export const make = Effect.fnUntraced(function* (
               }),
             );
         }
-        if (latest.status === "running") return;
-        if (latest.status !== "starting")
+        if (latest.state.status === "ready") return;
+        if (latest.state.status !== "starting")
           return yield* Effect.fail(
             new ModelError({
               reason: "runtime-stopped",
-              message: latest.message ?? "The runtime stopped during startup.",
+              message:
+                Notebook.runtimeMessage(latest) ??
+                "The runtime stopped during startup.",
             }),
           );
         const next = yield* Queue.take(observations);
@@ -248,7 +255,7 @@ export const make = Effect.fnUntraced(function* (
       commands.mutation((idempotencyKey) => {
         let payload: typeof Protocol.EditRequest.Type | undefined;
         return Effect.try({
-          try: () => (payload ??= Edit.build(id, reserved, callback)),
+          try: () => (payload ??= Edit.build(id, reserved, callback, document)),
           catch: (cause) =>
             cause instanceof ModelError
               ? cause

@@ -64,7 +64,9 @@ const edited =
 ```
 
 Changes apply atomically and fail if an observed cell has changed. Updates
-preserve unspecified fields, including individual config settings.
+preserve unspecified fields, including individual config settings. Inserting a cell
+appends it. Supplying a placement also checks the observed document order so
+concurrent reordering cannot silently move the insertion.
 
 ## Save a confirmed revision
 

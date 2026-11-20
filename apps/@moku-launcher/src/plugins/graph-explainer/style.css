@@ -282,7 +282,7 @@
     background: #c38f88;
     border-color: #bc847c;
   }
-  .bar.interrupted {
+  .bar.cancelled {
     background: #c6baa0;
     border-color: #bbae91;
   }

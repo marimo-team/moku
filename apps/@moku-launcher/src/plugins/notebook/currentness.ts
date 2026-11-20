@@ -79,7 +79,7 @@ function freshnessOf(inputs: CellFreshnessInputs): CellFreshnessLookup {
   const memo = new Map<string, CellFreshness>();
   const pendingByCell = new Map<string, Execution>();
   for (const execution of inputs.executions.values()) {
-    if (execution.cell_id !== null && execution.status !== "completed") {
+    if (execution.cell_id !== null && execution.state.status !== "completed") {
       pendingByCell.set(execution.cell_id, execution);
     }
   }
@@ -87,8 +87,10 @@ function freshnessOf(inputs: CellFreshnessInputs): CellFreshnessLookup {
 
   /** Whether a value the record read has changed, or one upstream has. */
   function inputsChanged(record: Execution, visiting: ReadonlySet<string>): boolean {
+    const state = record.state;
+    if (state.status !== "completed") return false;
     const path = new Set(visiting).add(record.id);
-    for (const [name, revision] of Object.entries(record.depends_on)) {
+    for (const [name, revision] of Object.entries(state.depends_on)) {
       const variables = bound.get(name) ?? [];
       if (revision === null) {
         // Older runtimes bind nothing here, but a later binding invalidates
@@ -102,11 +104,14 @@ function freshnessOf(inputs: CellFreshnessInputs): CellFreshnessLookup {
             if (binder.runtime_id === record.runtime_id) {
               return true;
             }
-            const boundAt = binder.completed_at ?? binder.started_at;
+            const boundAt =
+              binder.state.status === "completed"
+                ? (binder.state.completed_at ?? binder.state.started_at)
+                : binder.created_at;
             return (
               boundAt !== null &&
-              record.completed_at !== null &&
-              Date.parse(boundAt) > Date.parse(record.completed_at)
+              state.completed_at !== null &&
+              Date.parse(boundAt) > Date.parse(state.completed_at)
             );
           })
         ) {
@@ -115,7 +120,7 @@ function freshnessOf(inputs: CellFreshnessInputs): CellFreshnessLookup {
         continue;
       }
       const variable = variables.find(
-        (candidate) => candidate.revision.execution === revision.execution,
+        (candidate) => candidate.revision.execution_id === revision.execution_id,
       );
       if (variable === undefined || variable.revision.update !== revision.update) {
         return true;
@@ -135,7 +140,7 @@ function freshnessOf(inputs: CellFreshnessInputs): CellFreshnessLookup {
   function sourceChanged(cell: Cell, result: Execution): boolean {
     const pending = pendingByCell.get(cell.id);
     const source =
-      pending !== undefined && pending.status !== "completed" ? pending : result;
+      pending !== undefined && pending.state.status !== "completed" ? pending : result;
     return cell.code_fingerprint !== source.code_fingerprint;
   }
 
@@ -168,7 +173,7 @@ export function forNotebook(inputs: CellFreshnessInputs) {
   const freshness = freshnessOf(inputs);
   const pending = new Map<string, Execution>();
   for (const execution of inputs.executions.values()) {
-    if (execution.cell_id !== null && execution.status !== "completed") {
+    if (execution.cell_id !== null && execution.state.status !== "completed") {
       pending.set(execution.cell_id, execution);
     }
   }

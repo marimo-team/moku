@@ -11,12 +11,13 @@ export function build(
   id: string,
   reserved: Set<string>,
   callback: Notebook.Edit,
+  document: Notebook.Document | null,
 ): typeof Protocol.EditRequest.Type {
   const changes = new Map<string, typeof Protocol.Change.Type>();
   let order: Extract<typeof Protocol.Change.Type, { kind: "set_order" }> | undefined;
   let active = true;
   const deleted = new Set<string>();
-  const cancelled = new Set<string>();
+  const placements = new Map<string, Notebook.Placement>();
   const check = () => {
     if (!active) invalid("The transaction has ended.");
   };
@@ -28,15 +29,12 @@ export function build(
     const previous = changes.get(key);
     if (previous?.kind === "delete_cell")
       invalid("The cell was deleted in this transaction.");
-    if (
-      typeof cell === "string" &&
-      !(previous?.kind === "put_cell" && previous.base_etag === null)
-    )
+    if (typeof cell === "string" && previous?.kind !== "create_cell")
       invalid("Only newly created cells can be edited by ID.");
     if (
       typeof cell !== "string" &&
-      previous?.kind === "put_cell" &&
-      previous.base_etag !== cell.etag
+      (previous?.kind === "create_cell" ||
+        (previous?.kind === "replace_cell" && previous.base_etag !== cell.etag))
     )
       invalid("Updates must use the same observed cell version.");
     return { key, previous };
@@ -45,7 +43,7 @@ export function build(
     update(cell, patch) {
       const { key, previous } = observed(cell);
       const base =
-        previous?.kind === "put_cell"
+        previous?.kind === "replace_cell" || previous?.kind === "create_cell"
           ? previous.cell
           : typeof cell !== "string"
             ? cell
@@ -66,17 +64,10 @@ export function build(
           ),
         },
       });
-      changes.set(key, {
-        ...(previous?.kind === "put_cell" ? previous : {}),
-        kind: "put_cell",
-        base_etag:
-          previous?.kind === "put_cell"
-            ? previous.base_etag
-            : typeof cell !== "string"
-              ? cell.etag
-              : null,
-        cell: input,
-      });
+      if (typeof cell === "string")
+        changes.set(key, { kind: "create_cell", cell: input });
+      else
+        changes.set(key, { kind: "replace_cell", base_etag: cell.etag, cell: input });
     },
     insert(input, placement = {}) {
       check();
@@ -87,26 +78,22 @@ export function build(
         return invalid("The cell already exists in this transaction.");
       reserved.add(cellId);
       deleted.delete(cellId);
-      cancelled.delete(cellId);
+
       const cell = Schema.decodeUnknownSync(Protocol.CellInput)({
         ...input,
         id: cellId,
       });
-      changes.set(cellId, {
-        kind: "put_cell",
-        base_etag: null,
-        cell,
-        ...(placement.before === undefined ? {} : { before: placement.before }),
-        ...(placement.after === undefined ? {} : { after: placement.after }),
-      });
+      changes.set(cellId, { kind: "create_cell", cell });
+      if (placement.before !== undefined || placement.after !== undefined)
+        placements.set(cellId, placement);
       return cellId;
     },
     remove(cell) {
       const { key, previous } = observed(cell);
       deleted.add(key);
       if (order) order = { ...order, order: order.order.filter((id) => id !== key) };
-      if (previous?.kind === "put_cell" && previous.base_etag === null) {
-        cancelled.add(key);
+      if (previous?.kind === "create_cell") {
+        placements.delete(key);
         changes.delete(key);
         return;
       }
@@ -133,23 +120,32 @@ export function build(
     }
     if (order?.order.some((id) => deleted.has(id)))
       invalid("The order contains a deleted cell.");
-    const removed = new Set<string>();
-    const compiled: (typeof Protocol.Change.Type)[] = [];
-    for (const change of changes.values()) {
-      if (change.kind === "delete_cell") removed.add(change.id);
-      if (change.kind === "put_cell") {
-        const { before, after, ...put } = change;
-        if (order) {
-          compiled.push(put);
-          continue;
+    if (!order && placements.size > 0) {
+      if (!document)
+        return invalid("Placing a cell requires an observed document order.");
+      const ids = [...document.order];
+      for (const change of changes.values()) {
+        if (change.kind === "create_cell") {
+          const placement = placements.get(change.cell.id);
+          const anchor = placement?.before ?? placement?.after;
+          if (anchor === undefined) ids.push(change.cell.id);
+          else {
+            const index = ids.indexOf(anchor);
+            if (index < 0) return invalid("The placement anchor is unavailable.");
+            ids.splice(
+              index + (placement?.after === undefined ? 0 : 1),
+              0,
+              change.cell.id,
+            );
+          }
+        } else if (change.kind === "delete_cell") {
+          const index = ids.indexOf(change.id);
+          if (index >= 0) ids.splice(index, 1);
         }
-        const anchor = before ?? after;
-        if (anchor !== undefined && (cancelled.has(anchor) || removed.has(anchor)))
-          invalid("A placement anchor was deleted in this transaction.");
       }
-      compiled.push(change);
+      order = { kind: "set_order", base_etag: document.order_etag, order: ids };
     }
-    return { changes: [...compiled, ...(order ? [order] : [])] };
+    return { changes: [...changes.values(), ...(order ? [order] : [])] };
   } finally {
     active = false;
   }

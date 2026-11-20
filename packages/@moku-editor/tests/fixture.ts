@@ -140,7 +140,7 @@ export async function setup(
           project_id: "p",
           path: "n.py",
           name: "n.py",
-          updated_at: null,
+          modified_at: null,
           operations: sourceValue.canEdit ? ["notebook.edit"] : [],
         }),
         document: sourceValue.document,

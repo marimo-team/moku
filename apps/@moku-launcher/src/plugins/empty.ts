@@ -8,7 +8,7 @@ export const empty: Notebook.State = {
   runs: {},
   executions: {},
   consoles: {},
-  displays: {},
+  outputs: {},
   variables: {},
   inputs: {},
 };

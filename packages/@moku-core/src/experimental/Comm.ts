@@ -266,7 +266,7 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
     if (!state.runtime && state.phase === "snapshot" && event.event !== "reset") return;
     const hostComm =
       state.notebook?.operations.includes(CommProtocol.operation) ?? false;
-    const id = state.runtime?.status === "running" ? state.runtime.id : undefined;
+    const id = state.runtime?.state.status === "ready" ? state.runtime.id : undefined;
     if (id !== active?.id || (active && active.hostComm !== hostComm)) {
       yield* reset;
       if (id) {
@@ -410,7 +410,7 @@ export const make = Effect.fnUntraced(function* (notebook: Observation) {
     if (
       !current ||
       current.id !== state.value.runtime?.id ||
-      state.value.runtime.status !== "running" ||
+      state.value.runtime.state.status !== "ready" ||
       current.hostComm !==
         state.value.notebook.operations.includes(CommProtocol.operation)
     )

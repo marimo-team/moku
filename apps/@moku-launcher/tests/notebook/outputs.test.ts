@@ -24,24 +24,23 @@ function fixture() {
     id: "old",
     run_id: "previous",
     runtime_id: "rt",
-    caused_by: null,
     cell_id: "c",
-    code: null,
     code_fingerprint: "v1",
-    depends_on: {},
-    status: "completed",
-    started_at: "2026-11-12T12:00:00Z",
-    completed_at: "2026-11-12T12:00:03Z",
-    outcome: { kind: "value", display: null },
+    caused_by_id: null,
+    created_at: "2026-11-12T12:00:00Z",
+    state: {
+      status: "completed",
+      started_at: "2026-11-12T12:00:00Z",
+      completed_at: "2026-11-12T12:00:03Z",
+      depends_on: {},
+      outcome: { kind: "succeeded" },
+    },
   });
   const pending = Schema.decodeUnknownSync(Protocol.Execution)({
     ...old,
     id: "pending",
     run_id: "next",
-    status: "queued",
-    started_at: null,
-    completed_at: null,
-    outcome: null,
+    state: { status: "queued" },
   });
   const executions: Record<string, typeof Protocol.Execution.Type> = { old, pending };
   const state = {
@@ -66,25 +65,40 @@ function fixture() {
 
 Vitest.test("a rerun is active while queued and retains the previous result", () => {
   const { state, old, pending } = fixture();
+  const previousOutput = Schema.decodeUnknownSync(Protocol.Output)({
+    id: "out",
+    execution_id: old.id,
+    media: { mimetype: "text/plain", data: "previous" },
+  });
+  state.outputs = { out: previousOutput };
   const queued = Outputs.select(state);
+  Vitest.expect(Outputs.forCell(state, queued, "c").output).toBe(previousOutput);
   Vitest.expect(queued.current.get("c")).toBe(pending);
   Vitest.expect(queued.results.get("c")).toBe(old);
 
   const running = Schema.decodeUnknownSync(Protocol.Execution)({
     ...pending,
-    status: "running" as const,
-    started_at: "2026-11-12T12:01:00Z",
+    state: { status: "running", started_at: "2026-11-12T12:01:00Z" },
   });
-  state.executions.pending = running;
+  state.executions = { pending: running };
+  state.outputs = {};
   const active = Outputs.select(state, queued);
   Vitest.expect(active.current.get("c")).toBe(running);
   Vitest.expect(active.results.get("c")).toBe(old);
+  Vitest.expect(Outputs.forCell(state, active, "c").output).toBe(previousOutput);
 
+  const cleared = Schema.decodeUnknownSync(Protocol.Output)({
+    id: "next-out",
+    execution_id: pending.id,
+    media: null,
+  });
+  state.outputs = { ...state.outputs, next: cleared };
+  Vitest.expect(Outputs.forCell(state, Outputs.select(state, active), "c").output).toBe(
+    cleared,
+  );
   const completed = Schema.decodeUnknownSync(Protocol.Execution)({
     ...running,
-    status: "completed" as const,
-    completed_at: "2026-11-12T12:01:03Z",
-    outcome: old.outcome,
+    state: { ...old.state, status: "completed", completed_at: "2026-11-12T12:01:03Z" },
   });
   state.executions.pending = completed;
   const done = Outputs.select(state, active);
@@ -111,39 +125,38 @@ Vitest.test("each cell shows its own outputs and removed displays disappear", ()
     cell_id: "other",
   });
   state.executions = { ...state.executions, other: execution };
-  const display = Schema.decodeUnknownSync(Protocol.Display)({
+  const display = Schema.decodeUnknownSync(Protocol.Output)({
     id: "d",
     execution_id: "pending",
-    seq: 2,
-    content: { mimetype: "text/plain", data: "first" },
+    media: { mimetype: "text/plain", data: "first" },
   });
-  state.displays = { d: display };
+  state.outputs = { d: display };
   state.consoles = {
     c: Schema.decodeUnknownSync(Protocol.Console)({
       id: "c",
       execution_id: "pending",
       seq: 1,
-      name: "stdout",
-      text: "one",
+      content: { kind: "text", stream: "stdout", text: "one" },
     }),
     other: Schema.decodeUnknownSync(Protocol.Console)({
       id: "other",
       execution_id: "other",
       seq: 0,
-      name: "stderr",
-      text: "two",
+      content: { kind: "text", stream: "stderr", text: "two" },
     }),
   };
   const selection = Outputs.select(state);
   Vitest.expect(
     Outputs.forCell(state, selection, "c").items.map((item) => item.id),
-  ).toEqual(["c", "d"]);
+  ).toEqual(["c"]);
+  Vitest.expect(Outputs.forCell(state, selection, "c").output).toBe(display);
   Vitest.expect(
     Outputs.forCell(state, selection, "other").items.map((item) => item.id),
   ).toEqual(["other"]);
 
-  state.displays = {};
+  state.outputs = {};
   const next = Outputs.select(state, selection);
+  Vitest.expect(Outputs.forCell(state, next, "c").output).toBeNull();
   Vitest.expect(Outputs.forCell(state, next, "c").items.map((item) => item.id)).toEqual(
     ["c"],
   );

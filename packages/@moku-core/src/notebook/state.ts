@@ -15,7 +15,7 @@ export interface NotebookState {
   runs: Record<string, typeof Protocol.Run.Type>;
   executions: Record<string, typeof Protocol.Execution.Type>;
   consoles: Record<string, typeof Protocol.Console.Type>;
-  displays: Record<string, typeof Protocol.Display.Type>;
+  outputs: Record<string, typeof Protocol.Output.Type>;
   variables: Record<string, typeof Protocol.Variable.Type>;
   inputs: Record<string, typeof Protocol.Input.Type>;
 }
@@ -30,7 +30,7 @@ export function emptyNotebook(): NotebookState {
     runs: {},
     executions: {},
     consoles: {},
-    displays: {},
+    outputs: {},
     variables: {},
     inputs: {},
   };
@@ -97,7 +97,7 @@ export function reduceNotebook(
         ...state,
         executions: without(state.executions, event.data.id),
         consoles: withoutExecution(state.consoles, event.data.id),
-        displays: withoutExecution(state.displays, event.data.id),
+        outputs: withoutExecution(state.outputs, event.data.id),
         variables: withoutExecution(state.variables, event.data.id),
         inputs: withoutExecution(state.inputs, event.data.id),
       };
@@ -111,16 +111,16 @@ export function reduceNotebook(
       };
     case "console.removed":
       return { ...state, consoles: without(state.consoles, event.data.id) };
-    case "display":
+    case "output":
       return {
         ...state,
-        displays: {
-          ...state.displays,
-          [event.data.display.id]: event.data.display,
+        outputs: {
+          ...state.outputs,
+          [event.data.output.id]: event.data.output,
         },
       };
-    case "display.removed":
-      return { ...state, displays: without(state.displays, event.data.id) };
+    case "output.removed":
+      return { ...state, outputs: without(state.outputs, event.data.id) };
     case "variable":
       return {
         ...state,

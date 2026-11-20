@@ -4,50 +4,17 @@
  * @module
  */
 import type * as React from "react";
-import type { CellOutputsProps, ConsoleChunk, Outcome, OutputItem } from "./types.ts";
+import type { CellOutputsProps, Outcome } from "./types.ts";
 import { DisplayView } from "./DisplayView.tsx";
 import { ConsoleOutput } from "./ConsoleOutput.tsx";
 import "./style.css";
-
-type Group =
-  | {
-      readonly kind: "display";
-      readonly item: Extract<OutputItem, { kind: "display" }>;
-    }
-  | { readonly kind: "console"; readonly id: string; readonly chunks: ConsoleChunk[] };
-
-function groupItems({ items, outcome }: CellOutputsProps): Group[] {
-  const groups: Group[] = [];
-  const traceback = outcome?.kind === "error" ? outcome.error.traceback : null;
-
-  for (const item of [...items].sort((a, b) => a.seq - b.seq)) {
-    if (item.kind === "display") {
-      if (
-        traceback?.mimetype === item.content.mimetype &&
-        traceback.data === item.content.data
-      ) {
-        continue;
-      }
-      groups.push({ kind: "display", item });
-      continue;
-    }
-
-    const previous = groups.at(-1);
-    if (previous?.kind === "console") {
-      previous.chunks.push(item);
-    } else {
-      groups.push({ kind: "console", id: item.id, chunks: [item] });
-    }
-  }
-  return groups;
-}
 
 function ErrorView({
   error,
   runtimeId,
 }: {
   readonly runtimeId?: string | null;
-  readonly error: Extract<Outcome, { kind: "error" }>["error"];
+  readonly error: Extract<Outcome, { kind: "failed" }>["error"];
 }): React.ReactElement {
   const heading = (
     <span className="moku-error-heading">
@@ -85,21 +52,19 @@ function OutcomeView({
     return null;
   }
   switch (outcome.kind) {
-    case "value":
-      return outcome.display ? (
-        <DisplayView data={outcome.display} runtimeId={runtimeId} />
-      ) : null;
-    case "error":
+    case "succeeded":
+      return null;
+    case "failed":
       return <ErrorView error={outcome.error} runtimeId={runtimeId} />;
-    case "interrupted":
-      return <p className="moku-output-notice">Interrupted</p>;
+    case "cancelled":
+      return <p className="moku-output-notice">Cancelled</p>;
     case "skipped":
       return <p className="moku-output-notice">{outcome.message}</p>;
   }
 }
 
 /**
- * Renders ordered displays and console chunks, followed by the execution outcome.
+ * Renders the console in sequence order, followed by the output and outcome.
  *
  * Adjacent console chunks are grouped. A display matching the outcome's
  * traceback is omitted to avoid showing the same traceback twice. Renders
@@ -112,7 +77,7 @@ function OutcomeView({
  * import type * as Notebook from "@moku/core/Notebook";
  *
  * function ExecutionOutputs(props: {
- *   snapshot: Notebook.Snapshot;
+ *   snapshot: Notebook.State;
  *   executionId: string;
  * }) {
  *   const outputs = Outputs.forExecution(props.snapshot, props.executionId);
@@ -121,27 +86,22 @@ function OutcomeView({
  * ```
  */
 export function CellOutputs(props: CellOutputsProps): React.ReactElement | null {
-  const { outcome, items, className, runtimeId } = props;
-  if (
-    items.length === 0 &&
-    (outcome === null || (outcome.kind === "value" && outcome.display === null))
-  ) {
+  const { outcome, items, output, className, runtimeId } = props;
+  if (!items.length && !output?.media && (!outcome || outcome.kind === "succeeded"))
     return null;
-  }
-
+  const traceback = outcome?.kind === "failed" ? outcome.error.traceback : null;
+  const chunks = traceback
+    ? items.filter(
+        ({ content }) =>
+          content.kind !== "media" ||
+          content.media.mimetype !== traceback.mimetype ||
+          content.media.data !== traceback.data,
+      )
+    : items;
   return (
     <div className={["moku-cell-outputs", className].filter(Boolean).join(" ")}>
-      {groupItems(props).map((group) =>
-        group.kind === "display" ? (
-          <DisplayView
-            key={`display:${group.item.id}`}
-            data={group.item.content}
-            runtimeId={runtimeId}
-          />
-        ) : (
-          <ConsoleOutput key={`console:${group.id}`} chunks={group.chunks} />
-        ),
-      )}
+      <ConsoleOutput chunks={chunks} runtimeId={runtimeId} />
+      {output?.media && <DisplayView data={output.media} runtimeId={runtimeId} />}
       <OutcomeView outcome={outcome} runtimeId={runtimeId} />
     </div>
   );

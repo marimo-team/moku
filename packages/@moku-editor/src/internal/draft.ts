@@ -422,7 +422,7 @@ export function viewDocument(confirmed: Document, draft: Draft): EditableDocumen
  *
  * Edits retain the confirmed records they were prepared against. A no-op is left out.
  * Cells come before the order, so one request can create a cell and then
- * place it. Returns null if a put lacks source or its edited cell was removed,
+ * place it. Returns null if an edited cell lacks source or was removed,
  * keeping the draft atomic and retaining local intent for recovery.
  */
 export function toEdits(
@@ -431,34 +431,18 @@ export function toEdits(
 ): readonly Notebook.Edit[] | null {
   const edits: Notebook.Edit[] = [];
   let stagedOrder: readonly string[] = confirmed.order;
-  const stagedIds = new Set(stagedOrder);
   for (const [id, local] of draft.cells) {
     const base = Notebook.cellIndex(confirmed).get(id);
     if (local.kind === "delete") {
       if (base !== undefined) {
         edits.push((tx) => tx.remove(base));
         stagedOrder = stagedOrder.filter((other) => other !== id);
-        stagedIds.delete(id);
       }
     } else if (local.kind === "create") {
-      const anchor = local.placement.after ?? local.placement.before;
-      const placement =
-        anchor === undefined || stagedIds.has(anchor) ? local.placement : {};
-      const before =
-        placement.before === undefined
-          ? undefined
-          : Schema.decodeUnknownSync(Protocol.CellId)(placement.before);
-      const after =
-        placement.after === undefined
-          ? undefined
-          : Schema.decodeUnknownSync(Protocol.CellId)(placement.after);
       edits.push((tx) => {
-        tx.insert(local.cell, { before, after });
+        tx.insert(local.cell);
       });
-      if (base === undefined) {
-        stagedOrder = insertAt(stagedOrder, id, placement);
-        stagedIds.add(id);
-      }
+      if (base === undefined) stagedOrder = [...stagedOrder, id];
     } else if (base !== undefined) {
       const cell = applyEdit(base, local.edit);
       if (!sameCell(base, cell)) {

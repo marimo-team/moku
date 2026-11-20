@@ -1,3 +1,4 @@
+import * as Notebook from "@moku/core/Notebook";
 import { Cause } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { empty } from "../empty.ts";
@@ -20,7 +21,7 @@ export function GraphExplainer({ notebook }: ViewProps) {
   const [selected, setSelected] = React.useState("");
   const [expanded, setExpanded] = React.useState(false);
   const run = newestRun(state);
-  const active = run && run.status !== "completed";
+  const active = run && run.state.status !== "completed";
   const actions = useRunActions(notebook, state, run, ready);
   const {
     actionKind,
@@ -32,14 +33,20 @@ export function GraphExplainer({ notebook }: ViewProps) {
     runCell,
     cellRunDisabled,
   } = actions;
-  let statusLabel: string = run?.outcome ?? run?.status ?? "Ready";
+  let statusLabel: string =
+    run?.state.status === "completed"
+      ? run.state.outcome.kind
+      : (run?.state.status ?? "Ready");
   if (starting) statusLabel = "Starting kernel";
   if (!ready)
     statusLabel = AsyncResult.isInitial(result) ? "Connecting" : "Disconnected";
   const message =
     (error instanceof Error ? error.message : "") ||
     actionError ||
-    state.runtime?.message;
+    (run?.state.status === "completed" && run.state.outcome.kind === "failed"
+      ? run.state.outcome.message
+      : null) ||
+    Notebook.runtimeMessage(state.runtime);
   return (
     <div className="dag">
       <section className={`run-view ${expanded ? "expanded" : ""}`}>

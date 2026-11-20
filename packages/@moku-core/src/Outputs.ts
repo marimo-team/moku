@@ -1,72 +1,74 @@
-/**
- * Select display data, console chunks, and outcomes from notebook state.
- *
- * @module
- */
+/** Select an execution's console, output, and outcome from notebook state. @module */
 import type * as Notebook from "./Notebook.ts";
 import type * as Protocol from "./Protocol.ts";
 
-/**
- * A display or console record, distinguished by `kind`.
- */
-export type Item =
-  | ({ readonly kind: "display" } & typeof Protocol.Display.Type)
-  | ({ readonly kind: "console" } & typeof Protocol.Console.Type);
+/** A sequenced text or media entry in an execution's console. */
+export type Item = typeof Protocol.Console.Type;
 
-/**
- * The outcome and ordered output records for one execution.
- */
-export interface Snapshot {
-  readonly runtimeId: string | null;
-  readonly outcome: typeof Protocol.Outcome.Type | null;
+interface Records {
+  /** Console entries in sequence order. */
   readonly items: readonly Item[];
+  /** Absent until the execution sets its output. Null media means it was cleared. */
+  readonly output: typeof Protocol.Output.Type | null;
 }
 
-/** Group output records once when selecting multiple executions from a snapshot. */
+/** The output records and outcome for one execution. */
+export interface Snapshot extends Records {
+  /** Runtime that produced the execution, when known. */
+  readonly runtimeId: string | null;
+  /** How the execution ended, or null while pending or unavailable. */
+  readonly outcome: typeof Protocol.ExecutionOutcome.Type | null;
+}
+
+type State = Pick<Notebook.State, "executions" | "consoles" | "outputs">;
+
+/** Group records by execution when selecting multiple results from one snapshot. */
 export function index(
-  state: Pick<Notebook.State, "consoles" | "displays">,
-): ReadonlyMap<string, readonly Item[]> {
-  return collect(state);
-}
-
-function collect(
-  state: Pick<Notebook.State, "consoles" | "displays">,
-  executionId?: string,
-) {
-  const grouped = new Map<string, Item[]>();
-  function add(item: Item) {
-    const items = grouped.get(item.execution_id);
-    if (items) items.push(item);
-    else grouped.set(item.execution_id, [item]);
+  state: Pick<State, "consoles" | "outputs">,
+): ReadonlyMap<string, Records> {
+  const grouped = new Map<string, { items: Item[]; output: Records["output"] }>();
+  function records(id: string) {
+    let found = grouped.get(id);
+    if (!found) {
+      found = { items: [], output: null };
+      grouped.set(id, found);
+    }
+    return found;
   }
-  for (const display of Object.values(state.displays)) {
-    if (executionId === undefined || display.execution_id === executionId)
-      add({ kind: "display", ...display });
-  }
-  for (const console of Object.values(state.consoles)) {
-    if (executionId === undefined || console.execution_id === executionId)
-      add({ kind: "console", ...console });
-  }
-  for (const items of grouped.values()) items.sort((a, b) => a.seq - b.seq);
+  for (const item of Object.values(state.consoles))
+    records(item.execution_id).items.push(item);
+  for (const output of Object.values(state.outputs))
+    records(output.execution_id).output = output;
+  for (const { items } of grouped.values()) items.sort((a, b) => a.seq - b.seq);
   return grouped;
 }
 
 /**
- * Selects an execution's output records in sequence order.
+ * Select an execution's ordered console, latest output record, and terminal outcome.
  *
- * Only records currently present in `state` are returned. An unknown execution
- * has a null outcome; any display or console records matching its ID are still
- * included. The input state is unchanged.
- * Pass an index built from the same snapshot when selecting multiple executions.
+ * Records may arrive before the execution. Supply an index from the same snapshot
+ * when selecting multiple executions.
  */
 export function forExecution(
-  state: Pick<Notebook.State, "executions" | "consoles" | "displays">,
+  state: State,
   executionId: string,
-  indexed: ReadonlyMap<string, readonly Item[]> = collect(state, executionId),
+  indexed?: ReadonlyMap<string, Records>,
 ): Snapshot {
+  const execution = state.executions[executionId];
+  const records = indexed
+    ? indexed.get(executionId)
+    : {
+        output: Object.values(state.outputs).find(
+          (item) => item.execution_id === executionId,
+        ),
+        items: Object.values(state.consoles)
+          .filter((item) => item.execution_id === executionId)
+          .sort((a, b) => a.seq - b.seq),
+      };
   return {
-    runtimeId: state.executions[executionId]?.runtime_id ?? null,
-    outcome: state.executions[executionId]?.outcome ?? null,
-    items: indexed.get(executionId) ?? [],
+    runtimeId: execution?.runtime_id ?? null,
+    outcome: execution?.state.status === "completed" ? execution.state.outcome : null,
+    items: records?.items ?? [],
+    output: records?.output ?? null,
   };
 }

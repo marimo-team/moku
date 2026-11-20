@@ -16,16 +16,15 @@ const consoleChunk = (
   Schema.decodeUnknownSync(Protocol.Console)({
     id,
     seq,
-    text,
-    name,
     execution_id: "e",
+    content: { kind: "text", stream: name, text },
   });
-const display = (id: string, seq: number, text: string): typeof Protocol.Display.Type =>
-  Schema.decodeUnknownSync(Protocol.Display)({
+const display = (id: string, seq: number, text: string): typeof Protocol.Console.Type =>
+  Schema.decodeUnknownSync(Protocol.Console)({
     id,
     seq,
     execution_id: "e",
-    content: { mimetype: "text/plain", data: text },
+    content: { kind: "media", media: { mimetype: "text/plain", data: text } },
   });
 const error = Schema.decodeUnknownSync(Protocol.Error)({
   kind: "exception",
@@ -41,8 +40,12 @@ const error = Schema.decodeUnknownSync(Protocol.Error)({
 Vitest.test.each([false, true])(
   "execution selection isolates and orders output records (indexed: %s)",
   (indexed) => {
-    const first = display("d", 2, "old");
-    const newer = { ...first, content: { mimetype: "text/plain", data: "new" } };
+    const first = Schema.decodeUnknownSync(Protocol.Output)({
+      id: "d",
+      execution_id: "e",
+      media: null,
+    });
+    const newer = { ...first, media: { mimetype: "text/plain", data: "new" } };
     const state = {
       executions: {},
       consoles: {
@@ -52,24 +55,23 @@ Vitest.test.each([false, true])(
           execution_id: Schema.decodeUnknownSync(Protocol.ExecutionId)("other"),
         },
       },
-      displays: { d: newer },
+      outputs: { d: newer },
     };
     const index = indexed ? Outputs.index(state) : undefined;
     Vitest.expect(Outputs.forExecution(state, "e", index)).toEqual({
       runtimeId: null,
       outcome: null,
-      items: [
-        { kind: "console", ...state.consoles.a },
-        { kind: "display", ...newer },
-      ],
+      items: [state.consoles.a],
+      output: newer,
     });
     Vitest.expect(
-      Outputs.forExecution({ ...state, displays: {} }, "e").items,
+      Outputs.forExecution({ ...state, outputs: {} }, "e").items,
     ).toHaveLength(1);
     Vitest.expect(Outputs.forExecution(state, "missing", index)).toEqual({
       runtimeId: null,
       outcome: null,
       items: [],
+      output: null,
     });
   },
 );
@@ -78,14 +80,19 @@ Vitest.test(
   "outputs preserve interleaving, group adjacent console chunks, and render the result last",
   () => {
     const items: OutputItem[] = [
-      { kind: "console", ...consoleChunk("c", 3, "tail") },
-      { kind: "display", ...display("d", 2, "figure") },
-      { kind: "console", ...consoleChunk("b", 1, "warning", "stderr") },
-      { kind: "console", ...consoleChunk("a", 0, "hello ") },
+      consoleChunk("c", 3, "tail"),
+      display("d", 2, "figure"),
+      consoleChunk("b", 1, "warning", "stderr"),
+      consoleChunk("a", 0, "hello "),
     ];
     const props: CellOutputsProps = {
       items,
-      outcome: { kind: "value", display: { mimetype: "text/plain", data: "result" } },
+      outcome: { kind: "succeeded" },
+      output: Schema.decodeUnknownSync(Protocol.Output)({
+        id: "out",
+        execution_id: "e",
+        media: { mimetype: "text/plain", data: "result" },
+      }),
     };
     const html = ReactDOMServer.renderToStaticMarkup(<CellOutputs {...props} />);
     Vitest.expect(html.match(/aria-label="Console output"/g)).toHaveLength(2);
@@ -117,8 +124,9 @@ Vitest.test(
 Vitest.test("duplicate traceback displays are omitted while the error remains", () => {
   const html = ReactDOMServer.renderToStaticMarkup(
     <CellOutputs
-      outcome={{ kind: "error", error }}
-      items={[{ kind: "display", ...display("d", 0, "traceback") }]}
+      output={null}
+      outcome={{ kind: "failed", error }}
+      items={[display("d", 0, "traceback")]}
     />,
   );
   Vitest.expect(html.match(/>traceback</g)).toHaveLength(1);
@@ -129,21 +137,24 @@ Vitest.test("duplicate traceback displays are omitted while the error remains", 
 
 Vitest.test("empty results stay empty and non-value outcomes remain visible", () => {
   Vitest.expect(
-    ReactDOMServer.renderToStaticMarkup(<CellOutputs outcome={null} items={[]} />),
-  ).toBe("");
-  Vitest.expect(
     ReactDOMServer.renderToStaticMarkup(
-      <CellOutputs outcome={{ kind: "value", display: null }} items={[]} />,
+      <CellOutputs output={null} outcome={null} items={[]} />,
     ),
   ).toBe("");
   Vitest.expect(
     ReactDOMServer.renderToStaticMarkup(
-      <CellOutputs outcome={{ kind: "interrupted" }} items={[]} />,
+      <CellOutputs output={null} outcome={{ kind: "succeeded" }} items={[]} />,
     ),
-  ).toContain("Interrupted");
+  ).toBe("");
+  Vitest.expect(
+    ReactDOMServer.renderToStaticMarkup(
+      <CellOutputs output={null} outcome={{ kind: "cancelled" }} items={[]} />,
+    ),
+  ).toContain("Cancelled");
   Vitest.expect(
     ReactDOMServer.renderToStaticMarkup(
       <CellOutputs
+        output={null}
         outcome={{
           kind: "skipped",
           reason: "superseded",

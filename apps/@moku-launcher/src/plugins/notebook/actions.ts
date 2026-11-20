@@ -34,7 +34,7 @@ export function make(notebook: Notebook.Interface, document: Document.Interface)
       Effect.gen(function* () {
         if (
           AsyncResult.getOrElse(registry.get(notebook.state), () => undefined)?.runtime
-            ?.status !== "starting"
+            ?.state.status !== "starting"
         )
           return;
         yield* notebook.runtime.stop();

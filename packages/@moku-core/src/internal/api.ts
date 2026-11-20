@@ -37,7 +37,7 @@ const UnknownEvent = Schema.Struct({
   ),
 );
 
-export const CatalogEvent = Schema.Union([Host.Event, UnknownEvent]);
+export const CatalogEvent = Schema.Union([Host.StreamEvent, UnknownEvent]);
 const MarimoEvent = Schema.Struct({
   event: Schema.Literal("marimo"),
   id: Schema.optionalKey(Schema.String),
@@ -47,7 +47,7 @@ const MarimoEvent = Schema.Struct({
   }),
 });
 export const NotebookEvent = Schema.Union([
-  Analysis.NotebookEvent,
+  Analysis.NotebookStreamEvent,
   MarimoEvent,
   UnknownEvent,
 ]);

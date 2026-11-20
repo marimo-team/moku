@@ -12,7 +12,7 @@ export function emptyState(): Notebook.State {
     runs: {},
     executions: {},
     consoles: {},
-    displays: {},
+    outputs: {},
     variables: {},
     inputs: {},
   };

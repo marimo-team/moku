@@ -13,7 +13,7 @@ const notebook = {
   name: "demo.py",
   path: "demo.py",
   operations: [],
-  updated_at: null,
+  modified_at: null,
 };
 
 async function fixture(launchKey?: string) {

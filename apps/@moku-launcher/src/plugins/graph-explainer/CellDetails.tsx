@@ -1,3 +1,4 @@
+import * as Notebook from "@moku/core/Notebook";
 import * as React from "react";
 import type * as Protocol from "@moku/core/Protocol";
 import * as Outputs from "@moku/core/Outputs";
@@ -24,20 +25,16 @@ export function CellDetails({
         e.cell_id === cellId &&
         (run ? e.run_id === run.id : e.runtime_id === state.runtime?.id),
     )
-    .sort(
-      (a, b) =>
-        (Date.parse(b.started_at ?? b.completed_at ?? "") || 0) -
-        (Date.parse(a.started_at ?? a.completed_at ?? "") || 0),
-    )[0];
+    .sort((a, b) => Notebook.executionTime(b) - Notebook.executionTime(a))[0];
   const outputs: Outputs.Snapshot = execution
     ? Outputs.forExecution(state, execution.id)
-    : { runtimeId: null, items: [], outcome: null };
-  const logs = outputs.items.filter((item) => item.kind === "console");
-  const displays = outputs.items.filter((item) => item.kind === "display");
+    : { runtimeId: null, items: [], output: null, outcome: null };
+  const logs = outputs.items.filter((item) => item.content.kind === "text");
+  const displays = outputs.items.filter((item) => item.content.kind === "media");
   const hasOutput =
     displays.length > 0 ||
-    (outputs.outcome !== null &&
-      (outputs.outcome.kind !== "value" || outputs.outcome.display !== null));
+    outputs.output?.media != null ||
+    (outputs.outcome !== null && outputs.outcome.kind !== "succeeded");
   const variables = Object.values(state.variables).filter(
     (v) => v.execution_id === execution?.id,
   );
@@ -60,14 +57,14 @@ export function CellDetails({
           ×
         </button>
       </div>
-      {tab !== "Output" && execution?.outcome?.kind === "error" && (
+      {tab !== "Output" && outputs.outcome?.kind === "failed" && (
         <div className="error-panel">
-          <strong>{execution.outcome.error.name ?? "Execution failed"}</strong>
-          <p>{execution.outcome.error.message}</p>
+          <strong>{outputs.outcome.error.name ?? "Execution failed"}</strong>
+          <p>{outputs.outcome.error.message}</p>
         </div>
       )}
-      {tab !== "Output" && execution?.outcome?.kind === "skipped" && (
-        <div className="notice">{execution.outcome.message}</div>
+      {tab !== "Output" && outputs.outcome?.kind === "skipped" && (
+        <div className="notice">{outputs.outcome.message}</div>
       )}
       {pending.map((input) => (
         <div className="notice" key={input.id}>
@@ -118,6 +115,7 @@ export function CellDetails({
         {tab === "Output" &&
           (hasOutput ? (
             <CellOutputs
+              output={outputs.output}
               items={displays}
               outcome={outputs.outcome}
               runtimeId={outputs.runtimeId}

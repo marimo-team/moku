@@ -29,13 +29,13 @@ export function NotebookRow({
             <span className="notebook-path" title={notebook.path ?? notebook.id}>
               {notebook.path ?? `Notebook ID: ${notebook.id}`}
             </span>
-            {notebook.updated_at && (
+            {notebook.modified_at && (
               <time
-                dateTime={notebook.updated_at}
-                title={new Date(notebook.updated_at).toLocaleString()}
+                dateTime={notebook.modified_at}
+                title={new Date(notebook.modified_at).toLocaleString()}
               >
                 Updated{" "}
-                {new Date(notebook.updated_at).toLocaleDateString(undefined, {
+                {new Date(notebook.modified_at).toLocaleDateString(undefined, {
                   month: "short",
                   day: "numeric",
                   year: "numeric",

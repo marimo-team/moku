@@ -29,8 +29,8 @@ export interface State {
   readonly executions: Readonly<Record<string, typeof Protocol.Execution.Type>>;
   /** Console chunks indexed by ID and associated with an execution. */
   readonly consoles: Readonly<Record<string, typeof Protocol.Console.Type>>;
-  /** Display records indexed by ID and associated with an execution. */
-  readonly displays: Readonly<Record<string, typeof Protocol.Display.Type>>;
+  /** Output records indexed by ID and associated with an execution. */
+  readonly outputs: Readonly<Record<string, typeof Protocol.Output.Type>>;
   /** Variables currently reported by the runtime. */
   readonly variables: Readonly<Record<string, typeof Protocol.Variable.Type>>;
   /** Input requests indexed by ID, including pending replies. */
@@ -61,7 +61,7 @@ export interface CellPatch {
   /** Configuration fields to merge into the observed cell. */
   readonly config?: Partial<typeof Protocol.CellConfig.Type>;
 }
-/** Placement of a newly created cell; omitted placement appends it. */
+/** Places a new cell using the observed order. Omitting placement appends it. */
 export interface Placement {
   /** Inserts before this cell; mutually exclusive with after. */
   readonly before?: typeof Protocol.CellId.Type;
@@ -216,4 +216,29 @@ export function createCellId(
     reason: "invalid-edit",
     message: "Could not generate a unique cell ID.",
   });
+}
+
+/**
+ * Returns the execution's scheduling time in milliseconds since the Unix epoch.
+ *
+ * Restored results use their recorded start or completion time, or zero when both
+ * are unknown.
+ */
+export function executionTime(execution: typeof Protocol.Execution.Type): number {
+  const state = execution.state;
+  const timestamp =
+    execution.created_at ??
+    (state.status === "completed" ? (state.started_at ?? state.completed_at) : null);
+  return timestamp === null ? 0 : Date.parse(timestamp);
+}
+
+/** The progress or failure message supplied by the runtime. */
+export function runtimeMessage(
+  runtime: typeof Protocol.Runtime.Type | null | undefined,
+): string | null {
+  const state = runtime?.state;
+  if (state?.status === "starting") return state.message;
+  if (state?.status === "ended" && state.outcome.kind === "failed")
+    return state.outcome.message;
+  return null;
 }

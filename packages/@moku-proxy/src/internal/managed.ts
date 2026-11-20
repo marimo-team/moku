@@ -202,7 +202,7 @@ export async function startServer(
         if (url.port !== String(port)) continue;
         // uv and marimo's sandbox may introduce both children and new groups.
         if (!(await descendants()).has(record.process.pid)) continue;
-        const response = await fetch(`${record.url}/events?types=host`, {
+        const response = await fetch(`${record.url}/events?kinds=host`, {
           headers: { Authorization: `Bearer ${record.token}` },
           redirect: "error",
           signal: AbortSignal.any([signal, AbortSignal.timeout(2_000)]),

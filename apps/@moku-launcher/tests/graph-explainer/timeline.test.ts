@@ -17,6 +17,9 @@ import {
 
 Vitest.test("completed timings stay fixed and queued executions have no span", () => {
   const execution = {
+    status: "completed" as const,
+    outcome: { kind: "succeeded" as const },
+    depends_on: {},
     started_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T12:00:00Z"),
     completed_at: Schema.decodeUnknownSync(Protocol.Timestamp)("2026-11-05T12:00:01Z"),
   };
@@ -24,10 +27,7 @@ Vitest.test("completed timings stay fixed and queued executions have no span", (
     executionSpan(execution, Date.parse("2026-11-05T13:00:00Z"))?.duration,
     1000,
   );
-  NodeAssert.equal(
-    executionSpan({ started_at: null, completed_at: null }, Date.now()),
-    null,
-  );
+  NodeAssert.equal(executionSpan({ status: "queued" }, Date.now()), null);
 });
 
 Vitest.test("zooming fades the old ticks and brings in the new endpoint", () => {

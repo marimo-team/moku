@@ -13,15 +13,14 @@ const notebook = {
   name: "n.py",
   path: "n.py",
   operations: [],
-  updated_at: null,
+  modified_at: null,
 };
 const runtime = {
   id: "rt",
   notebook_id: "n",
-  status: "running",
-  message: null,
   marimo_version: null,
-  started_at: "2026-11-12T12:00:00Z",
+  created_at: "2026-11-12T12:00:00Z",
+  state: { status: "ready" },
 };
 interface Events {
   readonly signal: AbortSignal;

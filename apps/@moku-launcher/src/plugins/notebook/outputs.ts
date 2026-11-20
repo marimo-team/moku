@@ -7,11 +7,9 @@ export interface Selection {
   readonly runtimeId: string | null;
   readonly current: ReadonlyMap<string, typeof Protocol.Execution.Type>;
   readonly results: ReadonlyMap<string, typeof Protocol.Execution.Type>;
-  readonly outputs: ReadonlyMap<string, readonly Outputs.Item[]>;
+  readonly resultOutputs: ReadonlyMap<string, typeof Protocol.Output.Type>;
+  readonly outputs: ReturnType<typeof Outputs.index>;
 }
-const time = (execution: typeof Protocol.Execution.Type) =>
-  Date.parse(execution.started_at ?? execution.completed_at ?? "") || 0;
-
 /** Retain the last result while a replacement execution is running. */
 export function select(state: Notebook.State, previous?: Selection): Selection {
   const cells = state.document && Notebook.cellIndex(state.document);
@@ -20,7 +18,7 @@ export function select(state: Notebook.State, previous?: Selection): Selection {
   for (const id of results.keys()) if (!cells?.has(id)) results.delete(id);
   const current = new Map<string, typeof Protocol.Execution.Type>();
   for (const execution of Object.values(state.executions).sort(
-    (a, b) => time(a) - time(b),
+    (a, b) => Notebook.executionTime(a) - Notebook.executionTime(b),
   )) {
     const id = execution.cell_id;
     if (
@@ -30,23 +28,35 @@ export function select(state: Notebook.State, previous?: Selection): Selection {
     )
       continue;
     const selected = current.get(id);
-    // Queued executions have no timestamp yet, but supersede the old result.
+    // An active rerun takes precedence over a retained result.
     if (
       !selected ||
-      selected.status === "completed" ||
-      execution.status !== "completed"
+      selected.state.status === "completed" ||
+      execution.state.status !== "completed"
     )
       current.set(id, execution);
     if (
-      execution.status !== "completed" ||
-      (execution.outcome?.kind === "skipped" &&
-        execution.outcome.reason === "superseded")
+      execution.state.status !== "completed" ||
+      (execution.state.outcome.kind === "skipped" &&
+        execution.state.outcome.reason === "superseded")
     )
       continue;
     const old = results.get(id);
-    if (!old || time(execution) >= time(old)) results.set(id, execution);
+    if (!old || Notebook.executionTime(execution) >= Notebook.executionTime(old))
+      results.set(id, execution);
   }
-  return { runtimeId, current, results, outputs: Outputs.index(state) };
+  const outputs = Outputs.index(state);
+  const resultOutputs = new Map<string, typeof Protocol.Output.Type>();
+  // A host may retire the previous execution and its items before publishing the rerun.
+  for (const result of results.values()) {
+    const output =
+      outputs.get(result.id)?.output ??
+      (previous?.runtimeId === runtimeId
+        ? previous.resultOutputs.get(result.id)
+        : undefined);
+    if (output) resultOutputs.set(result.id, output);
+  }
+  return { runtimeId, current, results, outputs, resultOutputs };
 }
 
 export function forCell(
@@ -58,19 +68,28 @@ export function forCell(
   const result = selection.results.get(cellId);
   const outputs = current
     ? Outputs.forExecution(state, current.id, selection.outputs)
-    : { runtimeId: result?.runtime_id ?? null, items: [], outcome: null };
-  const outcome =
-    current && current.status !== "completed" && current.outcome !== null
-      ? current.outcome
-      : current?.status === "running" && result?.outcome?.kind === "skipped"
+    : { runtimeId: result?.runtime_id ?? null, items: [], outcome: null, output: null };
+  if (
+    !result ||
+    result.state.status !== "completed" ||
+    current?.id === result.id ||
+    outputs.output
+  )
+    return outputs;
+  return {
+    ...outputs,
+    output: selection.resultOutputs.get(result.id) ?? null,
+    outcome:
+      current?.state.status === "running" && result.state.outcome.kind === "skipped"
         ? null
-        : (result?.outcome ?? null);
-  return { ...outputs, outcome };
+        : result.state.outcome,
+  };
 }
 
-export function hasContent({ outcome, items }: CellOutputs): boolean {
+export function hasContent({ outcome, items, output }: CellOutputs): boolean {
   return (
     items.length > 0 ||
-    (outcome !== null && (outcome.kind !== "value" || outcome.display !== null))
+    output?.media != null ||
+    (outcome !== null && outcome.kind !== "succeeded")
   );
 }

@@ -21,12 +21,15 @@ function unavailableReason(state: NotebookState, kind: RunAction, busy: boolean)
     return operations.includes("runtime.run") || operations.includes("runtime.execute")
       ? ""
       : "The host does not support cancelling runs";
+  const status = state.runtime?.state.status;
   if (!operations.includes("runtime.run"))
     return "The host does not support runtime.run";
-  if (!state.runtime && !operations.includes("runtime.start"))
+  if (
+    (status === undefined || status === "ended") &&
+    !operations.includes("runtime.start")
+  )
     return "The host does not support runtime.start";
-  if (state.runtime && state.runtime.status !== "running")
-    return `Runtime is ${state.runtime.status}`;
+  if (status === "starting" || status === "stopping") return `Runtime is ${status}`;
   if (!(state.document?.cells ?? []).some((cell) => !cell.config.disabled))
     return "No enabled cells to run";
   return "";
@@ -82,11 +85,12 @@ export function useRunActions(
         : Cause.pretty(result.cause)
       : "";
   const primary =
-    run && run.status !== "completed"
+    run && run.state.status !== "completed"
       ? Command.Cancel({ runId: run.id })
       : Command.RunAll();
   const actionKind: RunAction = primary._tag === "Cancel" ? "cancel" : "run";
-  const starting = state.runtime?.status === "starting" || (busy && !state.runtime);
+  const starting =
+    state.runtime?.state.status === "starting" || (busy && !state.runtime);
   const actionLabel = starting
     ? "Starting kernel"
     : actionKind === "cancel"

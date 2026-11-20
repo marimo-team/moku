@@ -1,3 +1,4 @@
+import * as Notebook from "@moku/core/Notebook";
 import { empty } from "../empty.ts";
 import { useAtom, useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
@@ -68,23 +69,23 @@ function NotebookContent({
   });
   const connected = ready;
   const kernel = state.runtime;
-  const cancelling = cancellation.waiting || kernel?.status === "terminating";
+  const cancelling = cancellation.waiting || kernel?.state.status === "stopping";
   const starting =
     connected &&
     (cancelling ||
-      kernel?.status === "starting" ||
-      (execution.waiting && kernel?.status !== "running"));
+      kernel?.state.status === "starting" ||
+      (execution.waiting && kernel?.state.status !== "ready"));
   const running = [...selection.current.values()].some(
-    (entry) => entry.status !== "completed",
+    (entry) => entry.state.status !== "completed",
   );
   const operations = state.notebook?.operations ?? [];
   const canRun =
     operations.includes("runtime.run") &&
-    (kernel?.status === "running" || operations.includes("runtime.start"));
+    (kernel?.state.status === "ready" || operations.includes("runtime.start"));
   const canInterrupt = operations.includes("runtime.interrupt");
   const canSave = operations.includes("notebook.save");
   const canCancel =
-    operations.includes("runtime.stop") && kernel?.status === "starting";
+    operations.includes("runtime.stop") && kernel?.state.status === "starting";
   const unsaved =
     dirty || (!!state.document && state.document.etag !== state.document.saved_etag);
   const order = document?.order ?? [];
@@ -111,7 +112,7 @@ function NotebookContent({
       <KernelStartupNotice
         active={starting}
         cancelling={cancelling}
-        message={kernel?.message}
+        message={Notebook.runtimeMessage(kernel)}
         cancel={canCancel ? () => cancel() : undefined}
       />
       <NotebookToolbar
@@ -150,7 +151,8 @@ function NotebookContent({
             {order.map((cellId) => {
               const cell = document?.cells.get(cellId);
               const active = selection.current.get(cellId);
-              const cellRunning = active !== undefined && active.status !== "completed";
+              const cellRunning =
+                active !== undefined && active.state.status !== "completed";
               return cell ? (
                 <Cell
                   key={cellId}
@@ -238,12 +240,16 @@ function NotebookContent({
         <span>
           {order.length} {order.length === 1 ? "cell" : "cells"}
         </span>
-        <span className="notebook-runtime-status" title={kernel?.message ?? undefined}>
+        <span
+          className="notebook-runtime-status"
+          title={Notebook.runtimeMessage(kernel) ?? undefined}
+        >
           {starting
             ? cancelling
               ? "Cancelling startup…"
               : "Starting kernel…"
-            : kernel?.message || (kernel ? `Runtime ${kernel.status}` : "No runtime")}
+            : Notebook.runtimeMessage(kernel) ||
+              (kernel ? `Runtime ${kernel.state.status}` : "No runtime")}
         </span>
       </div>
     </div>

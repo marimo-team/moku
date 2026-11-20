@@ -1,3 +1,4 @@
+import * as Notebook from "@moku/core/Notebook";
 import { empty } from "../empty.ts";
 import { useAtom, useAtomValue } from "@effect/atom-react";
 import { AsyncResult, Atom } from "effect/reactivity";
@@ -72,20 +73,17 @@ function CellPicker({
       execution.cell_id === cellId && execution.runtime_id === state.runtime?.id,
   );
   const execution =
-    executions.find((entry) => entry.status !== "completed") ??
-    executions.sort(
-      (a, b) =>
-        Date.parse(b.started_at ?? b.completed_at ?? "") -
-        Date.parse(a.started_at ?? a.completed_at ?? ""),
-    )[0];
+    executions.find((entry) => entry.state.status !== "completed") ??
+    executions.sort((a, b) => Notebook.executionTime(b) - Notebook.executionTime(a))[0];
   const busy =
-    pending === "run" || (execution !== undefined && execution.status !== "completed");
+    pending === "run" ||
+    (execution !== undefined && execution.state.status !== "completed");
 
   // The toolbar reflects host permissions and runtime state.
   const available = ready && pending === null;
   const operations = state.notebook?.operations ?? [];
-  const running = state.runtime?.status === "running";
-  const starting = pending === "start" || state.runtime?.status === "starting";
+  const running = state.runtime?.state.status === "ready";
+  const starting = pending === "start" || state.runtime?.state.status === "starting";
   const unsaved =
     draft.dirty ||
     (!!state.document && state.document.etag !== state.document.saved_etag);
@@ -100,7 +98,7 @@ function CellPicker({
     available &&
     operations.includes("runtime.start") &&
     !starting &&
-    state.runtime?.status !== "terminating";
+    state.runtime?.state.status !== "stopping";
   const canSave = available && operations.includes("notebook.save") && unsaved;
 
   // All commands share pending and error feedback.
@@ -148,7 +146,7 @@ function CellPicker({
           </span>
         </label>
         <span className="basic-runtime" role="status">
-          Runtime {state.runtime?.status ?? "stopped"}
+          Runtime {state.runtime?.state.status ?? "stopped"}
         </span>
         {/* Starting a runtime and executing a cell are separate, explicit actions. */}
         {running ? (

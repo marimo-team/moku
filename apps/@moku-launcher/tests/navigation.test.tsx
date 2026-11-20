@@ -59,7 +59,7 @@ async function mount(route: Route) {
       name: "example.py",
       path: firstHost ? "example.py" : "/other/project/example.py",
       operations: firstHost ? ["notebook.open"] : [],
-      updated_at: firstHost ? "2026-11-12T12:00:00Z" : null,
+      modified_at: firstHost ? "2026-11-12T12:00:00Z" : null,
     });
   }
   const client = HttpClient.make((request, url, signal) =>

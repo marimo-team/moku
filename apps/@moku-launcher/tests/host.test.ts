@@ -23,7 +23,7 @@ Vitest.test(
         name: "example.py",
         path: "example.py",
         operations: [],
-        updated_at: null,
+        modified_at: null,
       });
     }
     const client = HttpClient.make((request, url, signal) =>

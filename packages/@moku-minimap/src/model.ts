@@ -145,8 +145,9 @@ export function make(state: Notebook.Interface["state"]) {
         work?.code_fingerprint === cell.code_fingerprint ? work : undefined;
       const error =
         get(currentAnalysis)?.cells[id]?.errors[0]?.message ??
-        (currentWork?.outcome?.kind === "error"
-          ? currentWork.outcome.error.message
+        (currentWork?.state.status === "completed" &&
+        currentWork.state.outcome.kind === "failed"
+          ? currentWork.state.outcome.error.message
           : undefined);
       const relation =
         active?.item.id === id
@@ -175,9 +176,9 @@ export function make(state: Notebook.Interface["state"]) {
           direct,
           error,
           activity:
-            currentWork?.status === "running"
+            currentWork?.state.status === "running"
               ? "Running"
-              : currentWork?.status === "queued"
+              : currentWork?.state.status === "queued"
                 ? "Queued"
                 : cell.config.disabled
                   ? "Disabled"
@@ -236,10 +237,6 @@ function sameRow(a: Row | null, b: Row | null): boolean {
   );
 }
 
-function executionTime(execution: typeof Protocol.Execution.Type): number {
-  return Date.parse(execution.started_at ?? execution.completed_at ?? "") || 0;
-}
-
 /** Active work takes precedence over completed results in the current runtime. */
 function latestExecutions(
   executions: Readonly<Record<string, typeof Protocol.Execution.Type>>,
@@ -252,9 +249,11 @@ function latestExecutions(
     const previous = current.get(id);
     if (
       !previous ||
-      (previous.status === "completed" && execution.status !== "completed") ||
-      ((previous.status === "completed") === (execution.status === "completed") &&
-        executionTime(execution) >= executionTime(previous))
+      (previous.state.status === "completed" &&
+        execution.state.status !== "completed") ||
+      ((previous.state.status === "completed") ===
+        (execution.state.status === "completed") &&
+        Notebook.executionTime(execution) >= Notebook.executionTime(previous))
     ) {
       current.set(id, execution);
     }

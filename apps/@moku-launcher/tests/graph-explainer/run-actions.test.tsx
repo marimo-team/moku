@@ -22,7 +22,7 @@ async function fixture() {
     name: "Pipeline",
     path: "pipeline.py",
     operations: ["runtime.start", "runtime.run"],
-    updated_at: null,
+    modified_at: null,
   });
   const cell = Schema.decodeUnknownSync(Protocol.Cell)({
     id: "c",
@@ -55,10 +55,9 @@ async function fixture() {
   const kernel = Schema.decodeUnknownSync(Protocol.Runtime)({
     id: "rt",
     notebook_id: "n",
-    status: "starting",
-    started_at: "2026-11-12T12:00:00Z",
     marimo_version: "0.25.2",
-    message: null,
+    created_at: "2026-11-12T12:00:00Z",
+    state: { status: "starting", message: null },
   });
   const setRuntime = (runtime: typeof Protocol.Runtime.Type | null) =>
     registry.update(state, (s) => ({ ...s, runtime }));
@@ -72,11 +71,9 @@ async function fixture() {
     id: "run",
     notebook_id: "n",
     runtime_id: "rt",
-    cells: ["c"],
-    status: "queued",
-    outcome: null,
-    started_at: null,
-    completed_at: null,
+    created_at: "2026-11-05T12:00:00Z",
+    origin: { kind: "cells", cell_ids: ["c"] },
+    state: { status: "queued" },
   });
   const run = vi.fn(() => Effect.succeed(accepted));
   const cancel = vi.fn((input: { runId: string }) =>
@@ -91,17 +88,20 @@ async function fixture() {
     state: Atom.map(state, AsyncResult.success),
     ensureRunning: Effect.gen(function* () {
       const initial = registry.get(state).runtime;
-      if (initial?.status === "running") return;
+      if (initial?.state.status === "ready") return;
       yield* start();
       yield* Effect.callback<void, Notebook.ModelError>((resume) => {
         const stop = registry.subscribe(state, (state) => {
-          if (state.runtime?.status === "running") resume(Effect.void);
-          if (state.runtime?.status === "failed")
+          if (state.runtime?.state.status === "ready") resume(Effect.void);
+          if (
+            state.runtime?.state.status === "ended" &&
+            state.runtime.state.outcome.kind === "failed"
+          )
             resume(
               Effect.fail(
                 new Notebook.ModelError({
                   reason: "runtime-stopped",
-                  message: state.runtime.message ?? "Failed",
+                  message: state.runtime.state.outcome.message ?? "Failed",
                 }),
               ),
             );
@@ -165,7 +165,7 @@ async function fixture() {
   });
   const click = () => React.act(async () => element.querySelector("button")!.click());
   const ready = () =>
-    React.act(async () => setRuntime({ ...kernel, status: "running" }));
+    React.act(async () => setRuntime({ ...kernel, state: { status: "ready" } }));
   return {
     element,
     registry,
@@ -295,7 +295,14 @@ Vitest.test("failed startup reports the error without submitting cells", async (
   const f = await fixture();
   await f.click();
   await React.act(async () =>
-    f.setRuntime({ ...f.kernel, status: "failed", message: "Kernel exited" }),
+    f.setRuntime({
+      ...f.kernel,
+      state: {
+        status: "ended",
+        ended_at: f.kernel.created_at,
+        outcome: { kind: "failed", message: "Kernel exited" },
+      },
+    }),
   );
   Vitest.expect(f.run).not.toHaveBeenCalled();
   Vitest.expect(f.element.querySelector('[role="alert"]')!.textContent).toContain(

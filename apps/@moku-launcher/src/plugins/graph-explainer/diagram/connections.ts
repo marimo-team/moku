@@ -6,7 +6,7 @@ export function connectionTone(source: CellStatus, target: CellStatus): Connecti
   if (target === "skipped" || target === "disabled") return "skipped";
   if (source !== "succeeded") return "idle";
   if (target === "running" || target === "waiting") return "live";
-  if (target === "succeeded" || target === "failed" || target === "interrupted")
+  if (target === "succeeded" || target === "failed" || target === "cancelled")
     return "taken";
   return "idle";
 }

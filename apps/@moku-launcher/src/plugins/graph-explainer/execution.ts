@@ -9,7 +9,7 @@ export type CellStatus =
   | "succeeded"
   | "failed"
   | "skipped"
-  | "interrupted"
+  | "cancelled"
   | "disabled"
   | "waiting";
 
@@ -20,25 +20,14 @@ export function cellStatus(
 ): CellStatus {
   if (!execution) return cell.config.disabled ? "disabled" : "pending";
   if (
-    execution.status === "running" &&
+    execution.state.status === "running" &&
     inputs.some(
       (input) => input.execution_id === execution.id && input.status === "pending",
     )
   )
     return "waiting";
-  if (execution.status !== "completed") return execution.status;
-  switch (execution.outcome?.kind) {
-    case "value":
-      return "succeeded";
-    case "error":
-      return "failed";
-    case "skipped":
-      return "skipped";
-    case "interrupted":
-      return "interrupted";
-    default:
-      return "pending";
-  }
+  if (execution.state.status !== "completed") return execution.state.status;
+  return execution.state.outcome.kind;
 }
 
 export function cellLabel(cell: typeof Protocol.Cell.Type, index: number) {
@@ -56,27 +45,27 @@ export function duration(ms: number) {
 
 export function newestRun(state: NotebookState) {
   return Object.values(state.runs).sort((a, b) => {
-    if (a.status !== "completed" && b.status === "completed") return -1;
-    if (b.status !== "completed" && a.status === "completed") return 1;
-    return (
-      Date.parse(b.started_at ?? b.completed_at ?? "") -
-      Date.parse(a.started_at ?? a.completed_at ?? "")
-    );
+    if (a.state.status !== "completed" && b.state.status === "completed") return -1;
+    if (b.state.status !== "completed" && a.state.status === "completed") return 1;
+    return Date.parse(b.created_at) - Date.parse(a.created_at);
   })[0];
 }
 
 export function executionSpan(
-  execution:
-    | Pick<typeof Protocol.Execution.Type, "started_at" | "completed_at">
-    | undefined,
+  state: typeof Protocol.ExecutionState.Type | undefined,
   now: number,
 ) {
-  if (!execution?.started_at) return null;
-  const start = Date.parse(execution.started_at);
-  const end = execution.completed_at ? Date.parse(execution.completed_at) : now;
+  if (!state || state.status === "queued" || !state.started_at) return null;
+  const start = Date.parse(state.started_at);
+  const end =
+    state.status === "running"
+      ? now
+      : state.completed_at
+        ? Date.parse(state.completed_at)
+        : start;
   return {
     start,
     duration: Math.max(0, end - start),
-    open: execution.completed_at === null,
+    open: state.status === "running",
   };
 }

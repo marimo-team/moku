@@ -147,7 +147,7 @@ export const session = Effect.fnUntraced(function* (
                   confirmedRuntime =
                     event.data.runtime.id === session.runtimeId &&
                     event.data.runtime.notebook_id === notebookId &&
-                    event.data.runtime.status === "running";
+                    event.data.runtime.state.status === "ready";
                 if (
                   (event.event === "notebook" && !confirmedNotebook) ||
                   (event.event === "runtime" && !confirmedRuntime) ||

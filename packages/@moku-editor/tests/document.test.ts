@@ -28,7 +28,7 @@ for (const ordering of ["response-first", "stream-first"]) {
     }
     await vi.waitFor(() => Vitest.expect(h.calls).toHaveLength(2));
     Vitest.expect(h.calls[1].request.changes[0]).toMatchObject({
-      kind: "put_cell",
+      kind: "replace_cell",
       base_etag: "cell-v2",
       cell: { code: "second" },
     });
@@ -399,7 +399,7 @@ Vitest.test(
     const flushing = Effect.runPromise(h.model.flush);
     await vi.waitFor(() => Vitest.expect(h.calls).toHaveLength(1));
     Vitest.expect(h.calls[0].request.changes[0]).toMatchObject({
-      kind: "put_cell",
+      kind: "replace_cell",
       base_etag: "cell-v2",
       cell: {
         name: "remote",
@@ -428,8 +428,8 @@ Vitest.test(
     const request = h.calls[0].request;
     Vitest.expect(Schema.is(Protocol.EditRequest)(request)).toBe(true);
     Vitest.expect(request.changes.map((change) => change.kind)).toEqual([
-      "put_cell",
-      "put_cell",
+      "create_cell",
+      "create_cell",
       "delete_cell",
       "set_order",
     ]);

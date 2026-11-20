@@ -14,7 +14,7 @@ export function RunLog({
   const executions = Object.values(state.executions).filter(
     (e) => !run || e.run_id === run.id,
   );
-  const running = executions.find((e) => e.status === "running");
+  const running = executions.find((e) => e.state.status === "running");
   const runningCell = state.document?.cells.find(
     (cell) => cell.id === running?.cell_id,
   );
@@ -35,7 +35,11 @@ export function RunLog({
       </button>
       {logOpen &&
         (logs.length ? (
-          <ConsoleOutput className="run-log" chunks={logs} />
+          <ConsoleOutput
+            className="run-log"
+            chunks={logs}
+            runtimeId={run?.runtime_id}
+          />
         ) : (
           <p className="run-log">No console output for this run.</p>
         ))}

@@ -176,6 +176,9 @@ Vitest.test(
 
     await view.render(<RunLog state={state} run={run} />);
     await view.click("Run log");
+    const logs = view.element.querySelectorAll(".run-log");
+    Vitest.expect(logs).toHaveLength(1);
+    Vitest.expect(logs[0].textContent).toBe("firstearliertaillater");
     Vitest.expect(
       [...view.element.querySelectorAll('[aria-label="Console output"]')]
         .map((entry) => entry.textContent)

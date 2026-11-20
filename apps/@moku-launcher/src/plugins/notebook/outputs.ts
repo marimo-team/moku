@@ -17,9 +17,7 @@ export function select(state: Notebook.State, previous?: Selection): Selection {
   const results = new Map(previous?.runtimeId === runtimeId ? previous.results : []);
   for (const id of results.keys()) if (!cells?.has(id)) results.delete(id);
   const current = new Map<string, typeof Protocol.Execution.Type>();
-  for (const execution of Object.values(state.executions).sort(
-    (a, b) => Notebook.executionTime(a) - Notebook.executionTime(b),
-  )) {
+  for (const execution of Object.values(state.executions)) {
     const id = execution.cell_id;
     if (
       id === null ||
@@ -27,23 +25,15 @@ export function select(state: Notebook.State, previous?: Selection): Selection {
       (runtimeId !== null && execution.runtime_id !== runtimeId)
     )
       continue;
-    const selected = current.get(id);
-    // An active rerun takes precedence over a retained result.
-    if (
-      !selected ||
-      selected.state.status === "completed" ||
-      execution.state.status !== "completed"
-    )
-      current.set(id, execution);
+    // The host retires a cell's execution before publishing its replacement.
+    current.set(id, execution);
     if (
       execution.state.status !== "completed" ||
       (execution.state.outcome.kind === "skipped" &&
         execution.state.outcome.reason === "superseded")
     )
       continue;
-    const old = results.get(id);
-    if (!old || Notebook.executionTime(execution) >= Notebook.executionTime(old))
-      results.set(id, execution);
+    results.set(id, execution);
   }
   const outputs = Outputs.index(state);
   const resultOutputs = new Map<string, typeof Protocol.Output.Type>();
@@ -69,13 +59,7 @@ export function forCell(
   const outputs = current
     ? Outputs.forExecution(state, current.id, selection.outputs)
     : { runtimeId: result?.runtime_id ?? null, items: [], outcome: null, output: null };
-  if (
-    !result ||
-    result.state.status !== "completed" ||
-    current?.id === result.id ||
-    outputs.output
-  )
-    return outputs;
+  if (!result || result.state.status !== "completed" || outputs.output) return outputs;
   return {
     ...outputs,
     output: selection.resultOutputs.get(result.id) ?? null,

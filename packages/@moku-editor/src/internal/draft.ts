@@ -430,19 +430,22 @@ export function toEdits(
   draft: Draft,
 ): readonly Notebook.Edit[] | null {
   const edits: Notebook.Edit[] = [];
-  let stagedOrder: readonly string[] = confirmed.order;
+  const confirmedCells = Notebook.cellIndex(confirmed);
+  const { order } = viewDocument(confirmed, draft);
+  let writeOrder = draft.order !== null && !sameOrder(order, confirmed.order);
   for (const [id, local] of draft.cells) {
-    const base = Notebook.cellIndex(confirmed).get(id);
+    const base = confirmedCells.get(id);
     if (local.kind === "delete") {
-      if (base !== undefined) {
-        edits.push((tx) => tx.remove(base));
-        stagedOrder = stagedOrder.filter((other) => other !== id);
-      }
+      if (base !== undefined) edits.push((tx) => tx.remove(base));
     } else if (local.kind === "create") {
-      edits.push((tx) => {
-        tx.insert(local.cell);
-      });
-      if (base === undefined) stagedOrder = [...stagedOrder, id];
+      edits.push((tx) => tx.insert(local.cell));
+      // Even placement after the last cell depends on the order we observed.
+      const anchor = local.placement.before ?? local.placement.after;
+      if (
+        anchor !== undefined &&
+        (confirmedCells.has(anchor) || draft.cells.get(anchor)?.kind === "create")
+      )
+        writeOrder = true;
     } else if (base !== undefined) {
       const cell = applyEdit(base, local.edit);
       if (!sameCell(base, cell)) {
@@ -456,11 +459,7 @@ export function toEdits(
       return null;
     }
   }
-  const { order } = viewDocument(confirmed, draft);
-  if (
-    (draft.order !== null && !sameOrder(order, confirmed.order)) ||
-    !sameOrder(order, stagedOrder)
-  ) {
+  if (writeOrder) {
     const ids = Schema.decodeUnknownSync(Schema.Array(Protocol.CellId))(order);
     edits.push((tx) => tx.reorder(confirmed, ids));
   }

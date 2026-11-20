@@ -42,7 +42,7 @@ function fixture() {
     run_id: "next",
     state: { status: "queued" },
   });
-  const executions: Record<string, typeof Protocol.Execution.Type> = { old, pending };
+  const executions: Record<string, typeof Protocol.Execution.Type> = { old };
   const state = {
     ...emptyState(),
     executions,
@@ -71,7 +71,16 @@ Vitest.test("a rerun is active while queued and retains the previous result", ()
     media: { mimetype: "text/plain", data: "previous" },
   });
   state.outputs = { out: previousOutput };
-  const queued = Outputs.select(state);
+  let selection = Outputs.select(state);
+  // The host retires the output and execution in separate events before the rerun.
+  state.outputs = {};
+  selection = Outputs.select(state, selection);
+  Vitest.expect(Outputs.forCell(state, selection, "c").output).toBe(previousOutput);
+  state.executions = {};
+  selection = Outputs.select(state, selection);
+  Vitest.expect(Outputs.forCell(state, selection, "c").output).toBe(previousOutput);
+  state.executions = { pending };
+  const queued = Outputs.select(state, selection);
   Vitest.expect(Outputs.forCell(state, queued, "c").output).toBe(previousOutput);
   Vitest.expect(queued.current.get("c")).toBe(pending);
   Vitest.expect(queued.results.get("c")).toBe(old);
@@ -106,14 +115,53 @@ Vitest.test("a rerun is active while queued and retains the previous result", ()
   Vitest.expect(done.results.get("c")).toBe(completed);
 });
 
-Vitest.test("snapshot record order does not hide a queued rerun", () => {
-  const { state, old, pending } = fixture();
-  state.executions = { pending, old };
-  Vitest.expect(Outputs.select(state).current.get("c")).toBe(pending);
-});
+Vitest.test(
+  "a later failure replaces a success even when the host clock moves back",
+  () => {
+    const { state, pending } = fixture();
+    state.outputs = {
+      out: Schema.decodeUnknownSync(Protocol.Output)({
+        id: "out",
+        execution_id: "old",
+        media: { mimetype: "text/plain", data: "old result" },
+      }),
+    };
+    const previous = Outputs.select(state);
+    const failed = Schema.decodeUnknownSync(Protocol.Execution)({
+      ...pending,
+      created_at: "2026-11-12T11:00:00Z",
+      state: {
+        status: "completed",
+        started_at: "2026-11-12T11:00:00Z",
+        completed_at: "2026-11-12T11:00:01Z",
+        depends_on: {},
+        outcome: {
+          kind: "failed",
+          error: {
+            kind: "exception",
+            name: "ValueError",
+            message: "bad value",
+            source: "marimo",
+            severity: "error",
+            range: null,
+            related: [],
+            traceback: null,
+          },
+        },
+      },
+    });
+    state.executions = { pending: failed };
+    state.outputs = {};
+    const selection = Outputs.select(state, previous);
+    Vitest.expect(Outputs.forCell(state, selection, "c")).toMatchObject({
+      outcome: { kind: "failed" },
+      output: null,
+    });
+  },
+);
 
 Vitest.test("each cell shows its own outputs and removed displays disappear", () => {
-  const { state, old } = fixture();
+  const { state, old, pending } = fixture();
   const other = Schema.decodeUnknownSync(Protocol.Cell)({
     ...state.document.cells[0],
     id: "other",
@@ -124,7 +172,7 @@ Vitest.test("each cell shows its own outputs and removed displays disappear", ()
     id: "other",
     cell_id: "other",
   });
-  state.executions = { ...state.executions, other: execution };
+  state.executions = { pending, other: execution };
   const display = Schema.decodeUnknownSync(Protocol.Output)({
     id: "d",
     execution_id: "pending",

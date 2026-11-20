@@ -412,6 +412,26 @@ Vitest.test(
   },
 );
 
+Vitest.test.each([true, false])(
+  "inserting at the end preserves an explicit anchor (anchored: %s)",
+  async (anchored) => {
+    const h = await setup();
+    h.model.edit((tx) =>
+      tx.createCell({ id: "b", code: "2" }, anchored ? { after: cell.id } : undefined),
+    );
+    await vi.waitFor(() => Vitest.expect(h.calls).toHaveLength(1));
+    Vitest.expect(h.calls[0].request.changes).toEqual([
+      Vitest.expect.objectContaining({
+        kind: "create_cell",
+        cell: Vitest.expect.objectContaining({ id: "b" }),
+      }),
+      ...(anchored
+        ? [{ kind: "set_order", base_etag: document.order_etag, order: [cell.id, "b"] }]
+        : []),
+    ]);
+  },
+);
+
 Vitest.test(
   "a single transaction creates, removes, and orders cells atomically",
   async () => {

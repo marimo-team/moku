@@ -26,6 +26,7 @@ export interface DisplayViewProps {
 }
 
 export interface ConsoleOutputProps {
+  /** The runtime that produced interactive media in the console. */
   readonly runtimeId?: string | null;
   readonly chunks: readonly ConsoleChunk[];
   readonly className?: string;

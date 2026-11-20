@@ -28,11 +28,7 @@ export function ConsoleOutput({
   function flush() {
     if (!text.length) return;
     groups.push(
-      <pre
-        key={text[0].key}
-        className={["moku-console", className].filter(Boolean).join(" ")}
-        aria-label="Console output"
-      >
+      <pre key={text[0].key} className="moku-console" aria-label="Console output">
         {text}
       </pre>,
     );
@@ -51,5 +47,5 @@ export function ConsoleOutput({
     }
   }
   flush();
-  return <>{groups}</>;
+  return className ? <div className={className}>{groups}</div> : <>{groups}</>;
 }

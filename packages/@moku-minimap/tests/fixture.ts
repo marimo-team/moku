@@ -36,10 +36,10 @@ export function fixture() {
     notebook_id: "n",
     document_etag: "v1",
     cells: {
-      source: { defs: ["x", "extra"], refs: [], errors: [] },
-      middle: { defs: ["y"], refs: ["x", "extra"], errors: [] },
-      result: { defs: ["z"], refs: ["y"], errors: [] },
-      isolated: { defs: [], refs: ["external"], errors: [] },
+      source: { defs: ["x", "extra"], refs: [], diagnostics: [] },
+      middle: { defs: ["y"], refs: ["x", "extra"], diagnostics: [] },
+      result: { defs: ["z"], refs: ["y"], diagnostics: [] },
+      isolated: { defs: [], refs: ["external"], diagnostics: [] },
     },
   });
   return { ...emptyState(), document: { ...revision, cells }, analysis };

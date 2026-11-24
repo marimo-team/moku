@@ -52,8 +52,8 @@ function example() {
       notebook_id: "n",
       document_etag: "v1",
       cells: {
-        source: { defs: ["x"], refs: [], errors: [] },
-        consumer: { defs: ["y"], refs: ["x"], errors: [] },
+        source: { defs: ["x"], refs: [], diagnostics: [] },
+        consumer: { defs: ["y"], refs: ["x"], diagnostics: [] },
       },
     }),
     runs: {},

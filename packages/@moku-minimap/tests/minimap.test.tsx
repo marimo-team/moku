@@ -248,16 +248,22 @@ Vitest.test(
           ...initial.analysis.cells,
           source: {
             ...initial.analysis.cells.source,
-            errors: [
+            diagnostics: [
               {
-                kind: "exception",
-                name: "ValueError",
+                kind: "reusable-definition",
+                message: "Reusable definition",
+                source: "marimo",
+                severity: "information",
+                range: null,
+                related: [],
+              },
+              {
+                kind: "multiple-definitions",
                 message: "bad input",
                 source: "marimo",
                 severity: "error",
                 range: null,
                 related: [],
-                traceback: null,
               },
             ],
           },
@@ -320,7 +326,7 @@ Vitest.test(
         ...added.analysis,
         cells: {
           ...added.analysis.cells,
-          added: { defs: [], refs: ["x"], errors: [] },
+          added: { defs: [], refs: ["x"], diagnostics: [] },
         },
       },
     });

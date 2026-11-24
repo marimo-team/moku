@@ -61,7 +61,11 @@ export function createGraphView(
       progress: progressLabel(status),
       bindings:
         execution?.state.status === "completed" ? [...(analysis?.defs ?? [])] : [],
-      warning: edited ? "Code changed since execution" : analysis?.errors[0]?.message,
+      warning: edited
+        ? "Code changed since execution"
+        : analysis?.diagnostics.find(
+            (d) => d.severity === "error" || d.severity === "warning",
+          )?.message,
       edited,
       disabled: cell.config.disabled,
     };

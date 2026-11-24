@@ -92,9 +92,12 @@ export function CellDetails({
                 <p>{analysis?.defs.join(", ") || "—"}</p>
               </div>
             </div>
-            {analysis?.errors.map((error, index) => (
-              <div className="error-panel" key={index}>
-                {error.message}
+            {analysis?.diagnostics.map((diagnostic, index) => (
+              <div
+                className={diagnostic.severity === "error" ? "error-panel" : "notice"}
+                key={index}
+              >
+                <strong>{diagnostic.severity}</strong> {diagnostic.message}
               </div>
             ))}
             <pre className="source">

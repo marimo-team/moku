@@ -335,7 +335,7 @@ Vitest.test(
         analysis: {
           notebook_id: "n",
           document_etag: "doc-2",
-          cells: { a: { defs: ["x"], refs: [], errors: [] } },
+          cells: { a: { defs: ["x"], refs: [], diagnostics: [], parents: [] } },
         },
       },
       "4",
@@ -1190,7 +1190,7 @@ Vitest.test(
     const analysis = {
       notebook_id: "n",
       document_etag: "doc-1",
-      cells: { a: { defs: ["x"], refs: [], errors: [] } },
+      cells: { a: { defs: ["x"], refs: [], diagnostics: [], parents: [] } },
     };
     stream.send("analysis", { analysis }, "2");
     await vi.waitFor(() =>

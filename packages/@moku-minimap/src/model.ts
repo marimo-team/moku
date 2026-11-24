@@ -150,7 +150,8 @@ export function make(state: Notebook.Interface["state"]) {
       const currentWork =
         work?.code_fingerprint === cell.code_fingerprint ? work : undefined;
       const error =
-        get(currentAnalysis)?.cells[id]?.errors[0]?.message ??
+        get(currentAnalysis)?.cells[id]?.diagnostics.find((d) => d.severity === "error")
+          ?.message ??
         (currentWork?.state.status === "completed" &&
         currentWork.state.outcome.kind === "failed"
           ? currentWork.state.outcome.error.message

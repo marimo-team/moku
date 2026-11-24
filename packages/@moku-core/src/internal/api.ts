@@ -1,19 +1,13 @@
 /** Host protocol endpoints with forward-compatible event decoding. @module */
 import { Schema, SchemaGetter } from "effect";
 import { HttpApi } from "effect/http-api";
-import * as Host from "@marimo-team/host-protocol/Host";
-import * as Notebook from "@marimo-team/host-protocol/Notebook";
-import * as Analysis from "@marimo-team/host-protocol/experimental/Analysis";
+import { Host, Notebook } from "@marimo-team/host-protocol/experimental";
 
 import { CommGroup } from "./comm-protocol.ts";
 
 const known = new Set<string>([
-  "ready",
-  "reset",
-  "custom",
-  ...Analysis.objects.flatMap((object) =>
-    object.removable ? [object.kind, `${object.kind}.removed`] : [object.kind],
-  ),
+  ...Host.StreamEvent.members.map((member) => member.fields.event.literal),
+  ...Notebook.StreamEvent.members.map((member) => member.fields.event.literal),
 ]);
 const UnknownEvent = Schema.Struct({
   event: Schema.String.check(Schema.makeFilter((name) => !known.has(name))),
@@ -47,7 +41,7 @@ const MarimoEvent = Schema.Struct({
   }),
 });
 export const NotebookEvent = Schema.Union([
-  Analysis.NotebookStreamEvent,
+  Notebook.StreamEvent,
   MarimoEvent,
   UnknownEvent,
 ]);

@@ -3,6 +3,8 @@
   "treatConfigHintsAsErrors": true,
   "workspaces": {
     "apps/@moku-launcher": {
+      // The Neo4j Vite plugin bundles the widget as a separate entry.
+      "entry": ["src/plugins/neo4j/widget/render.ts"],
       // Both launcher stylesheets import the font through CSS.
       "ignoreDependencies": ["@fontsource-variable/inter"],
     },

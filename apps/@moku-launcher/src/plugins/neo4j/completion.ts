@@ -12,7 +12,7 @@ import * as Cypher from "./cypher.ts";
 import type * as Neo4jSchema from "./schema.ts";
 
 /** One suggested name. */
-export interface Option {
+interface Option {
   readonly label: string;
   readonly kind: "label" | "relationship" | "property" | "keyword";
   /** The text inserted, when the name needs backticks. */

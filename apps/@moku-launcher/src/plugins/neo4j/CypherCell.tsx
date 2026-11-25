@@ -4,7 +4,7 @@ import * as React from "react";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Document from "@moku/editor/Document";
 import { CellOutputs } from "@moku/outputs";
-import type * as Outputs from "../notebook/outputs.ts";
+import type * as Outputs from "@moku/core/Outputs";
 import type * as Currentness from "../notebook/currentness.ts";
 import { CellMenu } from "../notebook/cells/CellMenu.tsx";
 import { CypherEditor } from "./CypherEditor.tsx";
@@ -35,7 +35,7 @@ export function CypherCell({
   variables: Notebook.State["variables"];
   cell: Document.EditableCell;
   cypher: Cypher.Cell;
-  outputs: Outputs.CellOutputs;
+  outputs: Outputs.Snapshot;
   hasResult: boolean;
   currentness: Currentness.Reason | null;
   focusRequest?: number;
@@ -104,7 +104,7 @@ export function CypherCell({
             driver={driver}
             revision={
               driverVariable &&
-              `${driverVariable.revision.execution}:${driverVariable.revision.update}`
+              `${driverVariable.revision.execution_id}:${driverVariable.revision.update}`
             }
             cellId={cell.id}
             autoFocus={focused}

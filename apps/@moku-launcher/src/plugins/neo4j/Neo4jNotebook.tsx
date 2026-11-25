@@ -3,7 +3,8 @@ import { useAtom, useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
 import * as React from "react";
 import type { ViewProps } from "@moku/plugin";
-import type * as Notebook from "@moku/core/Notebook";
+import type { Snapshot } from "@moku/core/Outputs";
+import * as Notebook from "@moku/core/Notebook";
 import type * as EditorDocument from "@moku/editor/Document";
 import * as Outputs from "@moku/outputs";
 import * as Model from "../notebook/model.ts";
@@ -101,23 +102,23 @@ function Content({
     cancellation,
   });
   const kernel = state.runtime;
-  const cancelling = cancellation.waiting || kernel?.status === "terminating";
+  const cancelling = cancellation.waiting || kernel?.state.status === "stopping";
   const starting =
     ready &&
     (cancelling ||
-      kernel?.status === "starting" ||
-      (execution.waiting && kernel?.status !== "running"));
+      kernel?.state.status === "starting" ||
+      (execution.waiting && kernel?.state.status !== "ready"));
   const running = [...selection.current.values()].some(
-    (entry) => entry.status !== "completed",
+    (entry) => entry.state.status !== "completed",
   );
   const operations = state.notebook?.operations ?? [];
   const canRun =
     operations.includes("runtime.run") &&
-    (kernel?.status === "running" || operations.includes("runtime.start"));
+    (kernel?.state.status === "ready" || operations.includes("runtime.start"));
   const canInterrupt = operations.includes("runtime.interrupt");
   const canSave = operations.includes("notebook.save");
   const canCancel =
-    operations.includes("runtime.stop") && kernel?.status === "starting";
+    operations.includes("runtime.stop") && kernel?.state.status === "starting";
   const unsaved =
     dirty || (!!state.document && state.document.etag !== state.document.saved_etag);
   const order = document?.order ?? [];
@@ -215,7 +216,7 @@ function Content({
   const runCell = (cellId: string, advance: boolean) => {
     // The host runs ancestors that never ran but not ones edited since, so a
     // renamed Cypher result would otherwise be undefined downstream.
-    const stale = staleAncestors(state.analysis?.cells ?? {}, currentness, cellId);
+    const stale = staleAncestors(state.analysis, currentness, cellId);
     void run({ cellIds: [...stale, cellId] })
       .then(() => {
         if (advance) navigation.advance(cellId);
@@ -228,7 +229,7 @@ function Content({
       <KernelStartupNotice
         active={starting}
         cancelling={cancelling}
-        message={kernel?.message}
+        message={Notebook.runtimeMessage(kernel)}
         cancel={canCancel ? () => cancel() : undefined}
       />
       <NotebookToolbar
@@ -295,7 +296,8 @@ function Content({
               const cell = document?.cells.get(cellId);
               if (!cell) return null;
               const active = selection.current.get(cellId);
-              const cellRunning = active !== undefined && active.status !== "completed";
+              const cellRunning =
+                active !== undefined && active.state.status !== "completed";
               const shared = {
                 cell,
                 focusRequest:
@@ -417,12 +419,16 @@ function Content({
         <span>
           {cypher.size} Cypher · {order.length} {order.length === 1 ? "cell" : "cells"}
         </span>
-        <span className="notebook-runtime-status" title={kernel?.message ?? undefined}>
+        <span
+          className="notebook-runtime-status"
+          title={Notebook.runtimeMessage(kernel) ?? undefined}
+        >
           {starting
             ? cancelling
               ? "Cancelling startup…"
               : "Starting kernel…"
-            : kernel?.message || (kernel ? `Runtime ${kernel.status}` : "No runtime")}
+            : Notebook.runtimeMessage(kernel) ||
+              (kernel ? `Runtime ${kernel.state.status}` : "No runtime")}
         </span>
       </div>
     </div>
@@ -440,7 +446,7 @@ function WidgetRow({
   update,
 }: {
   code: string;
-  outputs: CellOutputs.CellOutputs;
+  outputs: Snapshot;
   update?: () => void;
 }) {
   const current = WidgetCell.isCurrent(code);
@@ -460,39 +466,31 @@ function WidgetRow({
   );
 }
 
-/** Public names bound anywhere in the notebook, so Cypher cells avoid redefinitions. */
 /**
  * Cells that `cellId` reads from, directly or through other cells, whose
  * source changed after their last run.
  */
 function staleAncestors(
-  analysis: Readonly<
-    Record<
-      string,
-      { readonly defs: readonly string[]; readonly refs: readonly string[] }
-    >
-  >,
+  analysis: Notebook.State["analysis"],
   currentness: (id: string) => Currentness.Reason | null,
   cellId: string,
 ): string[] {
-  const definers = new Map<string, string[]>();
-  for (const [id, cell] of Object.entries(analysis))
-    for (const name of cell.defs)
-      definers.set(name, [...(definers.get(name) ?? []), id]);
+  if (!analysis) return [];
+  const parents = Notebook.cellParents(analysis);
   const seen = new Set([cellId]);
   const queue = [cellId];
   const stale: string[] = [];
   for (let id = queue.shift(); id !== undefined; id = queue.shift())
-    for (const name of analysis[id]?.refs ?? [])
-      for (const definer of definers.get(name) ?? []) {
-        if (seen.has(definer)) continue;
-        seen.add(definer);
-        queue.push(definer);
-        if (currentness(definer) === "Source changed") stale.push(definer);
-      }
+    for (const parent of parents.get(id) ?? []) {
+      if (seen.has(parent)) continue;
+      seen.add(parent);
+      queue.push(parent);
+      if (currentness(parent) === "Source changed") stale.push(parent);
+    }
   return stale;
 }
 
+/** Public names bound anywhere in the notebook, so Cypher cells avoid redefinitions. */
 function definedNames(
   state: Notebook.State,
   document: EditorDocument.EditableDocument | null,

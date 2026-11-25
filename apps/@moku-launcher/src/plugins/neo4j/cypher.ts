@@ -40,7 +40,7 @@ import * as LezerPython from "@lezer/python";
  * Names starting with an underscore stay local to the cell, as in marimo, so
  * several Cypher cells can use the default without clashing.
  */
-export const defaultVariable = "_result";
+const defaultVariable = "_result";
 
 /** The widget class, defined by the notebook's generated widget cell, that displays results. */
 export const widget = "CypherGraph";
@@ -248,11 +248,6 @@ function isWidget(
       : undefined,
   );
   return names?.length === 2 && names[0] === variable && names[1] === driver;
-}
-
-/** Whether a cell's Python is shown as Cypher by {@link read}. */
-export function isCypher(python: string): boolean {
-  return read(python) !== undefined;
 }
 
 /**

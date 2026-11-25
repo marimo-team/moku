@@ -107,23 +107,25 @@ function fetch(notebook: Notebook.Interface, driver: string) {
             (execution) => execution.run_id === run.id,
           );
           const finished =
-            state.value.runs[run.id]?.status === "completed" ||
-            execution?.status === "completed";
+            state.value.runs[run.id]?.state.status === "completed" ||
+            execution?.state.status === "completed";
           if (!finished) return false;
           if (!execution) {
             resume(Effect.fail(new Error("The runtime did not read the schema.")));
             return true;
           }
-          if (execution.outcome?.kind === "error") {
-            resume(Effect.fail(new Error(execution.outcome.error.message)));
+          const { outcome, items } = Outputs.forExecution(state.value, execution.id);
+          if (outcome?.kind === "failed") {
+            resume(Effect.fail(new Error(outcome.error.message)));
             return true;
           }
-          const items = Outputs.forExecution(state.value, execution.id).items;
           resume(
             Effect.succeed(
               items
-                .flatMap((item) =>
-                  item.kind === "console" && item.name === "stdout" ? [item.text] : [],
+                .flatMap(({ content }) =>
+                  content.kind === "text" && content.stream === "stdout"
+                    ? [content.text]
+                    : [],
                 )
                 .join(""),
             ),

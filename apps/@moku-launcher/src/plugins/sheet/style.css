@@ -1,0 +1,311 @@
+.view-content:has(.moku-sheet) {
+  padding: 0;
+  max-width: none;
+}
+
+.moku-sheet {
+  color-scheme: light dark;
+  --sheet-ink: light-dark(#2f3140, #cdd6f4);
+  --sheet-muted: light-dark(#7a7d8e, #9399b2);
+  --sheet-canvas: light-dark(#ffffff, #181825);
+  --sheet-header: light-dark(#f4f5f8, #1e1e2e);
+  --sheet-header-active: light-dark(#e3e7f2, #313244);
+  --sheet-line: light-dark(#e1e3ea, #313244);
+  --sheet-accent: light-dark(#1e66f5, #89b4fa);
+  --sheet-error: light-dark(#d20f39, #f38ba8);
+  --sheet-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--view-header-height, 44px));
+  color: var(--sheet-ink);
+  background: var(--sheet-canvas);
+  font-size: 13px;
+}
+
+.moku-sheet[data-theme="light"] {
+  color-scheme: light;
+}
+.moku-sheet[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+.moku-sheet button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--sheet-line);
+  border-radius: 5px;
+  background: var(--sheet-canvas);
+  color: inherit;
+}
+.moku-sheet button:not(:disabled):hover,
+.moku-sheet button[aria-pressed="true"] {
+  background: var(--sheet-header-active);
+}
+
+.sheet-toolbar,
+.sheet-formula {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--sheet-line);
+}
+.sheet-status {
+  margin-left: auto;
+  color: var(--sheet-muted);
+  font-size: 12px;
+}
+
+.sheet-formula {
+  padding: 0;
+  gap: 0;
+  align-items: stretch;
+}
+.sheet-formula[data-python] {
+  background: var(--sheet-header);
+}
+.sheet-code {
+  flex: 1;
+  min-width: 0;
+}
+.sheet-formula-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 8px;
+}
+.sheet-formula-error {
+  align-self: center;
+  max-width: 40%;
+  padding: 0 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--sheet-error);
+  font-family: var(--sheet-mono);
+  font-size: 12px;
+}
+.sheet-address {
+  flex: none;
+  width: 64px;
+  text-align: center;
+  font-weight: 600;
+  border-right: 1px solid var(--sheet-line);
+  line-height: 30px;
+}
+.sheet-formula[data-python] .sheet-address {
+  color: var(--sheet-muted);
+  font-weight: 500;
+}
+.sheet-formula input {
+  flex: 1;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font-family: var(--sheet-mono);
+}
+
+.sheet-grid {
+  flex: 1;
+  min-height: 160px;
+  overflow: auto;
+  outline: none;
+}
+.sheet-grid table {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+.sheet-grid th,
+.sheet-grid td {
+  height: 26px;
+  padding: 0 6px;
+  border-right: 1px solid var(--sheet-line);
+  border-bottom: 1px solid var(--sheet-line);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sheet-grid th {
+  position: sticky;
+  z-index: 3;
+  background: var(--sheet-header);
+  color: var(--sheet-muted);
+  font-weight: 500;
+  font-size: 12px;
+  text-align: center;
+}
+.sheet-grid thead th {
+  top: 0;
+  width: 112px;
+  min-width: 112px;
+}
+.sheet-grid tbody th,
+.sheet-grid .sheet-corner {
+  left: 0;
+  width: 44px;
+  min-width: 44px;
+}
+.sheet-grid .sheet-corner {
+  z-index: 4;
+}
+.sheet-grid th[data-active] {
+  background: var(--sheet-header-active);
+  color: var(--sheet-ink);
+}
+.sheet-grid td {
+  max-width: 112px;
+  cursor: cell;
+  font-variant-numeric: tabular-nums;
+}
+.sheet-grid td[data-numeric] {
+  text-align: right;
+}
+.sheet-grid td[data-kind="error"] {
+  color: var(--sheet-error);
+  font-family: var(--sheet-mono);
+  font-size: 12px;
+}
+.sheet-grid td[data-kind="formula"] {
+  color: var(--sheet-muted);
+  font-family: var(--sheet-mono);
+  font-size: 12px;
+}
+/* Rich values render inline, growing the row and covering empty cells to the right. */
+.sheet-grid td[data-kind="rich"] {
+  overflow: visible;
+  vertical-align: top;
+}
+.sheet-rich {
+  position: relative;
+  z-index: 1;
+  max-height: 300px;
+  overflow: hidden;
+  padding: 4px 0;
+  background: var(--sheet-canvas);
+  white-space: normal;
+  pointer-events: none;
+}
+/* The output itself takes the pointer, so widgets such as sliders work in the
+   grid while clicks on the empty overflow still reach the cells beneath. */
+.sheet-rich > .moku-display {
+  width: fit-content;
+  max-width: 100%;
+  pointer-events: auto;
+}
+.sheet-grid td[data-busy] {
+  color: var(--sheet-muted);
+  font-style: italic;
+}
+.sheet-grid td[aria-selected="true"] {
+  outline: 2px solid var(--sheet-accent);
+  outline-offset: -2px;
+}
+.sheet-grid:not(:focus-within) td[aria-selected="true"] {
+  outline-color: var(--sheet-muted);
+}
+.sheet-grid td input {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.sheet-others {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-left: 12px;
+  color: var(--sheet-muted);
+  font-size: 12px;
+}
+.sheet-others button {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--sheet-ink);
+  font-family: var(--sheet-mono);
+  font-size: 12px;
+}
+
+.moku-sheet > [role="alert"] {
+  margin: 0;
+  padding: 6px 12px;
+  color: var(--sheet-error);
+  white-space: pre-wrap;
+}
+
+/* Charts float from their anchor cell above the grid and below its headers. */
+.sheet-grid td[data-anchor] {
+  position: relative;
+  overflow: visible;
+}
+.sheet-chart {
+  position: absolute;
+  z-index: 2;
+  width: max-content;
+  max-width: 720px;
+  overflow: hidden;
+  border: 1px solid var(--sheet-line);
+  border-radius: 6px;
+  background: var(--sheet-canvas);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.25);
+  white-space: normal;
+}
+.sheet-chart[aria-selected="true"] {
+  outline: 2px solid var(--sheet-accent);
+}
+.sheet-chart[data-dragging] {
+  opacity: 0.85;
+  z-index: 3;
+}
+/* An unlabeled strip across the top of a chart is its drag handle. It shows a
+   row of dots while the pointer is over the chart or the chart is selected. */
+.sheet-chart-title {
+  height: 12px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  background: radial-gradient(circle, var(--sheet-muted) 1px, transparent 1.5px) 0 50% /
+    6px 6px repeat-x;
+  background-clip: content-box;
+  padding: 0 calc(50% - 15px);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.sheet-chart:hover .sheet-chart-title,
+.sheet-chart[aria-selected="true"] .sheet-chart-title {
+  opacity: 1;
+}
+.sheet-chart[data-dragging] .sheet-chart-title {
+  cursor: grabbing;
+}
+.sheet-chart-body {
+  padding: 6px;
+}
+.sheet-chart[data-busy] .sheet-chart-body {
+  opacity: 0.6;
+}
+.sheet-chart-empty {
+  display: block;
+  padding: 24px 32px;
+  color: var(--sheet-muted);
+}
+.sheet-chart-error {
+  display: block;
+  max-width: 360px;
+  padding: 8px;
+  color: var(--sheet-error);
+  font-family: var(--sheet-mono);
+  font-size: 12px;
+}

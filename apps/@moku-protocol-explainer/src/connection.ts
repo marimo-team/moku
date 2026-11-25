@@ -21,7 +21,7 @@ const notebook: Protocol.Notebook = {
   path: "hello.py",
   name: "hello",
   operations: ["notebook.edit", "notebook.save", "runtime.start"],
-  updated_at: "2026-10-01T09:00:00Z",
+  modified_at: "2026-10-01T09:00:00Z",
 };
 const first: Protocol.Cell = {
   id: "c1",

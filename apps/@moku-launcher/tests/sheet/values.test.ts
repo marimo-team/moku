@@ -175,8 +175,15 @@ Vitest.test("labels errors the way a spreadsheet does", () => {
           c1: {
             defs: ["A1"],
             refs: ["A1"],
-            errors: [
-              { kind: "cycle-dependencies", severity: "error", message: "Cycle" },
+            diagnostics: [
+              {
+                source: "marimo",
+                kind: "cycle-dependencies",
+                severity: "error",
+                message: "Cycle",
+                range: null,
+                related: [],
+              },
             ],
           },
         },

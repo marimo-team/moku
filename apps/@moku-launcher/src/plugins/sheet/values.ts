@@ -81,7 +81,9 @@ export function select(
     const current = outputs.current.get(id);
     const result = outputs.results.get(id);
     const busy = current !== undefined && current.state.status !== "completed";
-    const invalid = analysis[id]?.errors.find((error) => error.severity === "error");
+    const invalid = analysis[id]?.diagnostics.find(
+      (error) => error.severity === "error",
+    );
     const before = previous?.cells.get(id);
     const display = invalid
       ? analysisError(invalid)
@@ -108,7 +110,9 @@ function fromSource({ name, code }: Source): Display {
   return { kind: "value", text: input, numeric: Formula.isNumber(input) };
 }
 
-function analysisError(error: typeof Protocol.Error.Type): Display {
+function analysisError(
+  error: (typeof Protocol.CellAnalysis.Type)["diagnostics"][number],
+): Display {
   const label =
     error.kind === "cycle-dependencies"
       ? "#CYCLE!"

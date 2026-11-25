@@ -1,0 +1,341 @@
+/* The board fills the view, edge to edge. */
+.view-content:has(> .sketcher-view) {
+  max-width: none;
+  padding: 0;
+}
+.sketcher-view {
+  position: relative;
+  height: calc(100dvh - var(--view-header-height));
+  overflow: hidden;
+  font-size: 13px;
+}
+.sketcher-board {
+  position: absolute;
+  inset: 0;
+}
+.sketcher-message {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: #888;
+  pointer-events: none;
+}
+
+.sketcher-status {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #666;
+  background: rgba(255, 255, 255, 0.8);
+  border: 0.5px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(12px);
+  z-index: 5;
+}
+.sketcher-status button {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  color: inherit;
+  font: inherit;
+}
+.sketcher-status button:hover {
+  background: #f4f4f4;
+}
+.sketcher-sep {
+  width: 1px;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.12);
+}
+.sketcher-hint {
+  margin-left: 6px;
+  color: #999;
+}
+.sketcher-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #bbb;
+}
+.sketcher-dot[data-state="ready"] {
+  background: #3bb273;
+}
+.sketcher-dot[data-state="starting"] {
+  background: #e3a33b;
+}
+.sketcher-problem {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  max-width: min(640px, calc(100% - 40px));
+  margin: 0;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: #8a3b35;
+  background: #fdf0ee;
+  border: 1px solid #f0cfca;
+  z-index: 5;
+}
+.sketcher-problem button {
+  border: 0;
+  background: none;
+  font-size: 16px;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* A connection's details: what was asked and the helper cells it brought. */
+.sketcher-link-panel {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: min(440px, calc(100% - 24px));
+  max-height: calc(100% - 80px);
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #333;
+  background: rgba(255, 255, 255, 0.92);
+  border: 0.5px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(12px);
+  z-index: 6;
+}
+.sketcher-link-panel header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sketcher-link-panel header button {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  font-size: 16px;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
+}
+.sketcher-link-panel code {
+  font:
+    500 12px ui-monospace,
+    "SF Mono",
+    Menlo,
+    Consolas,
+    monospace;
+  color: #0a84ff;
+}
+.sketcher-link-panel p {
+  margin: 8px 0;
+}
+.sketcher-link-panel h4 {
+  margin: 10px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.sketcher-link-panel pre {
+  margin: 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  font:
+    12px/1.45 ui-monospace,
+    "SF Mono",
+    Menlo,
+    Consolas,
+    monospace;
+  white-space: pre-wrap;
+}
+.sketcher-link-note {
+  color: #888;
+}
+.sketcher-view[data-theme="dark"] .sketcher-link-panel {
+  color: #ddd;
+  background: rgba(30, 31, 34, 0.92);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.sketcher-view[data-theme="dark"] .sketcher-link-panel pre {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Debug */
+.sketcher-status .sketcher-debug-button[data-busy] {
+  border-color: #0a84ff;
+  color: #0a84ff;
+}
+.sketcher-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.sketcher-debug-prompt {
+  position: absolute;
+  right: 12px;
+  bottom: 52px;
+  width: min(420px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #333;
+  background: rgba(255, 255, 255, 0.95);
+  border: 0.5px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(12px);
+  z-index: 6;
+}
+.sketcher-debug-prompt textarea {
+  resize: vertical;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font:
+    13px/1.4 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    system-ui,
+    sans-serif;
+  color: inherit;
+  background: white;
+}
+.sketcher-debug-prompt p {
+  margin: 0;
+}
+.sketcher-debug-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sketcher-debug-actions span {
+  margin-right: auto;
+  font-size: 11px;
+  color: #999;
+}
+.sketcher-debug-actions button,
+.sketcher-text-button {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.sketcher-debug-actions .sketcher-primary {
+  border-color: #0a84ff;
+  background: #0a84ff;
+  color: white;
+}
+.sketcher-debug-panel {
+  top: auto;
+  bottom: 52px;
+}
+.sketcher-debug-panel ol {
+  margin: 6px 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #777;
+}
+.sketcher-debug-panel[data-kind="running"] ol li:last-child {
+  color: #0a84ff;
+}
+.sketcher-debug-summary {
+  white-space: pre-wrap;
+}
+.sketcher-view[data-theme="dark"] .sketcher-debug-prompt {
+  color: #ddd;
+  background: rgba(30, 31, 34, 0.95);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.sketcher-view[data-theme="dark"] .sketcher-debug-prompt textarea,
+.sketcher-view[data-theme="dark"] .sketcher-debug-actions button,
+.sketcher-view[data-theme="dark"] .sketcher-text-button {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Card content */
+.sketcher-card {
+  padding: 10px 12px;
+}
+.sketcher-card-note {
+  margin: 0;
+  color: #999;
+  font-size: 12px;
+}
+.sketcher-card[data-busy] {
+  opacity: 0.75;
+}
+.sketcher-card-code {
+  margin: -10px -12px 10px;
+  padding: 8px 12px;
+  max-height: 260px;
+  overflow: auto;
+  font:
+    12px/1.45 ui-monospace,
+    "SF Mono",
+    Menlo,
+    Consolas,
+    monospace;
+  background: rgba(0, 0, 0, 0.035);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  white-space: pre;
+}
+.sketcher-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.sketcher-card-actions button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.sketcher-card-missing p {
+  margin: 0;
+  color: #888;
+}
+
+/* Dark */
+.sketcher-view[data-theme="dark"] .sketcher-status {
+  color: #bbb;
+  background: rgba(40, 42, 46, 0.85);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.sketcher-view[data-theme="dark"] .sketcher-status button,
+.sketcher-view[data-theme="dark"] .sketcher-card-actions button {
+  background: #2b2d31;
+  border-color: #444;
+}
+.sketcher-view[data-theme="dark"] .sketcher-sep {
+  background: rgba(255, 255, 255, 0.15);
+}
+.sketcher-view[data-theme="dark"] .sketcher-card,
+.sketcher-view[data-theme="dark"] .sketcher-card-code {
+  color: #ddd;
+}
+.sketcher-view[data-theme="dark"] .sketcher-card-code {
+  background: rgba(255, 255, 255, 0.05);
+}

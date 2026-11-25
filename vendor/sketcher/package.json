@@ -1,0 +1,13 @@
+{
+  "name": "sketcher",
+  "private": true,
+  "version": "0.0.0-b9d3e2101a89",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./vite": "./vite/claudeBridge.ts"
+  },
+  "dependencies": {
+    "mathjax-full": "^3.2.2"
+  }
+}

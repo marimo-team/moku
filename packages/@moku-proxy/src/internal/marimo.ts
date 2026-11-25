@@ -95,14 +95,18 @@ export function create(
           return json(res, 200, { success: true });
         }
         const credential = credentials.get(connectionId);
-        if (!credential)
-          return json(res, 401, {
+        const unauthorized = () =>
+          json(res, 401, {
             error: "Authorize interactions with the marimo server token.",
           });
+        // Hosts that carry widget traffic themselves never authorize a viewer, but their
+        // outputs still load widget modules from marimo's server. Fetch those without a
+        // token and let marimo refuse them if it requires one.
+        if (!credential && stream) return unauthorized();
         const upstream = new URL(marimoBase + path);
         let body: string | undefined;
         const headers = new Headers();
-        if (credential.token)
+        if (credential?.token)
           headers.set("Authorization", `Bearer ${credential.token}`);
         if (stream) {
           const sessionId = url.searchParams.get("session_id");
@@ -125,6 +129,7 @@ export function create(
             return json(res, 400, { error: "Invalid output asset path." });
         }
         if (endpoint) {
+          if (!credential) return unauthorized();
           try {
             const request = await prepare({ endpoint, params: {} }, req, url);
             body = request.body;

@@ -16,7 +16,7 @@ export interface Interface extends Model.Interface {
   readonly assetUrl: (path: string) => string;
 }
 
-/** Attach a notebook and resolve its output assets through the launcher proxy. */
+/** Attach a notebook and resolve its output assets against its marimo server. */
 export const make = Effect.fnUntraced(function* (
   host: Host.Interface,
   input: Target,
@@ -30,8 +30,9 @@ export const make = Effect.fnUntraced(function* (
     assetUrl: (path: string) => {
       if (!/^(\.\/|\/)@file\//.test(path))
         throw new Error("Expected a marimo @file asset path.");
-      const url = new URL(baseUrl.pathname + path.replace(/^\./, ""), baseUrl);
-      if (!url.pathname.startsWith(baseUrl.pathname + "/@file/"))
+      const base = baseUrl.pathname.replace(/\/$/, "");
+      const url = new URL(base + path.replace(/^\./, ""), baseUrl);
+      if (url.origin !== baseUrl.origin || !url.pathname.startsWith(base + "/@file/"))
         throw new Error("Invalid asset path.");
       return url.href;
     },

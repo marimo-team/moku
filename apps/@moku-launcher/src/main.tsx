@@ -12,12 +12,18 @@ import MinimapPlugin from "./plugins/minimap/index.tsx";
 
 import "./style.css";
 
-const launchKey = new URLSearchParams(location.hash.slice(1)).get("key") ?? undefined;
-if (launchKey) {
+const fragment = new URLSearchParams(location.hash.slice(1));
+const launchKey = fragment.get("key") ?? undefined;
+const directHost =
+  fragment.has("host") || fragment.has("token")
+    ? { url: fragment.get("host") ?? "", token: fragment.get("token") ?? "" }
+    : undefined;
+if (launchKey || directHost) {
   history.replaceState(null, "", location.pathname + location.search);
 }
 const application = Application.make({
   launchKey,
+  directHost,
   plugins: [GraphExplainerPlugin, NotebookEditorPlugin, BasicPlugin, MinimapPlugin],
 });
 

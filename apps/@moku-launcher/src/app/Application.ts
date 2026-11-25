@@ -8,6 +8,7 @@ import { FetchHttpClient } from "effect/http";
 import { Atom } from "effect/reactivity";
 import * as Workspace from "./Workspace.ts";
 import type * as Notebook from "./Notebook.ts";
+import type * as DirectHost from "./DirectHost.ts";
 import { Plugin } from "@moku/plugin";
 
 class Target extends Data.Class<Notebook.Target> {}
@@ -18,6 +19,7 @@ export const runtime = Atom.runtime(FetchHttpClient.layer);
 /** Creates application state for views that share an atom registry. */
 export function make(options: {
   launchKey?: string;
+  directHost?: DirectHost.Input;
   plugins: readonly Plugin.Interface[];
 }) {
   const workspace = runtime.atom(Workspace.make(options)).pipe(Atom.setIdleTTL(0));

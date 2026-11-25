@@ -16,7 +16,10 @@ const notebook = {
   modified_at: null,
 };
 
-async function fixture(launchKey?: string) {
+async function fixture(
+  launchKey?: string,
+  directHost?: { url: string; token: string },
+) {
   const requests: Request[] = [];
   const streams: {
     request: Request;
@@ -102,7 +105,7 @@ async function fixture(launchKey?: string) {
   return {
     run,
     workspace: await run(
-      Workspace.make({ launchKey }).pipe(
+      Workspace.make({ launchKey, directHost }).pipe(
         Effect.provide(FetchHttpClient.layer),
         Effect.provideService(FetchHttpClient.Fetch, fetch),
       ),
@@ -120,6 +123,78 @@ async function fixture(launchKey?: string) {
     },
   };
 }
+
+Vitest.test(
+  "a startup host serves catalogs, notebooks and commands directly",
+  async () => {
+    const url = "https://notebooks.example/prefix/api/marimo/v1";
+    const f = await fixture(undefined, { url: url + "/", token: "first" });
+    const { workspace, registry } = f;
+    const [connection] = registry.get(workspace.state).connections;
+    Vitest.expect(connection.url).toBe(url);
+    Vitest.onTestFinished(registry.mount(workspace.catalog(connection.id)));
+    const target = { connectionId: connection.id, notebookId: "n" };
+    const notebook = await f.run(workspace.attach(target));
+    Vitest.expect(notebook.assetUrl("./@file/image.png")).toBe(
+      "https://notebooks.example/prefix/@file/image.png",
+    );
+    const replacement = await f.run(
+      workspace.connectDirect({ url, token: "replacement" }),
+    );
+    Vitest.expect(replacement.id).toBe(connection.id);
+    Vitest.expect((await f.run(workspace.attach(target))).state).toBe(notebook.state);
+    await f.run(workspace.refresh);
+    await f.run(workspace.open(target));
+    Vitest.expect(f.requests.map((request) => request.url)).toContain(
+      url + "/notebooks/n/events",
+    );
+    Vitest.expect(f.requests.at(-1)?.url).toBe(url + "/notebooks/n/open");
+    Vitest.expect(f.requests.at(-1)?.headers.get("authorization")).toBe(
+      "Bearer replacement",
+    );
+    for (const request of f.requests) {
+      Vitest.expect(request.url.startsWith(url + "/")).toBe(true);
+      Vitest.expect(request.headers.get("authorization")).toMatch(
+        /^Bearer (first|replacement)$/,
+      );
+      Vitest.expect(request.credentials).toBe("omit");
+      Vitest.expect(request.redirect).toBe("error");
+    }
+    Vitest.expect(JSON.stringify(registry.get(workspace.state))).not.toContain(
+      "replacement",
+    );
+  },
+);
+
+Vitest.test(
+  "manual direct hosts survive discovery and a rejected token change",
+  async () => {
+    const f = await fixture("launch-key");
+    const url = "https://remote.example";
+    const added = await f.run(f.workspace.connectDirect({ url, token: "valid" }));
+    Vitest.expect(added.url).toBe(url + "/api/marimo/v1");
+    f.respond(async (request) =>
+      request.headers.get("authorization") === "Bearer wrong"
+        ? new Response(null, { status: 401 })
+        : undefined,
+    );
+    await Vitest.expect(
+      f.run(f.workspace.connectDirect({ url, token: "wrong" })),
+    ).rejects.toThrow("host refused");
+    await f.run(f.workspace.refresh);
+    Vitest.expect(
+      f.registry.get(f.workspace.state).connections.map((item) => item.id),
+    ).toEqual(["local", added.id]);
+    await f.run(f.workspace.open({ connectionId: added.id, notebookId: "n" }));
+    Vitest.expect(f.requests.at(-1)?.headers.get("authorization")).toBe("Bearer valid");
+    Vitest.expect(
+      f.requests.some(
+        (request) =>
+          new URL(request.url).pathname === "/api/hosts" && request.method === "POST",
+      ),
+    ).toBe(false);
+  },
+);
 
 Vitest.test(
   "correcting credentials restarts shared observations without discarding editor drafts",

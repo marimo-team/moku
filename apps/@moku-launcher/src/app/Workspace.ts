@@ -1,14 +1,31 @@
 /**
- * Host connections and notebook catalogs for an authenticated proxy session.
+ * Host connections and notebook catalogs for the launcher.
  *
  * @module
  */
-import { Data, Effect, Fiber, Option, RcMap, Schema, Semaphore } from "effect";
+import {
+  Data,
+  Effect,
+  Fiber,
+  Option,
+  RcMap,
+  Redacted,
+  Schema,
+  Semaphore,
+} from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Host from "@moku/core/Host";
+import { ModelError } from "@moku/core/Notebook";
 import * as Notebook from "./Notebook.ts";
+import * as DirectHost from "./DirectHost.ts";
 import { RequestError } from "./request.ts";
-import { FetchHttpClient, HttpBody, HttpClient, HttpClientResponse } from "effect/http";
+import {
+  FetchHttpClient,
+  HttpBody,
+  HttpClient,
+  HttpClientRequest,
+  HttpClientResponse,
+} from "effect/http";
 
 /**
  * A discovered or manually connected host, without its authentication token.
@@ -75,9 +92,12 @@ export interface Interface {
    */
   readonly connect: (input: ConnectInput) => Effect.Effect<Connection, RequestError>;
 
-  /**
-   * Rediscovers hosts and replaces the current connection list.
-   */
+  /** Connects the browser to a host and updates its credentials when added again. */
+  readonly connectDirect: (
+    input: DirectHost.Input,
+  ) => Effect.Effect<Connection, RequestError>;
+
+  /** Rediscovers local hosts and reconnects active direct streams. */
   readonly refresh: Effect.Effect<void, RequestError>;
 
   /** Ask a host to open its own notebook interface. */
@@ -119,25 +139,30 @@ const checkResponse = Effect.fnUntraced(function* (
 });
 
 /** Opens a launcher session and shares host connections between catalogs and notebook views. */
-export const make = Effect.fnUntraced(function* (options: { launchKey?: string }) {
+export const make = Effect.fnUntraced(function* (options: {
+  launchKey?: string;
+  directHost?: DirectHost.Input;
+}) {
   const sessionUrl = new URL("/api/session", location.origin).href;
   const hostsUrl = new URL("/api/hosts", location.origin).href;
   const hostUrl = (id: string) => hostsUrl + "/" + encodeURIComponent(id);
   const marimoUrl = (id: string) => new URL(hostUrl(id) + "/marimo");
-  const transport = (yield* HttpClient.HttpClient).pipe(
-    HttpClient.transformResponse((request) =>
-      request.pipe(
-        Effect.provideService(FetchHttpClient.RequestInit, {
-          redirect: "error",
-          credentials: "same-origin",
-        }),
-        Effect.provideService(HttpClient.TracerPropagationEnabled, false),
+  const client = yield* HttpClient.HttpClient;
+  const transport = (credentials: RequestCredentials) =>
+    client.pipe(
+      HttpClient.transformResponse((request) =>
+        request.pipe(
+          Effect.provideService(FetchHttpClient.RequestInit, {
+            redirect: "error",
+            credentials,
+          }),
+          Effect.provideService(HttpClient.TracerPropagationEnabled, false),
+        ),
       ),
-    ),
-  );
-  const http = transport.pipe(
-    HttpClient.transformResponse(Effect.flatMap(checkResponse)),
-  );
+    );
+  const local = transport("same-origin");
+  const browser = transport("omit");
+  const http = local.pipe(HttpClient.transformResponse(Effect.flatMap(checkResponse)));
   const registry = yield* AtomRegistry.AtomRegistry;
   const owner = yield* Effect.scope;
   // Commands execute after construction and must end with either their caller or workspace.
@@ -147,7 +172,7 @@ export const make = Effect.fnUntraced(function* (options: { launchKey?: string }
       Fiber.join,
       Fiber.interrupt,
     ).pipe(Effect.mapError(failure));
-  yield* owned(
+  const authenticate = owned(
     (options.launchKey
       ? http.post(sessionUrl, {
           headers: { Authorization: `Bearer ${options.launchKey}` },
@@ -166,6 +191,7 @@ export const make = Effect.fnUntraced(function* (options: { launchKey?: string }
     status: Status.Idle(),
   });
   yield* Atom.mount(current);
+  const direct = new Map<string, { url: string; token: Redacted.Redacted<string> }>();
   const setStatus = (status: Status) =>
     registry.update(current, (state) => ({ ...state, status }));
   const lock = yield* Semaphore.make(1);
@@ -189,24 +215,46 @@ export const make = Effect.fnUntraced(function* (options: { launchKey?: string }
         );
       }),
     );
-  const refresh = update(
-    owned(
-      http.get(hostsUrl).pipe(
-        Effect.flatMap(HttpClientResponse.schemaBodyJson(Schema.Array(Connection))),
-        Effect.tap((connections) =>
-          Effect.sync(() =>
-            registry.update(current, (state) => ({ ...state, connections })),
-          ),
+  const discover = http
+    .get(hostsUrl)
+    .pipe(
+      Effect.flatMap(HttpClientResponse.schemaBodyJson(Schema.Array(Connection))),
+      Effect.tap((connections) =>
+        Effect.sync(() =>
+          registry.update(current, (state) => ({
+            ...state,
+            connections: [
+              ...connections,
+              ...state.connections.filter((item) => direct.has(item.id)),
+            ],
+          })),
         ),
       ),
-    ),
-  ).pipe(Effect.asVoid);
+    )
+    .pipe(Effect.asVoid);
   const hosts = yield* RcMap.make({
-    lookup: (connectionId: string) =>
-      Host.make({
+    lookup: Effect.fnUntraced(function* (connectionId: string) {
+      const endpoint = direct.get(connectionId);
+      if (endpoint) {
+        const authenticated = browser.pipe(
+          HttpClient.mapRequest((request) =>
+            HttpClientRequest.bearerToken(request, endpoint.token),
+          ),
+        );
+        return yield* Host.make({ baseUrl: endpoint.url }).pipe(
+          Effect.provideService(HttpClient.HttpClient, authenticated),
+        );
+      }
+      if (connectionId.startsWith("direct:"))
+        return yield* new ModelError({
+          reason: "invalid-state",
+          message: "Add this host in the launcher to reconnect.",
+        });
+      return yield* Host.make({
         baseUrl: hostUrl(connectionId),
         marimoBaseUrl: marimoUrl(connectionId),
-      }).pipe(Effect.provideService(HttpClient.HttpClient, transport)),
+      }).pipe(Effect.provideService(HttpClient.HttpClient, local));
+    }),
   });
   const host = (connectionId: string) => RcMap.get(hosts, connectionId);
   const handles = Atom.family((connectionId: string) =>
@@ -218,15 +266,52 @@ export const make = Effect.fnUntraced(function* (options: { launchKey?: string }
       return AsyncResult.flatMap(handle, (host) => get(host.state));
     }).pipe(Atom.setIdleTTL(0)),
   );
+  const reconnect = (id: string) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const existing = yield* RcMap.getOption(hosts, id);
+        if (Option.isSome(existing)) yield* existing.value.reconnect;
+      }),
+    );
+  const register = <E>(resolve: Effect.Effect<Connection, E>) =>
+    update(
+      owned(
+        Effect.gen(function* () {
+          const connection = yield* resolve;
+          yield* reconnect(connection.id);
+          registry.update(current, (state) => ({
+            ...state,
+            connections: [
+              ...state.connections.filter((item) => item.id !== connection.id),
+              connection,
+            ],
+          }));
+          return connection;
+        }),
+      ),
+    );
+  const discoverLocal =
+    (!options.directHost || !!options.launchKey) &&
+    (yield* Effect.isSuccess(authenticate));
   const workspace: Interface = {
     state: Atom.readable((get) => get(current)),
-    refresh,
+    refresh: update(
+      owned(
+        Effect.gen(function* () {
+          if (discoverLocal) yield* discover;
+          for (const id of direct.keys()) yield* reconnect(id);
+        }),
+      ),
+    ),
     catalog,
     attach: Effect.fnUntraced(function* (target) {
+      const endpoint = direct.get(target.connectionId);
       return yield* Notebook.make(
         yield* host(target.connectionId),
         target,
-        marimoUrl(target.connectionId),
+        endpoint
+          ? new URL(endpoint.url.replace(/\/api\/marimo\/v1$/, ""))
+          : marimoUrl(target.connectionId),
       );
     }),
     open: ({ connectionId, notebookId }) =>
@@ -239,33 +324,37 @@ export const make = Effect.fnUntraced(function* (options: { launchKey?: string }
         ),
       ),
     connect: (input) =>
-      update(
-        owned(
-          http.post(hostsUrl, { body: HttpBody.jsonUnsafe(input) }).pipe(
-            Effect.flatMap(HttpClientResponse.schemaBodyJson(Connection)),
-            Effect.tap((connection) =>
-              Effect.scoped(
-                Effect.gen(function* () {
-                  const existing = yield* RcMap.getOption(hosts, connection.id);
-                  if (Option.isSome(existing)) yield* existing.value.reconnect;
-                }),
-              ),
-            ),
-            Effect.tap((connection) =>
-              Effect.sync(() =>
-                registry.update(current, (state) => ({
-                  ...state,
-                  connections: [
-                    ...state.connections.filter((item) => item.id !== connection.id),
-                    connection,
-                  ],
-                })),
-              ),
-            ),
-          ),
+      register(
+        http
+          .post(hostsUrl, { body: HttpBody.jsonUnsafe(input) })
+          .pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(Connection))),
+      ),
+    connectDirect: (input) =>
+      register(
+        DirectHost.connect(input, browser).pipe(
+          Effect.map(({ id, name, url, token }) => {
+            const endpoint = direct.get(id);
+            if (endpoint) endpoint.token = token;
+            else direct.set(id, { url, token });
+            return { id, name, url, source: "manual" as const };
+          }),
         ),
       ),
   };
-  yield* Effect.forkScoped(refresh.pipe(Effect.catch(() => Effect.void)));
+  if (discoverLocal)
+    yield* Effect.forkScoped(workspace.refresh.pipe(Effect.catch(() => Effect.void)));
+  else if (!options.directHost)
+    setStatus(
+      Status.Failed({
+        error: new RequestError({
+          message:
+            "Open the launch link from bun dev for local discovery, or add a host directly.",
+        }),
+      }),
+    );
+  if (options.directHost)
+    yield* workspace
+      .connectDirect(options.directHost)
+      .pipe(Effect.catch(() => Effect.void));
   return workspace;
 });

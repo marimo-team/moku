@@ -266,3 +266,33 @@ Vitest.test(
     Vitest.expect(another.state.readOnly).toBe(true);
   },
 );
+
+Vitest.test(
+  "text a projection normalizes on read is kept as typed and stays editable",
+  async () => {
+    const h = await setup();
+    h.publish('mo.md("hello")', 2);
+    // Like Markdown smart cells, reading the stored source trims whitespace.
+    const markdown = (code: string): CodeMirror.Source => ({
+      code: (/^mo\.md\("(.*)"\)$/s.exec(code)?.[1] ?? code).trim(),
+      write: (text) => `mo.md("${text}")`,
+    });
+    const view = editor(
+      CodeMirror.bindCell({ document: h.model, cellId: cell.id, source: markdown }),
+    );
+    await tick();
+    h.publish('mo.md(" hello ")', 3);
+    await tick();
+    Vitest.expect(view.state.doc.toString()).toBe("hello");
+
+    view.dispatch({ changes: { from: view.state.doc.length, insert: " " } });
+    await tick();
+    Vitest.expect(h.code()).toBe('mo.md("hello ")');
+    Vitest.expect(view.state.doc.toString()).toBe("hello ");
+
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "world\n" } });
+    await tick();
+    Vitest.expect(h.code()).toBe('mo.md("hello world\n")');
+    Vitest.expect(view.state.doc.toString()).toBe("hello world\n");
+  },
+);

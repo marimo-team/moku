@@ -6,6 +6,10 @@
       // Both launcher stylesheets import the font through CSS.
       "ignoreDependencies": ["@fontsource-variable/inter"],
     },
+    "apps/@moku-protocol-explainer": {
+      // The explainer imports the font through CSS.
+      "ignoreDependencies": ["@fontsource-variable/inter"],
+    },
     "packages/@moku-outputs": {
       // scripts/build.ts passes this entry to Vite's programmatic build.
       "entry": ["bundle/renderer.tsx"],

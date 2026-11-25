@@ -196,6 +196,38 @@ export function cellIndex(
 }
 
 /**
+ * Returns the direct parents of each cell in an analyzed revision.
+ *
+ * For hosts that omit parent IDs, infers dependencies from definitions and references.
+ */
+export function cellParents(
+  analysis: typeof Protocol.Analysis.Type,
+): ReadonlyMap<string, readonly string[]> {
+  const cells = Object.entries(analysis.cells);
+  const parents = new Map<string, readonly string[]>();
+  for (const [id, cell] of cells) {
+    if (cell.parents !== undefined) parents.set(id, cell.parents);
+  }
+  if (parents.size === cells.length) return parents;
+
+  const definitions = new Map<string, string[]>();
+  for (const [id, cell] of cells) {
+    for (const name of cell.defs) {
+      const owners = definitions.get(name);
+      if (owners) owners.push(id);
+      else definitions.set(name, [id]);
+    }
+  }
+  for (const [id, cell] of cells) {
+    if (parents.has(id)) continue;
+    const inferred = new Set(cell.refs.flatMap((name) => definitions.get(name) ?? []));
+    inferred.delete(id);
+    parents.set(id, [...inferred]);
+  }
+  return parents;
+}
+
+/**
  * Creates a cell ID that the caller has not reserved.
  *
  * Include deleted and pending cells in the reservation check when their identities

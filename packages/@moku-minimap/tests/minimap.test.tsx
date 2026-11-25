@@ -133,6 +133,34 @@ Vitest.test(
 );
 
 Vitest.test(
+  "a parent-only change updates the selected cell's connections",
+  async () => {
+    const initial = fixture();
+    const view = await mount(initial, (cell) => [...cell.highlighted].join(", "));
+    await React.act(async () => view.rows()[1].click());
+    Vitest.expect(view.element.textContent).toContain("0 upstream · 2 downstream");
+    const { cells } = initial.analysis;
+    await view.update({
+      ...initial,
+      analysis: {
+        ...initial.analysis,
+        cells: {
+          ...cells,
+          middle: { ...cells.middle, parents: [] },
+          isolated: { ...cells.isolated, parents: [initial.document.cells[1].id] },
+        },
+      },
+    });
+    Vitest.expect(view.element.textContent).toContain("0 upstream · 1 downstream");
+    Vitest.expect(view.rows()[3].dataset.direct).toBe("true");
+    Vitest.expect(view.rows()[2].dataset.relation).toBe("unrelated");
+    await React.act(async () => view.rows()[2].click());
+    Vitest.expect(view.rows()[1].textContent).toBe("");
+    Vitest.expect(view.rows()[0].textContent).toBe("z");
+  },
+);
+
+Vitest.test(
   "shifted endpoints do not retain overview arms beyond their connections",
   async () => {
     const view = await mount();

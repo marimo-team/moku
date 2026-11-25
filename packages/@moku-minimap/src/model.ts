@@ -63,16 +63,15 @@ export function make(state: Notebook.Interface["state"]) {
   const currentAnalysis = Atom.map(structure, ({ analysis }) => analysis);
   // Errors and execution events are deliberately absent from graph identity.
   const topology = Atom.map(structure, ({ document, analysis }): Topology => {
-    const current = analysis !== null;
+    const parents = analysis && Notebook.cellParents(analysis);
     return {
-      current,
-      items: (document?.cells.map((cell) => cell.id) ?? [])
-
-        .map((id) => ({
-          id,
-          definitions: current ? (analysis?.cells[id]?.defs ?? []) : [],
-          references: current ? (analysis?.cells[id]?.refs ?? []) : [],
-        })),
+      current: analysis !== null,
+      items: (document?.cells ?? []).map(({ id }) => ({
+        id,
+        definitions: analysis?.cells[id]?.defs ?? [],
+        references: analysis?.cells[id]?.refs ?? [],
+        parents: parents?.get(id) ?? [],
+      })),
     };
   }).pipe(Atom.withEquality(sameTopology));
   const ids = Atom.map(topology, ({ items }) => items.map((item) => item.id)).pipe(
@@ -142,10 +141,9 @@ export function make(state: Notebook.Interface["state"]) {
       const downstream = active?.downstream.has(id) ?? false;
       const parents = value.dependencies(id);
       const children = value.dependents(id);
-      const direct =
-        active !== null &&
-        (value.dependencies(active.item.id).has(id) ||
-          value.dependents(active.item.id).has(id));
+      const directParent = active !== null && children.has(active.item.id);
+      const directChild = active !== null && parents.has(active.item.id);
+      const direct = directParent || directChild;
       const work = get(execution(id));
       const currentWork =
         work?.code_fingerprint === cell.code_fingerprint ? work : undefined;
@@ -175,8 +173,7 @@ export function make(state: Notebook.Interface["state"]) {
           highlighted: new Set(
             item.definitions.filter(
               (name) =>
-                active?.item.references.includes(name) ||
-                (active && value.dependents(active.item.id).has(id)),
+                directChild || (directParent && active.item.references.includes(name)),
             ),
           ),
           relation,
@@ -217,7 +214,8 @@ function sameTopology(a: Topology, b: Topology): boolean {
       (item, i) =>
         item.id === b.items[i].id &&
         sameArray(item.definitions, b.items[i].definitions) &&
-        sameArray(item.references, b.items[i].references),
+        sameArray(item.references, b.items[i].references) &&
+        sameArray(item.parents, b.items[i].parents),
     )
   );
 }

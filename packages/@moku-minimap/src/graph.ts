@@ -2,6 +2,8 @@ export interface Item {
   readonly id: string;
   readonly definitions: readonly string[];
   readonly references: readonly string[];
+  /** IDs of the cell's direct dependencies. */
+  readonly parents: readonly string[];
 }
 
 export interface Trace {
@@ -26,24 +28,12 @@ export class Graph {
     readonly current: boolean,
   ) {
     this.#items = new Map(items.map((item) => [item.id, item]));
-    const definitions = new Map<string, string[]>();
     for (const item of items) {
-      this.#parents.set(item.id, new Set());
-      this.#children.set(item.id, new Set());
-      for (const name of item.definitions) {
-        const owners = definitions.get(name) ?? [];
-        owners.push(item.id);
-        definitions.set(name, owners);
-      }
-    }
-    for (const item of items) {
-      for (const name of item.references) {
-        for (const owner of definitions.get(name) ?? []) {
-          // Reading a name defined by the same cell is not an inter-cell edge.
-          if (owner === item.id) continue;
-          this.#parents.get(item.id)?.add(owner);
-          this.#children.get(owner)?.add(item.id);
-        }
+      this.#parents.set(item.id, new Set(item.parents));
+      for (const parent of item.parents) {
+        const children = this.#children.get(parent);
+        if (children) children.add(item.id);
+        else this.#children.set(parent, new Set([item.id]));
       }
     }
   }

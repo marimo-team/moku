@@ -104,6 +104,25 @@ Vitest.test("cycles remain inspectable without losing or duplicating cells", () 
   NodeAssert.deepEqual(new Set(graph.order), new Set(["source", "consumer"]));
 });
 
+Vitest.test(
+  "host parents can add an unnamed edge and suppress an inferred edge",
+  () => {
+    const state = example();
+    state.analysis = {
+      ...state.analysis,
+      cells: {
+        source: { ...state.analysis.cells.source, parents: [state.cells.consumer.id] },
+        consumer: { ...state.analysis.cells.consumer, parents: [] },
+      },
+    };
+    NodeAssert.deepEqual(dependencyGraph(state), {
+      current: true,
+      order: ["consumer", "source"],
+      edges: [{ from: "consumer", to: "source", names: [] }],
+    });
+  },
+);
+
 Vitest.test("not executed does not mean skipped, and explicit skip is retained", () => {
   const cell = example().cells.consumer;
   NodeAssert.equal(cellStatus(cell, undefined, []), "pending");

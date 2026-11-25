@@ -1,0 +1,418 @@
+/* Vendored from koaning/sketcher@b9d3e2101a8946c1c122953175f303e2eafba87b web/src/ui/styles.css. Edit it there and rerun scripts/sketcher.ts. */
+.sk-root {
+  --sk-ink: rgb(31, 31, 31);
+  --sk-accent: #007aff;
+  --sk-glass: rgba(255, 255, 255, 0.72);
+  --sk-glass-border: rgba(0, 0, 0, 0.1);
+  --sk-shadow: 0 4px 18px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  overflow: hidden;
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  font: 500 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  color: var(--sk-ink);
+  box-sizing: border-box;
+}
+.sk-root *,
+.sk-root *::before,
+.sk-root *::after {
+  box-sizing: inherit;
+}
+.sk-root.sk-dark {
+  --sk-ink: rgb(242, 242, 242);
+  --sk-glass: rgba(48, 50, 54, 0.72);
+  --sk-glass-border: rgba(255, 255, 255, 0.1);
+  --sk-shadow: 0 4px 18px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.sk-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.sk-glass {
+  background: var(--sk-glass);
+  border: 0.5px solid var(--sk-glass-border);
+  box-shadow: var(--sk-shadow);
+  backdrop-filter: blur(18px) saturate(1.6);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+}
+
+/* Tool strip */
+.sk-palette {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 4px;
+  border-radius: 18px;
+  z-index: 2;
+}
+.sk-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.sk-divider {
+  width: 18px;
+  height: 1px;
+  background: var(--sk-ink);
+  opacity: 0.12;
+}
+.sk-button {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  border-radius: 7px;
+  color: var(--sk-ink);
+  cursor: default;
+}
+.sk-button[hidden] {
+  display: none;
+}
+.sk-button svg {
+  width: 15px;
+  height: 15px;
+}
+.sk-button.sk-small {
+  height: 20px;
+}
+.sk-button.sk-small svg {
+  width: 13px;
+  height: 13px;
+}
+.sk-button:hover {
+  background: color-mix(in srgb, var(--sk-ink) 8%, transparent);
+}
+.sk-button.sk-on {
+  color: var(--sk-accent);
+  background: color-mix(in srgb, var(--sk-accent) 15%, transparent);
+}
+.sk-button:disabled {
+  opacity: 0.3;
+  background: none;
+}
+.sk-width {
+  width: 20px;
+  height: 16px;
+  border-radius: 5px;
+}
+.sk-width.sk-on {
+  background: color-mix(in srgb, var(--sk-ink) 14%, transparent);
+  color: var(--sk-ink);
+}
+.sk-width span {
+  display: block;
+  border-radius: 50%;
+  background: currentColor;
+}
+.sk-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+.sk-swatch span {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sk-ink) 15%, transparent);
+}
+.sk-swatch.sk-on {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sk-ink) 70%, transparent);
+}
+
+/* Selection bar */
+.sk-selection-bar {
+  position: absolute;
+  display: flex;
+  gap: 2px;
+  padding: 3px 5px;
+  border-radius: 14px;
+  z-index: 2;
+}
+.sk-selection-bar[hidden] {
+  display: none;
+}
+.sk-selection-bar .sk-button {
+  min-width: 26px;
+  padding: 0 6px;
+  width: auto;
+  gap: 4px;
+}
+
+/* Context menu */
+.sk-menu {
+  position: absolute;
+  min-width: 170px;
+  padding: 5px;
+  border-radius: 10px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+}
+.sk-menu[hidden] {
+  display: none;
+}
+.sk-menu button {
+  all: unset;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 4px 9px;
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--sk-ink);
+}
+.sk-menu button:hover,
+.sk-menu button:focus-visible {
+  background: var(--sk-accent);
+  color: white;
+}
+.sk-menu button:disabled {
+  opacity: 0.35;
+  background: none;
+  color: var(--sk-ink);
+}
+.sk-menu kbd {
+  font: inherit;
+  opacity: 0.55;
+}
+.sk-menu hr {
+  border: none;
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--sk-ink);
+  opacity: 0.12;
+}
+
+/* Toast */
+.sk-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  max-width: min(560px, calc(100% - 40px));
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  z-index: 4;
+}
+.sk-toast[hidden] {
+  display: none;
+}
+
+/* LaTeX editor */
+.sk-editor {
+  position: absolute;
+  z-index: 3;
+  width: 404px;
+  padding: 12px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sk-editor[hidden] {
+  display: none;
+}
+.sk-editor-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  max-height: 140px;
+  padding: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.sk-editor-invalid {
+  opacity: 0.5;
+}
+.sk-editor-text {
+  width: 100%;
+  height: 84px;
+  resize: none;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--sk-ink) 18%, transparent);
+  background: color-mix(in srgb, var(--sk-ink) 4%, transparent);
+  color: var(--sk-ink);
+  font: 13px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.sk-editor-text:focus {
+  border-color: var(--sk-accent);
+}
+.sk-editor-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.sk-editor-button {
+  all: unset;
+  padding: 4px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--sk-ink);
+  background: color-mix(in srgb, var(--sk-ink) 9%, transparent);
+}
+.sk-editor-button.sk-primary {
+  background: var(--sk-accent);
+  color: white;
+}
+
+/* Embedded items. The layer and plane let the pointer through; only card content takes it, and
+   only while the select tool is on (the content is `inert` otherwise), so pens draw over cards. */
+.sk-embeds,
+.sk-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.sk-overlay {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.sk-embed-plane {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+.sk-embed {
+  --sk-embed-paper: white;
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  transform-origin: 0 0;
+  border-radius: 10px;
+  background: var(--sk-embed-paper);
+  border: 1px solid color-mix(in srgb, var(--sk-ink) 14%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 14px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+.sk-dark .sk-embed {
+  --sk-embed-paper: rgb(30, 31, 34);
+}
+.sk-embed.sk-active {
+  border-color: color-mix(in srgb, var(--sk-accent) 55%, transparent);
+}
+.sk-embed-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--sk-ink) 60%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--sk-ink) 8%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sk-embed-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sk-embed-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: auto;
+}
+.sk-embed-body {
+  display: flow-root;
+}
+.sk-embed-placeholder {
+  padding: 12px;
+  opacity: 0.5;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* Ask Claude */
+.sk-ask {
+  width: 380px;
+  gap: 8px;
+}
+.sk-ask-label {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+.sk-ask-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.sk-ask-chips[hidden] {
+  display: none;
+}
+.sk-ask-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--sk-accent) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sk-accent) 8%, transparent);
+  color: inherit;
+  font: 500 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  cursor: pointer;
+}
+.sk-ask-chip:hover {
+  background: color-mix(in srgb, var(--sk-accent) 16%, transparent);
+}
+.sk-ask-chip code {
+  font: 600 12px ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: var(--sk-accent);
+}
+.sk-ask-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.6;
+}
+.sk-ask-text {
+  height: auto;
+  min-height: 52px;
+  font: 400 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+.sk-ask-hint {
+  margin-right: auto;
+  align-self: center;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.5;
+}
+.sk-editor-button:disabled {
+  opacity: 0.45;
+}

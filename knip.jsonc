@@ -2,6 +2,10 @@
   "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
   "treatConfigHintsAsErrors": true,
   "workspaces": {
+    "vendor/sketcher": {
+      // The board is vendored from koaning/sketcher and checked there.
+      "ignore": ["**"],
+    },
     "apps/@moku-launcher": {
       // Both launcher stylesheets import the font through CSS.
       "ignoreDependencies": ["@fontsource-variable/inter"],

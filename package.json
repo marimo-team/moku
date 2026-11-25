@@ -4,7 +4,8 @@
   "license": "Apache-2.0",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "vendor/sketcher"
   ],
   "type": "module",
   "scripts": {
@@ -16,7 +17,8 @@
     "format": "vp fmt",
     "test": "vp test run",
     "test:coverage": "vp test run --coverage",
-    "setup": "bun scripts/setup.ts"
+    "setup": "bun scripts/setup.ts",
+    "sketcher": "bun scripts/sketcher.ts"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",

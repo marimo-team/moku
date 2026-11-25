@@ -10,9 +10,9 @@ export default Vite.defineConfig({
       reportOnFailure: true,
     },
   },
-  fmt: { printWidth: 88 },
+  fmt: { printWidth: 88, ignorePatterns: ["vendor/sketcher/**"] },
   lint: {
     options: { typeAware: true, typeCheck: true },
-    ignorePatterns: ["packages/@moku-outputs/bundle/**"],
+    ignorePatterns: ["packages/@moku-outputs/bundle/**", "vendor/sketcher/**"],
   },
 });

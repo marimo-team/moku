@@ -664,10 +664,11 @@ Vitest.test(
         headers: supplied,
         body: JSON.stringify(body),
       });
-    NodeAssert.equal(
-      (await fetch(marimoUrl + "/@file/code.js", { headers })).status,
-      401,
-    );
+    // Hosts that carry widget traffic themselves never authorize, so assets load
+    // without marimo credentials until a viewer supplies them.
+    const anonymous = await fetch(marimoUrl + "/@file/code.js", { headers });
+    NodeAssert.equal(await anonymous.text(), "export default {};");
+    NodeAssert.equal(calls.shift()?.headers.authorization, undefined);
     const authorized = await post("/auth", { token: "marimo-secret" });
     NodeAssert.deepEqual(await authorized.json(), { success: true });
     NodeAssert.equal(calls[0].headers.authorization, "Bearer marimo-secret");

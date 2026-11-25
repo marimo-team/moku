@@ -73,6 +73,98 @@ select:focus-visible {
 .host-section + .host-section {
   margin-top: 32px;
 }
+.add-host-button,
+.add-host-dialog button,
+.add-host-dialog input {
+  padding: 6px 10px;
+  border: 1px solid var(--launcher-border);
+  border-radius: 6px;
+  background: var(--launcher-surface);
+  color: inherit;
+  font-size: 13px;
+}
+.add-host-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  border-radius: 8px;
+}
+.add-host-button:hover,
+.add-host-dialog button[type="button"]:hover {
+  background: var(--launcher-hover);
+}
+.add-host-dialog,
+.open-menu {
+  border: 1px solid var(--launcher-border);
+  border-radius: 10px;
+  background: var(--launcher-surface);
+  color: var(--launcher-ink);
+  box-shadow: 0 6px 24px #3936321c;
+}
+.add-host-dialog {
+  width: min(22rem, calc(100% - 32px));
+  max-height: calc(100dvh - 2rem);
+  padding: 20px;
+}
+.add-host-dialog::backdrop {
+  background: #39363240;
+}
+.add-host-dialog form,
+.add-host-dialog label {
+  display: grid;
+  gap: 14px;
+}
+.add-host-dialog h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.add-host-dialog label {
+  gap: 4px;
+  font-size: 13px;
+}
+.add-host-dialog .error-banner {
+  margin: 0;
+}
+.add-host-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.add-host-dialog button[type="submit"] {
+  background: var(--launcher-ink);
+  color: var(--launcher-surface);
+}
+.open-menu {
+  z-index: 1;
+  min-width: 10rem;
+  max-height: var(--radix-dropdown-menu-content-available-height);
+  overflow-y: auto;
+  padding: 4px;
+  font-size: 13px;
+}
+.open-menu [role="menuitem"] {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.open-menu [data-highlighted] {
+  background: var(--launcher-hover);
+  outline: none;
+}
+.open-menu [data-disabled] {
+  color: var(--launcher-muted);
+  cursor: default;
+}
+.open-menu [role="separator"] {
+  margin: 4px;
+  border-top: 1px solid var(--launcher-border);
+}
 .host-heading {
   display: flex;
   align-items: baseline;
@@ -223,8 +315,7 @@ select:focus-visible {
   max-width: 180px;
 }
 .moku-link,
-.launcher-actions,
-.open-with-picker {
+.launcher-actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -238,10 +329,6 @@ select:focus-visible {
   line-height: 24px;
   font-weight: 650;
   letter-spacing: -0.8px;
-}
-.open-with-picker {
-  color: var(--launcher-muted);
-  white-space: nowrap;
 }
 .view-picker {
   appearance: none;
@@ -332,11 +419,7 @@ select:focus-visible {
   .view-picker {
     max-width: 100px;
   }
-  .launcher-actions,
-  .open-with-picker {
+  .launcher-actions {
     gap: 4px;
-  }
-  .view-header:has(.view-notebook) .open-with-picker > span {
-    display: none;
   }
 }

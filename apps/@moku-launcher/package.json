@@ -25,6 +25,7 @@
     "@moku/outputs": "workspace:*",
     "@moku/plugin": "workspace:*",
     "@moku/proxy": "workspace:*",
+    "@radix-ui/react-dropdown-menu": "^2.2.1",
     "effect": "4.1.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

@@ -56,6 +56,20 @@ bun dev
 
 Open the authenticated link printed in the terminal.
 
+### Connect directly to a host
+
+Choose **Add host** in the launcher and enter the host API URL and its bearer token. Moku reads the catalog and opens notebooks directly from the browser. A bare origin uses `/api/marimo/v1`. You can also supply the full API URL for a host mounted under a path.
+
+To connect at startup, pass a launch URL fragment to `bun dev --open`. URL-encode each value, including any special characters in the token.
+
+```sh
+bun dev --open '/#host=https%3A%2F%2Fnotebooks.example%2Fapi%2Fmarimo%2Fv1&token=HOST_TOKEN'
+```
+
+The same fragment works on the URL of a statically served Moku build. Moku clears the fragment and keeps the direct connection in page memory. Reopen the link or add the host again after reloading.
+
+The host API must share the launcher's origin or allow its cross-origin requests, including bearer authentication. Stock marimo 0.26.0 restricts its host catalog to loopback and does not enable CORS on that endpoint. Use Moku's local discovery for a stock server running on another port. Interactive outputs on a direct connection require the host's experimental comm operation.
+
 ## Checks and tests
 
 ```sh

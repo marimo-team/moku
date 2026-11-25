@@ -1,25 +1,25 @@
-import type * as Workspace from "./Workspace.ts";
+import * as Menu from "@radix-ui/react-dropdown-menu";
 import * as ReactRouter from "react-router";
+import type * as Workspace from "./Workspace.ts";
 import type * as Protocol from "@moku/core/Protocol";
+import type { Plugin } from "@moku/plugin";
 import { viewHref } from "./routes.ts";
-import { HOST_VIEW } from "./LauncherBar.tsx";
 import { useOpenHost } from "./useOpenHost.ts";
 
 export function NotebookRow({
   notebook,
   connectionId,
-  selectedView,
+  views,
   workspace,
 }: {
   notebook: typeof Protocol.Notebook.Type;
   connectionId: string;
-  selectedView: string;
+  views: readonly Plugin.RegisteredView[];
   workspace: Workspace.Interface;
 }) {
   const target = { connectionId, notebookId: notebook.id };
   const host = useOpenHost(workspace, target);
   const canOpen = notebook.operations.includes("notebook.open");
-  const label = `Open ${notebook.name}`;
   return (
     <li>
       <div className="notebook-row" title={notebook.path ?? notebook.name}>
@@ -44,34 +44,35 @@ export function NotebookRow({
             )}
           </span>
         </span>
-        {selectedView === HOST_VIEW ? (
-          <button
-            type="button"
+        <Menu.Root modal={false}>
+          <Menu.Trigger
             className="notebook-open"
-            aria-label={label}
-            title={
-              !canOpen
-                ? "This host cannot open this notebook"
-                : host.pending
-                  ? "Opening…"
-                  : "Open in Host"
-            }
-            disabled={!canOpen || host.pending}
-            onClick={() => host.open()}
-          >
-            <span aria-hidden="true">{host.pending ? "…" : "↗"}</span>
-          </button>
-        ) : (
-          <ReactRouter.Link
-            className="notebook-open"
-            to={viewHref(target, selectedView)}
-            aria-label={label}
+            aria-label={`Open ${notebook.name}`}
+            title="Open with…"
           >
             <span aria-hidden="true">↗</span>
-          </ReactRouter.Link>
-        )}
+          </Menu.Trigger>
+          <Menu.Content
+            className="open-menu"
+            align="end"
+            sideOffset={4}
+            collisionPadding={8}
+          >
+            <Menu.Item disabled={!canOpen || host.pending} onSelect={() => host.open()}>
+              {host.pending ? "Opening…" : "Host"} <span aria-hidden="true">↗</span>
+            </Menu.Item>
+            {views.length > 0 && <Menu.Separator />}
+            {views.map((view) => (
+              <Menu.Item key={view.key} asChild>
+                <ReactRouter.Link to={viewHref(target, view.key)}>
+                  {view.title}
+                </ReactRouter.Link>
+              </Menu.Item>
+            ))}
+          </Menu.Content>
+        </Menu.Root>
       </div>
-      {selectedView === HOST_VIEW && host.error && (
+      {host.error && (
         <p className="error-banner" role="alert">
           {host.error}
         </p>

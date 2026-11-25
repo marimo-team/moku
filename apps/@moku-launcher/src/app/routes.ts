@@ -5,8 +5,8 @@ export type Route =
   | { readonly kind: "view"; readonly target: Target; readonly viewKey: string }
   | { readonly kind: "missing" };
 
-/** Resolve saved links and preferences after a plugin is renamed. */
-export function canonicalViewKey(key: string): string {
+/** Resolve saved links after a plugin is renamed. */
+function canonicalViewKey(key: string): string {
   return key === "dag/graph"
     ? "graph-explainer/graph"
     : key === "editor/notebook"

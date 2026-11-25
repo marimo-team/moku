@@ -4,13 +4,8 @@ import * as React from "react";
 import type * as Workspace from "./Workspace.ts";
 import type { Plugin } from "@moku/plugin";
 import { HostNotebooks } from "./HostNotebooks.tsx";
-import {
-  LauncherBar,
-  ViewPicker,
-  HOST_VIEW,
-  preferredView,
-  rememberView,
-} from "./LauncherBar.tsx";
+import { AddHost } from "./AddHost.tsx";
+import { LauncherBar } from "./LauncherBar.tsx";
 
 export function Launcher({
   workspace,
@@ -23,10 +18,6 @@ export function Launcher({
   const discovery = useAtomValue(workspace.state, (state) => state.status);
   const pending = discovery._tag === "Pending";
   const { views, failures } = useAtomValue(plugins.state);
-  const [preference, setPreference] = React.useState(preferredView);
-  const selectedView = views.some((view) => view.key === preference)
-    ? preference
-    : HOST_VIEW;
   const refresh = useAtomSet(
     React.useMemo(
       () => Atom.fn(() => workspace.refresh).pipe(Atom.setIdleTTL(0)),
@@ -38,14 +29,7 @@ export function Launcher({
       <LauncherBar
         actions={
           <>
-            <ViewPicker
-              value={selectedView}
-              views={views}
-              onChange={(value) => {
-                rememberView(value);
-                setPreference(value);
-              }}
-            />
+            <AddHost workspace={workspace} />
             <button
               type="button"
               className="refresh-hosts"
@@ -88,7 +72,7 @@ export function Launcher({
               key={connection.id}
               connection={connection}
               workspace={workspace}
-              selectedView={selectedView}
+              views={views}
             />
           ))
         ) : (

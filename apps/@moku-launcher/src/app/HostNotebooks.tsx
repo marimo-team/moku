@@ -1,15 +1,16 @@
 import type * as Workspace from "./Workspace.ts";
+import type { Plugin } from "@moku/plugin";
 import { useCatalog } from "./catalog.ts";
 import { NotebookRow } from "./NotebookRow.tsx";
 
 export function HostNotebooks({
   connection,
   workspace,
-  selectedView,
+  views,
 }: {
   connection: Workspace.Connection;
   workspace: Workspace.Interface;
-  selectedView: string;
+  views: readonly Plugin.RegisteredView[];
 }) {
   const catalog = useCatalog(workspace, connection.id);
   const notebooks = catalog.notebooks.toSorted((a, b) => a.name.localeCompare(b.name));
@@ -43,7 +44,7 @@ export function HostNotebooks({
               notebook={notebook}
               connectionId={connection.id}
               workspace={workspace}
-              selectedView={selectedView}
+              views={views}
             />
           ))}
         </ul>

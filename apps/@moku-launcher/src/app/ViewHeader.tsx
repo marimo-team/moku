@@ -1,4 +1,3 @@
-import * as React from "react";
 import * as ReactRouter from "react-router";
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
@@ -7,7 +6,7 @@ import type * as Workspace from "./Workspace.ts";
 import type { Plugin } from "@moku/plugin";
 import type * as Application from "./Application.ts";
 import { viewHref } from "./routes.ts";
-import { LauncherBar, ViewPicker, rememberView } from "./LauncherBar.tsx";
+import { LauncherBar } from "./LauncherBar.tsx";
 
 export function ViewHeader({
   target,
@@ -23,7 +22,6 @@ export function ViewHeader({
   workspace: Workspace.Interface;
 }) {
   const navigate = ReactRouter.useNavigate();
-  React.useEffect(() => rememberView(viewKey), [viewKey]);
   const { connections } = useAtomValue(workspace.state);
   const connection = connections.find((item) => item.id === target.connectionId);
   const attachment = useAtomValue(application.notebook(target));
@@ -31,15 +29,25 @@ export function ViewHeader({
   return (
     <LauncherBar
       actions={
-        <ViewPicker
+        <select
+          className="view-picker"
+          aria-label="Switch view"
           value={viewKey}
-          views={views}
-          includeHost={false}
-          onChange={(value) => {
-            rememberView(value);
-            void navigate(viewHref(target, value));
-          }}
-        />
+          onChange={(event) =>
+            void navigate(viewHref(target, event.currentTarget.value))
+          }
+        >
+          {!views.some((view) => view.key === viewKey) && (
+            <option value={viewKey} disabled>
+              Unavailable view
+            </option>
+          )}
+          {views.map((view) => (
+            <option key={view.key} value={view.key}>
+              {view.title}
+            </option>
+          ))}
+        </select>
       }
     >
       <span aria-hidden="true">/</span>

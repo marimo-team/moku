@@ -16,7 +16,6 @@ import * as Application from "../src/app/Application.ts";
 import { parseRoute, viewHref, type Route } from "../src/app/routes.ts";
 
 vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-Vitest.beforeEach(() => localStorage.clear());
 
 async function mount(route: Route) {
   const requests: string[] = [];
@@ -123,6 +122,15 @@ async function mount(route: Route) {
   return { element, requests, closed, close, router, notebooks };
 }
 
+async function openMenu(trigger: HTMLButtonElement) {
+  await React.act(async () => {
+    trigger.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+    );
+  });
+  return document.querySelector<HTMLElement>('[role="menu"]')!;
+}
+
 Vitest.test(
   "switching views and traversing history retains the notebook client and stream",
   async () => {
@@ -163,9 +171,9 @@ Vitest.test(
 );
 
 Vitest.test(
-  "the shared picker updates every notebook link and remembers the selection",
+  "each notebook offers Host and its plugin links in its open menu",
   async () => {
-    const { element, requests } = await mount({ kind: "catalog" });
+    const { element, requests, router } = await mount({ kind: "catalog" });
     await vi.waitFor(() =>
       Vitest.expect(element.querySelectorAll(".notebook-row")).toHaveLength(2),
     );
@@ -187,33 +195,24 @@ Vitest.test(
     ).toEqual(["example.py", "/other/project/example.py"]);
     Vitest.expect(element.querySelector("time")?.dateTime).toBe("2026-11-12T12:00:00Z");
     Vitest.expect(element.querySelectorAll("time")).toHaveLength(1);
-    const picker = element.querySelector("select")!;
-    Vitest.expect(picker.value).toBe("host");
-    Vitest.expect(element.querySelectorAll("[popover]")).toHaveLength(0);
+    Vitest.expect(element.querySelector("select")).toBeNull();
     const buttons = element.querySelectorAll<HTMLButtonElement>(".notebook-open");
-    Vitest.expect(buttons[0].disabled).toBe(false);
-    Vitest.expect(buttons[1].disabled).toBe(true);
-    await React.act(async () => {
-      picker.value = "test/identity";
-      picker.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    const links = [...element.querySelectorAll<HTMLAnchorElement>("a.notebook-open")];
-    Vitest.expect(
-      links.map((link) =>
-        parseRoute(new URL(link.getAttribute("href")!, "http://moku.test")),
-      ),
-    ).toEqual(
-      ["a", "b"].map((connectionId) => ({
+    const menu = await openMenu(buttons[1]);
+    const host = menu.querySelector('[role="menuitem"]')!;
+    Vitest.expect(host.getAttribute("aria-disabled")).toBe("true");
+    const links = [...menu.querySelectorAll<HTMLAnchorElement>("a")];
+    Vitest.expect(links.map((link) => link.textContent)).toEqual(["Identity", "Other"]);
+    Vitest.expect(links.map((link) => parseRoute(new URL(link.href)))).toEqual(
+      ["test/identity", "test/other"].map((viewKey) => ({
         kind: "view",
-        target: { connectionId, notebookId: "n" },
-        viewKey: "test/identity",
+        target: { connectionId: "b", notebookId: "n" },
+        viewKey,
       })),
     );
     Vitest.expect(requests.some((path) => path.includes("/notebooks/"))).toBe(false);
-    const next = await mount({ kind: "catalog" });
-    await vi.waitFor(() =>
-      Vitest.expect(next.element.querySelector("select")?.value).toBe("test/identity"),
-    );
+    await React.act(async () => links[1].click());
+    Vitest.expect(router.state.location.search).toContain("host=b");
+    Vitest.expect(element.querySelector("select")?.value).toBe("test/other");
   },
 );
 
@@ -257,9 +256,12 @@ Vitest.test(
     await vi.waitFor(() =>
       Vitest.expect(element.querySelectorAll(".notebook-open")).toHaveLength(2),
     );
-    await React.act(async () =>
-      element.querySelector<HTMLButtonElement>(".notebook-open")!.click(),
+    const menu = await openMenu(
+      element.querySelector<HTMLButtonElement>(".notebook-open")!,
     );
+    const host = menu.querySelector<HTMLElement>('[role="menuitem"]')!;
+    Vitest.expect(host.textContent).toContain("Host");
+    await React.act(async () => host.click());
     await vi.waitFor(() =>
       Vitest.expect(requests).toContain("/api/hosts/a/notebooks/n/open"),
     );
@@ -269,12 +271,17 @@ Vitest.test(
   },
 );
 
-Vitest.test("a removed preferred view falls back to Host", async () => {
-  localStorage.setItem("moku:open-with", "removed/view");
+Vitest.test("Add host opens the connection form from the catalog header", async () => {
   const { element } = await mount({ kind: "catalog" });
-  await vi.waitFor(() =>
-    Vitest.expect(element.querySelector("select")?.value).toBe("host"),
+  const trigger = element.querySelector<HTMLButtonElement>("header .add-host-button")!;
+  await React.act(async () => trigger.click());
+  const dialog = element.querySelector("dialog[open]")!;
+  Vitest.expect(dialog.querySelector('input[name="url"]')).not.toBeNull();
+  Vitest.expect(dialog.querySelector('input[type="password"]')).not.toBeNull();
+  await React.act(async () =>
+    dialog.querySelector<HTMLButtonElement>('button[type="button"]')!.click(),
   );
+  Vitest.expect(element.querySelector("dialog[open]")).toBeNull();
 });
 
 Vitest.test(
@@ -320,23 +327,21 @@ Vitest.test("existing notebook links resolve to the renamed plugins", () => {
   }
 });
 
-Vitest.test(
-  "saved views and direct links retain their registered identity",
-  async () => {
-    localStorage.setItem("moku:open-with", "test/identity");
-    const catalog = await mount({ kind: "catalog" });
-    await vi.waitFor(() =>
-      Vitest.expect(catalog.element.querySelector("select")?.value).toBe(
-        "test/identity",
-      ),
-    );
-    const view = await mount(
-      parseRoute(
-        new URL("/notebook/n?host=a&view=test%2Fidentity", "http://moku.test"),
-      ),
-    );
-    await vi.waitFor(() =>
-      Vitest.expect(view.element.querySelector("h1")?.textContent).toBe("n"),
-    );
-  },
-);
+Vitest.test("an unavailable view can be switched to a registered view", async () => {
+  const view = await mount({
+    kind: "view",
+    target: { connectionId: "a", notebookId: "n" },
+    viewKey: "removed/view",
+  });
+  const picker = view.element.querySelector<HTMLSelectElement>(
+    'select[aria-label="Switch view"]',
+  )!;
+  Vitest.expect(picker.selectedOptions[0].textContent).toBe("Unavailable view");
+  await React.act(async () => {
+    picker.value = "test/identity";
+    picker.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await vi.waitFor(() =>
+    Vitest.expect(view.element.querySelector("h1")?.textContent).toBe("n"),
+  );
+});

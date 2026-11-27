@@ -1,3 +1,5 @@
+import type * as Notebook from "@moku/core/Notebook";
+import type { Effect, Scope } from "effect";
 /**
  * Define notebook views for an application.
  *
@@ -7,9 +9,7 @@
  * @module
  */
 import type { AtomRegistry } from "effect/reactivity";
-import type { Effect, Scope } from "effect";
 import type * as React from "react";
-import type * as Notebook from "@moku/core/Notebook";
 
 /**
  * Inputs supplied when the application renders a view.

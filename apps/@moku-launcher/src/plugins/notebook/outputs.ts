@@ -1,6 +1,6 @@
 import * as Notebook from "@moku/core/Notebook";
-import type * as Protocol from "@moku/core/Protocol";
 import * as Outputs from "@moku/core/Outputs";
+import type * as Protocol from "@moku/core/Protocol";
 
 export interface Selection {
   readonly runtimeId: string | null;

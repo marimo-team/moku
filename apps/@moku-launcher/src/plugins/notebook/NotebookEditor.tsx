@@ -1,22 +1,23 @@
-import * as Notebook from "@moku/core/Notebook";
-import { empty } from "../empty.ts";
 import { useAtom, useAtomValue } from "@effect/atom-react";
+import * as Notebook from "@moku/core/Notebook";
+import * as Outputs from "@moku/outputs";
+import type { ViewProps } from "@moku/plugin";
 import { AsyncResult } from "effect/reactivity";
 import * as React from "react";
-import type { ViewProps } from "@moku/plugin";
-import * as Outputs from "@moku/outputs";
-import * as Model from "./model.ts";
-import * as CellOutputs from "./outputs.ts";
-import * as Currentness from "./currentness.ts";
+
+import { empty } from "../empty.ts";
 import * as Theme from "./appearance/theme.ts";
-import { DocumentContext, useDocument } from "./DocumentContext.ts";
-import { useDraftNavigationGuard } from "./useDraftNavigationGuard.ts";
-import { useCellNavigation } from "./cells/useCellNavigation.ts";
 import { Cell } from "./cells/Cell.tsx";
-import { KernelStartupNotice } from "./KernelStartupNotice.tsx";
-import { NotebookToolbar } from "./NotebookToolbar.tsx";
+import { useCellNavigation } from "./cells/useCellNavigation.ts";
+import * as Currentness from "./currentness.ts";
+import { DocumentContext, useDocument } from "./DocumentContext.ts";
 import { NotificationList } from "./feedback/NotificationList.tsx";
 import { useNotebookNotifications } from "./feedback/useNotebookNotifications.ts";
+import { KernelStartupNotice } from "./KernelStartupNotice.tsx";
+import * as Model from "./model.ts";
+import { NotebookToolbar } from "./NotebookToolbar.tsx";
+import * as CellOutputs from "./outputs.ts";
+import { useDraftNavigationGuard } from "./useDraftNavigationGuard.ts";
 import { useNotebookShortcuts } from "./useNotebookShortcuts.ts";
 
 export function NotebookEditor({ notebook }: ViewProps) {

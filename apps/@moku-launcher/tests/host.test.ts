@@ -1,10 +1,11 @@
+import { Effect, Layer } from "effect";
 // @vitest-environment happy-dom
 import { HttpClient, HttpServerResponse } from "effect/http";
-import { Effect, Layer } from "effect";
-import { notebookEvents } from "../../../packages/@moku-core/tests/fixtures.ts";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
+
+import { notebookEvents } from "../../../packages/@moku-core/tests/fixtures.ts";
 import * as Application from "../src/app/Application.ts";
 
 Vitest.test(

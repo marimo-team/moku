@@ -1,11 +1,12 @@
+import type * as NodeHttp from "node:http";
+
+import * as Host from "@marimo-team/host-protocol/Host";
+import { CommGroup } from "@moku/core/internal/comm-protocol";
 /** Route and validate wire requests using the host protocol definition. @module */
 import { Schema } from "effect";
 import type { HttpApiEndpoint } from "effect/http-api";
-import * as Host from "@marimo-team/host-protocol/Host";
-import type * as NodeHttp from "node:http";
-import { readBody } from "./http.ts";
 
-import { CommGroup } from "@moku/core/internal/comm-protocol";
+import { readBody } from "./http.ts";
 
 const routes = [...Object.values(Host.Api.groups), CommGroup].flatMap((group) =>
   Object.values(group.endpoints).map((endpoint: HttpApiEndpoint.Top) => {

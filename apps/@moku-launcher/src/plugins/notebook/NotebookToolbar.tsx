@@ -1,7 +1,8 @@
 import type * as Notebook from "@moku/core/Notebook";
 import type { AsyncResult } from "effect/reactivity";
-import { ConnectionStatus } from "./ConnectionStatus.tsx";
+
 import { ThemeSelect } from "./appearance/ThemeSelect.tsx";
+import { ConnectionStatus } from "./ConnectionStatus.tsx";
 
 interface Props {
   connection: AsyncResult.AsyncResult<Notebook.State, Notebook.Error>;

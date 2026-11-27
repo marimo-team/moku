@@ -1,6 +1,7 @@
 /** Browser connections to a user-supplied host protocol endpoint. @module */
 import { Effect, Redacted } from "effect";
 import { HttpClient, HttpClientRequest } from "effect/http";
+
 import { RequestError } from "./request.ts";
 
 /** The host API address and the bearer token issued by that host. */

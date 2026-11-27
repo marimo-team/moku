@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
 import type * as CommProtocol from "@moku/core/internal/comm-protocol";
+import { Cause, Effect, Exit, Fiber, Scope, Stream } from "effect";
 import { FetchHttpClient } from "effect/http";
+import { AsyncResult, AtomRegistry } from "effect/reactivity";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import { Cause, Effect, Exit, Fiber, Scope, Stream } from "effect";
-import { AsyncResult, AtomRegistry } from "effect/reactivity";
+
 import * as Workspace from "../src/app/Workspace.ts";
 
 const notebook = {

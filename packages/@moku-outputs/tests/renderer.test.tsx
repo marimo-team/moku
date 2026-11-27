@@ -1,8 +1,9 @@
+import * as React from "react";
+import * as ReactDOMClient from "react-dom/client";
 // @vitest-environment happy-dom
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import * as React from "react";
-import * as ReactDOMClient from "react-dom/client";
+
 import { DisplayView, setTheme } from "../src/index.ts";
 import { loadRenderer } from "../src/internal/renderer.ts";
 

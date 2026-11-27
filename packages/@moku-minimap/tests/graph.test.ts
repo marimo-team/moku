@@ -1,4 +1,5 @@
 import * as Vitest from "vite-plus/test";
+
 import { Graph } from "../src/graph.ts";
 
 Vitest.test("direct edges and transitive dependencies stay distinct", () => {

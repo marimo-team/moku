@@ -1,6 +1,7 @@
-import * as React from "react";
-import { ConsoleOutput } from "@moku/outputs";
 import type * as Protocol from "@moku/core/Protocol";
+import { ConsoleOutput } from "@moku/outputs";
+import * as React from "react";
+
 import { cellLabel, type NotebookState } from "./execution.ts";
 
 export function RunLog({

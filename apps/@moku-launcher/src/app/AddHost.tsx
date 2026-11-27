@@ -2,6 +2,7 @@ import { useAtom } from "@effect/atom-react";
 import { Cause } from "effect";
 import { AsyncResult, Atom } from "effect/reactivity";
 import * as React from "react";
+
 import type * as Workspace from "./Workspace.ts";
 
 export function AddHost({ workspace }: { workspace: Workspace.Interface }) {

@@ -1,14 +1,14 @@
+import { RegistryContext } from "@effect/atom-react";
 // @vitest-environment happy-dom
 import type * as Notebook from "@moku/core/Notebook";
+import * as Protocol from "@moku/core/Protocol";
 import { Schema } from "effect";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as React from "react";
 import * as ReactDOMClient from "react-dom/client";
-import { RegistryContext } from "@effect/atom-react";
-import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
 
-import * as Protocol from "@moku/core/Protocol";
 import * as Minimap from "../src/index.ts";
 import { fixture } from "./fixture.ts";
 

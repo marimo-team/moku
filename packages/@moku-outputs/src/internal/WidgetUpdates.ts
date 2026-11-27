@@ -1,6 +1,6 @@
+import type * as Protocol from "@moku/core/internal/comm-protocol";
 /** Reconcile optimistic widget edits with the notebook's ordered stream. @module */
 import type * as Notebook from "@moku/core/Notebook";
-import type * as Protocol from "@moku/core/internal/comm-protocol";
 import { Data, Equal } from "effect";
 
 type Write = Parameters<Notebook.Runtime["experimentalComm"]["send"]>[0];

@@ -1,5 +1,7 @@
 import { Plugin } from "@moku/plugin";
+
 import { NotebookEditor } from "./NotebookEditor.tsx";
+
 import "./style.css";
 
 export default Plugin.define({

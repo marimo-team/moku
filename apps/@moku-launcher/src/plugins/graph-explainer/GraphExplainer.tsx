@@ -1,16 +1,17 @@
+import { useAtomValue } from "@effect/atom-react";
 import * as Notebook from "@moku/core/Notebook";
+import type { ViewProps } from "@moku/plugin";
 import { Cause } from "effect";
 import { AsyncResult } from "effect/reactivity";
-import { empty } from "../empty.ts";
 import * as React from "react";
-import { useAtomValue } from "@effect/atom-react";
-import type { ViewProps } from "@moku/plugin";
-import { newestRun } from "./execution.ts";
+
+import { empty } from "../empty.ts";
 import { useRunActions } from "./actions.ts";
-import { GraphToolbar } from "./GraphToolbar.tsx";
-import { RunLog } from "./RunLog.tsx";
 import { CellDetails } from "./CellDetails.tsx";
 import { DependencyGraph } from "./diagram/DependencyGraph.tsx";
+import { newestRun } from "./execution.ts";
+import { GraphToolbar } from "./GraphToolbar.tsx";
+import { RunLog } from "./RunLog.tsx";
 
 export function GraphExplainer({ notebook }: ViewProps) {
   const result = useAtomValue(notebook.state);

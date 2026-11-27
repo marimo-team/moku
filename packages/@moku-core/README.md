@@ -5,10 +5,10 @@ Observe and operate on marimo notebooks through scoped Effect values.
 ## Connect and read state
 
 ```ts
+import * as Host from "@moku/core/Host";
 import { Effect, Redacted } from "effect";
 import { FetchHttpClient } from "effect/http";
 import { AtomRegistry } from "effect/reactivity";
-import * as Host from "@moku/core/Host";
 
 const program = Effect.gen(function* () {
   const registry = yield* AtomRegistry.AtomRegistry;

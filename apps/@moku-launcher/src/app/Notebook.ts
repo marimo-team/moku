@@ -1,7 +1,7 @@
+import type * as Host from "@moku/core/Host";
+import type * as Model from "@moku/core/Notebook";
 /** Compose a notebook model with launcher identity and output assets. @module */
 import { Effect } from "effect";
-import type * as Model from "@moku/core/Notebook";
-import type * as Host from "@moku/core/Host";
 
 /** A notebook selected through a launcher host connection. */
 export interface Target {

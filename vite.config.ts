@@ -10,9 +10,16 @@ export default Vite.defineConfig({
       reportOnFailure: true,
     },
   },
-  fmt: { printWidth: 88 },
+  fmt: {
+    printWidth: 88,
+    sortImports: true,
+    sortPackageJson: true,
+  },
   lint: {
-    options: { typeAware: true, typeCheck: true },
+    options: {
+      typeAware: true,
+      typeCheck: true,
+    },
     ignorePatterns: ["packages/@moku-outputs/bundle/**"],
   },
 });

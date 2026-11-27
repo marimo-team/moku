@@ -1,13 +1,14 @@
-// @vitest-environment happy-dom
-import * as Vitest from "vite-plus/test";
-import { vi } from "vite-plus/test";
-import * as React from "react";
-import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";
 import { Effect, Queue, Stream } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import { Provider, OutputContext, type Notebook } from "../src/Provider.tsx";
+import * as React from "react";
+import * as ReactDOMClient from "react-dom/client";
+// @vitest-environment happy-dom
+import * as Vitest from "vite-plus/test";
+import { vi } from "vite-plus/test";
+
 import type * as RendererSession from "../src/internal/RendererSession.ts";
+import { Provider, OutputContext, type Notebook } from "../src/Provider.tsx";
 
 const renderer = vi.hoisted(() => ({ createSession: vi.fn() }));
 vi.mock("../src/internal/renderer.ts", () => ({ loadRenderer: async () => renderer }));

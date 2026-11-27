@@ -1,8 +1,10 @@
 import * as NodeFs from "node:fs/promises";
+
 import type * as React from "react";
 import * as Vitest from "vite-plus/test";
-import type * as RendererSession from "../src/internal/RendererSession.ts";
+
 import type { DisplayRenderer } from "../dist/renderer.js";
+import type * as RendererSession from "../src/internal/RendererSession.ts";
 
 Vitest.test(
   "generated declarations do not require the upstream source tree",

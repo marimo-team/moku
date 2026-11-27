@@ -1,5 +1,7 @@
 import { Plugin } from "@moku/plugin";
+
 import { GraphExplainer } from "./GraphExplainer.tsx";
+
 import "./style.css";
 
 export default Plugin.define({

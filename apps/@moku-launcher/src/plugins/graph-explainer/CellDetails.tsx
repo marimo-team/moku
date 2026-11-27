@@ -1,7 +1,8 @@
-import * as React from "react";
-import type * as Protocol from "@moku/core/Protocol";
 import * as Outputs from "@moku/core/Outputs";
+import type * as Protocol from "@moku/core/Protocol";
 import { CellOutputs, ConsoleOutput } from "@moku/outputs";
+import * as React from "react";
+
 import { cellLabel, type NotebookState } from "./execution.ts";
 
 export function CellDetails({

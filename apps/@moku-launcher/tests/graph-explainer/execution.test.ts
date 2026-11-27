@@ -1,8 +1,10 @@
-import { Schema } from "effect";
-import { dependencyGraph } from "../../src/plugins/graph-explainer/diagram/dependencies.ts";
 import * as NodeAssert from "node:assert/strict";
-import * as Vitest from "vite-plus/test";
+
 import * as Protocol from "@moku/core/Protocol";
+import { Schema } from "effect";
+import * as Vitest from "vite-plus/test";
+
+import { dependencyGraph } from "../../src/plugins/graph-explainer/diagram/dependencies.ts";
 import { cellStatus } from "../../src/plugins/graph-explainer/execution.ts";
 
 function example() {

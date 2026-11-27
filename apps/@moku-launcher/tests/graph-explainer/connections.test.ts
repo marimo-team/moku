@@ -1,5 +1,7 @@
 import * as NodeAssert from "node:assert/strict";
+
 import * as Vitest from "vite-plus/test";
+
 import { connectionTone } from "../../src/plugins/graph-explainer/diagram/connections.ts";
 
 Vitest.test(

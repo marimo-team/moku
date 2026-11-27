@@ -1,8 +1,8 @@
+import type * as Notebook from "@moku/core/Notebook";
+import type * as Document from "@moku/editor/Document";
 /** Notebook commands, including draft synchronization before execution. @module */
 import { Effect } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
-import type * as Notebook from "@moku/core/Notebook";
-import type * as Document from "@moku/editor/Document";
 
 export function make(notebook: Notebook.Interface, document: Document.Interface) {
   return Effect.gen(function* () {

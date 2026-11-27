@@ -6,6 +6,7 @@
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
 import { Atom, type AtomRegistry } from "effect/reactivity";
+
 import * as Draft from "./draft.ts";
 import { editDocument, type Edit } from "./edit.ts";
 

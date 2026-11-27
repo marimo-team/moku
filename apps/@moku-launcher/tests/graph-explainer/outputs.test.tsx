@@ -1,12 +1,13 @@
+import * as Protocol from "@moku/core/Protocol";
 import { Schema } from "effect";
+import * as React from "react";
+import * as ReactDOMClient from "react-dom/client";
 // @vitest-environment happy-dom
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import * as React from "react";
-import * as ReactDOMClient from "react-dom/client";
-import * as Protocol from "@moku/core/Protocol";
-import type { NotebookState } from "../../src/plugins/graph-explainer/execution.ts";
+
 import { CellDetails } from "../../src/plugins/graph-explainer/CellDetails.tsx";
+import type { NotebookState } from "../../src/plugins/graph-explainer/execution.ts";
 import { RunLog } from "../../src/plugins/graph-explainer/RunLog.tsx";
 
 vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);

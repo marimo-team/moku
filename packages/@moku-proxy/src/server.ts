@@ -1,19 +1,21 @@
+import * as NodeBuffer from "node:buffer";
 /**
  * Authenticated local routes for marimo host discovery, notebook commands, and events.
  *
  * @module
  */
 import * as NodeCrypto from "node:crypto";
-import * as NodeBuffer from "node:buffer";
 import type * as NodeHttp from "node:http";
-import * as Forward from "./internal/forward.ts";
+
 import * as MarimoNode from "@marimo-team/client/node";
+import type * as Discovery from "@marimo-team/client/protocol";
+import * as Protocol from "@marimo-team/host-protocol/Schemas";
+import { Schema } from "effect";
+
+import * as Forward from "./internal/forward.ts";
 import { json, readBody } from "./internal/http.ts";
 import type { ManagedServer } from "./internal/managed.ts";
 import * as Marimo from "./internal/marimo.ts";
-import type * as Discovery from "@marimo-team/client/protocol";
-import { Schema } from "effect";
-import * as Protocol from "@marimo-team/host-protocol/Schemas";
 import * as Routes from "./internal/protocol.ts";
 
 /**

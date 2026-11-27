@@ -1,5 +1,6 @@
-import * as React from "react";
 import type * as Protocol from "@moku/core/Protocol";
+import * as React from "react";
+
 import type { NotebookState } from "../execution.ts";
 import * as Timeline from "../timeline/Timeline.tsx";
 import { useTimeline } from "../timeline/useTimeline.ts";

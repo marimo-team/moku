@@ -1,11 +1,7 @@
-import * as Vitest from "vite-plus/test";
-import { Effect, Exit, Schema, Scope, Stream } from "effect";
-import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
-import * as Protocol from "@moku/core/Protocol";
-import * as Notebook from "@moku/core/Notebook";
-import { emptyState } from "../../@moku-core/tests/fixtures.ts";
-import type { Source } from "../src/internal/state.ts";
 import * as Host from "@moku/core/Host";
+import * as Notebook from "@moku/core/Notebook";
+import * as Protocol from "@moku/core/Protocol";
+import { Effect, Exit, Schema, Scope, Stream } from "effect";
 import {
   HttpClient,
   HttpClientError,
@@ -13,7 +9,12 @@ import {
   HttpServerRequest,
   HttpServerResponse,
 } from "effect/http";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
+import * as Vitest from "vite-plus/test";
+
+import { emptyState } from "../../@moku-core/tests/fixtures.ts";
 import * as Document from "../src/Document.ts";
+import type { Source } from "../src/internal/state.ts";
 
 export const cell = Schema.decodeUnknownSync(Protocol.Cell)({
   id: "a",

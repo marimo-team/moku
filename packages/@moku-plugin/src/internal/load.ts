@@ -5,6 +5,7 @@
  */
 import { Cause, Effect, Exit, Scope } from "effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
+
 import type * as Plugin from "../Plugin.ts";
 
 /** A view registered by a plugin, with its application-wide identity. */

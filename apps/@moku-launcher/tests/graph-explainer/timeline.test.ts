@@ -1,19 +1,21 @@
-import { Schema } from "effect";
-import * as Protocol from "@moku/core/Protocol";
 import * as NodeAssert from "node:assert/strict";
+
+import * as Protocol from "@moku/core/Protocol";
+import { Schema } from "effect";
 import * as Vitest from "vite-plus/test";
+
 import { executionSpan } from "../../src/plugins/graph-explainer/execution.ts";
+import {
+  advanceTimeline,
+  timelineTickCount,
+  type TimelineInput,
+} from "../../src/plugins/graph-explainer/timeline/animation.ts";
 import {
   timelineDomain,
   timelineLabel,
   timelineFrame,
   updateTimelineScale,
 } from "../../src/plugins/graph-explainer/timeline/scale.ts";
-import {
-  advanceTimeline,
-  timelineTickCount,
-  type TimelineInput,
-} from "../../src/plugins/graph-explainer/timeline/animation.ts";
 
 Vitest.test("completed timings stay fixed and queued executions have no span", () => {
   const execution = {

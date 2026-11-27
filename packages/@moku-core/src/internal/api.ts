@@ -1,7 +1,7 @@
+import { Host, Notebook } from "@marimo-team/host-protocol/experimental";
 /** Host protocol endpoints with forward-compatible event decoding. @module */
 import { Schema, SchemaGetter } from "effect";
 import { HttpApi } from "effect/http-api";
-import { Host, Notebook } from "@marimo-team/host-protocol/experimental";
 
 import { CommGroup } from "./comm-protocol.ts";
 

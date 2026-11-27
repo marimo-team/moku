@@ -1,13 +1,15 @@
-import * as Vitest from "vite-plus/test";
-import { vi } from "vite-plus/test";
+import * as NodeChildProcess from "node:child_process";
 import * as NodeFs from "node:fs/promises";
+import * as NodeHttp from "node:http";
 import * as NodeOs from "node:os";
 import * as NodePath from "node:path";
 import * as NodeUrl from "node:url";
-import * as NodeHttp from "node:http";
-import * as NodeChildProcess from "node:child_process";
-import { createApi } from "../src/server.ts";
+
+import * as Vitest from "vite-plus/test";
+import { vi } from "vite-plus/test";
+
 import { startServer } from "../src/internal/managed.ts";
+import { createApi } from "../src/server.ts";
 
 const root = NodeUrl.fileURLToPath(new URL(".", import.meta.url));
 const fixture = NodeUrl.fileURLToPath(

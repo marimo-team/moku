@@ -10,12 +10,13 @@ import {
 } from "effect";
 import { HttpClient } from "effect/http";
 import { AtomRegistry, type AsyncResult, type Atom } from "effect/reactivity";
+
 import type { CatalogEvent } from "./internal/api.ts";
-import * as Protocol from "./Protocol.ts";
-import type * as Notebook from "./Notebook.ts";
 import { makeClient, makeCommands, ModelError } from "./internal/client.ts";
-import * as NotebookModel from "./notebook/make.ts";
 import { observe } from "./internal/observe.ts";
+import type * as Notebook from "./Notebook.ts";
+import * as NotebookModel from "./notebook/make.ts";
+import * as Protocol from "./Protocol.ts";
 
 /** Host capabilities and catalog records indexed by ID. */
 export interface State {

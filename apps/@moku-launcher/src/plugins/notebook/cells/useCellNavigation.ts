@@ -1,4 +1,5 @@
 import * as React from "react";
+
 import { useDocument } from "../DocumentContext.ts";
 
 /** Focus requests also open hidden source; their sequence permits repeat focus. */

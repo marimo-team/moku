@@ -4,6 +4,7 @@ A React minimap for exploring dependencies between notebook cells.
 
 ```tsx
 import * as Minimap from "@moku/minimap";
+
 import "@moku/minimap/style.css";
 
 <Minimap.Minimap notebook={notebook}>

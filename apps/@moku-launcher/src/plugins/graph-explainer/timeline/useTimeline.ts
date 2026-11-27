@@ -1,4 +1,5 @@
 import * as React from "react";
+
 import { advanceTimeline, timelineTickCount, type TimelineInput } from "./animation.ts";
 
 function createTimeline(initial: TimelineInput) {

@@ -1,13 +1,15 @@
 import * as NodeAssert from "node:assert/strict";
-import * as Vitest from "vite-plus/test";
 import * as NodeHttp from "node:http";
-import { createApi } from "../src/server.ts";
+
 import type { HostRecordOutput } from "@marimo-team/client/protocol";
-import { Effect, Schema, Stream } from "effect";
-import { AtomRegistry } from "effect/reactivity";
-import { FetchHttpClient } from "effect/http";
-import * as Host from "@moku/core/Host";
 import * as Protocol from "@marimo-team/host-protocol/Schemas";
+import * as Host from "@moku/core/Host";
+import { Effect, Schema, Stream } from "effect";
+import { FetchHttpClient } from "effect/http";
+import { AtomRegistry } from "effect/reactivity";
+import * as Vitest from "vite-plus/test";
+
+import { createApi } from "../src/server.ts";
 
 Vitest.test(
   "local authentication protects discovery and forwards authenticated streams without exposing host tokens",

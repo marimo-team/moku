@@ -1,9 +1,9 @@
-import * as React from "react";
-import * as CodeMirrorView from "@codemirror/view";
 import * as CodeMirrorCommands from "@codemirror/commands";
-import * as CodeMirrorLanguage from "@codemirror/language";
 import * as CodeMirrorPython from "@codemirror/lang-python";
+import * as CodeMirrorLanguage from "@codemirror/language";
+import * as CodeMirrorView from "@codemirror/view";
 import { CodeMirror, type Document } from "@moku/editor";
+import * as React from "react";
 
 /** A plain CodeMirror editor bound to one cell in the shared notebook draft. */
 export function CellEditor({

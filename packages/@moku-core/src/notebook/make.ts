@@ -1,14 +1,15 @@
 /** Acquire notebook state and commands from a host protocol client. @module */
 import { Effect, Queue, Schema, Stream, type Duration } from "effect";
 import { AsyncResult, AtomRegistry } from "effect/reactivity";
-import * as Protocol from "../Protocol.ts";
-import * as Notebook from "../Notebook.ts";
+
+import * as Comm from "../experimental/Comm.ts";
 import { makeCommands, ModelError, type Client } from "../internal/client.ts";
 import { observe } from "../internal/observe.ts";
-import { emptyNotebook, reduceNotebook } from "./state.ts";
-import * as Comm from "../experimental/Comm.ts";
+import * as Notebook from "../Notebook.ts";
+import * as Protocol from "../Protocol.ts";
 import * as Edit from "./edit.ts";
 import * as Events from "./events.ts";
+import { emptyNotebook, reduceNotebook } from "./state.ts";
 
 export const make = Effect.fnUntraced(function* (
   client: Client,

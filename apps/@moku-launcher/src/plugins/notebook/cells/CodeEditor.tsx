@@ -1,11 +1,12 @@
-import * as CodeMirrorState from "@codemirror/state";
-import * as CodeMirrorLanguage from "@codemirror/language";
 import * as CodeMirrorCommands from "@codemirror/commands";
-import type * as Protocol from "@moku/core/Protocol";
-import { useCellCodeExtension } from "./useCellCodeExtension.ts";
+import * as CodeMirrorLanguage from "@codemirror/language";
+import * as CodeMirrorState from "@codemirror/state";
 import * as CodeMirrorView from "@codemirror/view";
-import * as React from "react";
 import * as LezerHighlight from "@lezer/highlight";
+import type * as Protocol from "@moku/core/Protocol";
+import * as React from "react";
+
+import { useCellCodeExtension } from "./useCellCodeExtension.ts";
 
 const extensions = [
   CodeMirrorLanguage.syntaxHighlighting(

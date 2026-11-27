@@ -1,6 +1,7 @@
-import * as React from "react";
 import { useAtomMount, useAtomSet, useAtomValue } from "@effect/atom-react";
 import type * as Notebook from "@moku/core/Notebook";
+import * as React from "react";
+
 import * as Model from "./model.ts";
 import type { Cell, Selection as SelectionValue } from "./model.ts";
 

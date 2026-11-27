@@ -1,7 +1,8 @@
 import { Cause } from "effect";
 import { AsyncResult } from "effect/reactivity";
-import * as Problems from "./feedback/problems.ts";
 import * as React from "react";
+
+import * as Problems from "./feedback/problems.ts";
 
 export function ConnectionStatus({
   result,

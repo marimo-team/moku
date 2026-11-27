@@ -1,3 +1,4 @@
+import * as Notebook from "@moku/core/Notebook";
 /**
  * Local notebook drafts with automatic synchronization to the host.
  *
@@ -8,11 +9,11 @@
  */
 import { Context, Effect, Layer, type Scope } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
-import * as Notebook from "@moku/core/Notebook";
-import { makeState, type Source } from "./internal/state.ts";
-import { synchronize, type SyncStatus, type SyncError } from "./internal/sync.ts";
+
 import * as Draft from "./internal/draft.ts";
 import type { Edit } from "./internal/edit.ts";
+import { makeState, type Source } from "./internal/state.ts";
+import { synchronize, type SyncStatus, type SyncError } from "./internal/sync.ts";
 
 export type { EditableDocument, EditableCell } from "./internal/draft.ts";
 export type { Edit, Editor } from "./internal/edit.ts";

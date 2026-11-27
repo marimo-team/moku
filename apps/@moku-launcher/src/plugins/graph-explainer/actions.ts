@@ -1,9 +1,10 @@
-import * as React from "react";
 import { RegistryContext, useAtom } from "@effect/atom-react";
-import { Cause, Data, Effect } from "effect";
-import { AsyncResult, Atom } from "effect/reactivity";
 import type * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
+import { Cause, Data, Effect } from "effect";
+import { AsyncResult, Atom } from "effect/reactivity";
+import * as React from "react";
+
 import type { NotebookState } from "./execution.ts";
 
 type RunAction = "run" | "cancel";

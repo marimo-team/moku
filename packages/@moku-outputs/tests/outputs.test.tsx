@@ -1,11 +1,12 @@
-import { Schema } from "effect";
-import * as Vitest from "vite-plus/test";
-import * as ReactDOMServer from "react-dom/server";
-import * as Protocol from "@moku/core/Protocol";
 import * as Outputs from "@moku/core/Outputs";
+import * as Protocol from "@moku/core/Protocol";
+import { Schema } from "effect";
+import * as ReactDOMServer from "react-dom/server";
+import * as Vitest from "vite-plus/test";
+
 import { CellOutputs, ConsoleOutput, DisplayView } from "../src/index.ts";
-import type { CellOutputsProps, OutputItem } from "../src/types.ts";
 import { normalizeDisplay } from "../src/internal/normalize.ts";
+import type { CellOutputsProps, OutputItem } from "../src/types.ts";
 
 const consoleChunk = (
   id: string,

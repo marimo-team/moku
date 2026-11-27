@@ -1,7 +1,8 @@
-import { Option } from "effect";
-import { AsyncResult, Atom } from "effect/reactivity";
 import * as Notebook from "@moku/core/Notebook";
 import type * as Protocol from "@moku/core/Protocol";
+import { Option } from "effect";
+import { AsyncResult, Atom } from "effect/reactivity";
+
 import { Graph, type Item, type Trace } from "./graph.ts";
 
 export type Cell = typeof Protocol.Cell.Type & {

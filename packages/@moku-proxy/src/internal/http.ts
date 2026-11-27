@@ -1,6 +1,7 @@
-import { Option, Schema } from "effect";
 import * as NodeBuffer from "node:buffer";
 import type * as NodeHttp from "node:http";
+
+import { Option, Schema } from "effect";
 
 const failure = Schema.Struct({
   error: Schema.String,

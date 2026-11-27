@@ -1,9 +1,9 @@
+import * as Notebook from "@marimo-team/host-protocol/Notebook";
+import * as Problems from "@marimo-team/host-protocol/Problems";
+import * as S from "@marimo-team/host-protocol/Schemas";
 /** Host messages and marimo session messages for the experimental output channel. @module */
 import { Result, Schema } from "effect";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
-import * as Notebook from "@marimo-team/host-protocol/Notebook";
-import * as S from "@marimo-team/host-protocol/Schemas";
-import * as Problems from "@marimo-team/host-protocol/Problems";
 
 const JsonObject = Schema.Record(Schema.String, Schema.Json);
 const Buffers = Schema.Array(Schema.String);

@@ -1,3 +1,4 @@
+import { Plugin } from "@moku/plugin";
 /**
  * Compose the shared workspace, plugins, and notebooks for a launcher application.
  *
@@ -6,10 +7,10 @@
 import { Data, Effect } from "effect";
 import { FetchHttpClient } from "effect/http";
 import { Atom } from "effect/reactivity";
-import * as Workspace from "./Workspace.ts";
-import type * as Notebook from "./Notebook.ts";
+
 import type * as DirectHost from "./DirectHost.ts";
-import { Plugin } from "@moku/plugin";
+import type * as Notebook from "./Notebook.ts";
+import * as Workspace from "./Workspace.ts";
 
 class Target extends Data.Class<Notebook.Target> {}
 

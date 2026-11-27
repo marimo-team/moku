@@ -1,11 +1,12 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import type { Plugin } from "@moku/plugin";
 import { Atom } from "effect/reactivity";
 import * as React from "react";
-import type * as Workspace from "./Workspace.ts";
-import type { Plugin } from "@moku/plugin";
-import { HostNotebooks } from "./HostNotebooks.tsx";
+
 import { AddHost } from "./AddHost.tsx";
+import { HostNotebooks } from "./HostNotebooks.tsx";
 import { LauncherBar } from "./LauncherBar.tsx";
+import type * as Workspace from "./Workspace.ts";
 
 export function Launcher({
   workspace,

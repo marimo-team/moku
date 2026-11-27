@@ -1,8 +1,8 @@
-import { Atom } from "effect/reactivity";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import type * as Document from "@moku/editor/Document";
+import { Atom } from "effect/reactivity";
 import * as React from "react";
 import * as ReactRouter from "react-router";
-import type * as Document from "@moku/editor/Document";
 
 /** Keep the document mounted while a link navigation flushes pending edits. */
 export function useDraftNavigationGuard(model: Document.Interface, unsaved: boolean) {

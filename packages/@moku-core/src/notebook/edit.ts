@@ -1,8 +1,9 @@
 /** Compile edits against observed cells into an atomic protocol request. @module */
 import { Schema } from "effect";
+
+import { ModelError } from "../internal/client.ts";
 import * as Notebook from "../Notebook.ts";
 import * as Protocol from "../Protocol.ts";
-import { ModelError } from "../internal/client.ts";
 
 const invalid = (message: string): never => {
   throw new ModelError({ reason: "invalid-edit", message });

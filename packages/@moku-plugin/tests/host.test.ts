@@ -1,14 +1,15 @@
+import * as CoreHost from "@moku/core/Host";
+import type { ViewProps } from "@moku/plugin";
+import { Plugin } from "@moku/plugin";
+import { Context, Effect, Exit, Scope } from "effect";
+import { HttpClient, HttpServerResponse } from "effect/http";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as React from "react";
 import * as ReactDOMServer from "react-dom/server";
-import type { ViewProps } from "@moku/plugin";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import { HttpClient, HttpServerResponse } from "effect/http";
+
 import { notebookEvents } from "../../@moku-core/tests/fixtures.ts";
-import * as CoreHost from "@moku/core/Host";
-import { Context, Effect, Exit, Scope } from "effect";
-import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
-import { Plugin } from "@moku/plugin";
 
 const view = {
   id: "main",

@@ -1,14 +1,13 @@
-import { Schema } from "effect";
+import type { Document } from "@moku/core/Notebook";
 /* Copyright 2026 Marimo. All rights reserved. */
-
+import * as Protocol from "@moku/core/Protocol";
+import { Schema } from "effect";
 /**
  * Pure operations for applying, acknowledging, and serializing local drafts.
  *
  * @module
  */
 import { Equivalence } from "effect";
-import type { Document } from "@moku/core/Notebook";
-import * as Protocol from "@moku/core/Protocol";
 
 type Cell = typeof Protocol.Cell.Type;
 type CellId = string;

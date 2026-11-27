@@ -1,9 +1,10 @@
+import * as CodeMirrorCommands from "@codemirror/commands";
+import * as CodeMirrorState from "@codemirror/state";
+import * as CodeMirrorView from "@codemirror/view";
 // @vitest-environment happy-dom
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import * as CodeMirrorState from "@codemirror/state";
-import * as CodeMirrorView from "@codemirror/view";
-import * as CodeMirrorCommands from "@codemirror/commands";
+
 import * as CodeMirror from "../src/CodeMirror.ts";
 import { setup, cell, confirmed } from "./fixture.ts";
 

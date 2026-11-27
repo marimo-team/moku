@@ -3,8 +3,8 @@
 A local gateway that connects browser clients to marimo hosts and keeps host credentials on the server.
 
 ```ts
-import { defineConfig } from "vite-plus";
 import { marimo, type Options } from "@moku/proxy/vite";
+import { defineConfig } from "vite-plus";
 
 const options: Options = {
   clientName: "moku",
@@ -24,6 +24,7 @@ For a Node HTTP server, `createApi` exposes the same proxy:
 
 ```ts
 import { createServer } from "node:http";
+
 import { createApi } from "@moku/proxy";
 
 const api = createApi({ origin: () => "http://127.0.0.1:3000" });

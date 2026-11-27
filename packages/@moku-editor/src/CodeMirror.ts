@@ -1,11 +1,12 @@
+import * as CodeMirrorMerge from "@codemirror/merge";
 /**
  * CodeMirror extensions that bind a view to cell source in a document.
  *
  * @module
  */
 import * as CodeMirrorState from "@codemirror/state";
-import * as CodeMirrorMerge from "@codemirror/merge";
 import * as CodeMirrorView from "@codemirror/view";
+
 import type * as Document from "./Document.ts";
 
 /** Text shown by an editor and the conversion back to canonical cell source. */

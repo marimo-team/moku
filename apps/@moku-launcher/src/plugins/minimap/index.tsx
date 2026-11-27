@@ -1,5 +1,7 @@
 import { Plugin } from "@moku/plugin";
+
 import { NotebookMinimap } from "./NotebookMinimap.tsx";
+
 import "./style.css";
 
 export default Plugin.define({

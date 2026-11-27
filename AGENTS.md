@@ -126,8 +126,8 @@ export const layer = (notebook: Notebook.Interface) =>
 ```
 
 ```ts
-import { Effect } from "effect";
 import * as Document from "@moku/editor/Document";
+import { Effect } from "effect";
 
 const program = Effect.gen(function* () {
   const document = yield* Document.Service;

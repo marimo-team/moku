@@ -1,13 +1,15 @@
+import * as Outputs from "@moku/core/Outputs";
 /**
  * Render an execution's displays, console text, and final outcome together.
  *
  * @module
  */
 import type * as React from "react";
-import * as Outputs from "@moku/core/Outputs";
-import type { CellOutputsProps, Outcome } from "./types.ts";
-import { DisplayView } from "./DisplayView.tsx";
+
 import { ConsoleOutput } from "./ConsoleOutput.tsx";
+import { DisplayView } from "./DisplayView.tsx";
+import type { CellOutputsProps, Outcome } from "./types.ts";
+
 import "./style.css";
 
 function ErrorView({

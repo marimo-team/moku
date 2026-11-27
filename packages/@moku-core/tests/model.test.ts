@@ -1,13 +1,14 @@
 import { Cause, Effect, Exit, Redacted, Schema, Scope, Stream } from "effect";
+import { FetchHttpClient, HttpClient, HttpServerResponse } from "effect/http";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
+import { TestClock } from "effect/testing";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
-import { FetchHttpClient, HttpClient, HttpServerResponse } from "effect/http";
-import { TestClock } from "effect/testing";
+
 import * as Host from "../src/Host.ts";
-import { emptyState } from "./fixtures.ts";
 import * as Notebook from "../src/Notebook.ts";
 import * as Protocol from "../src/Protocol.ts";
+import { emptyState } from "./fixtures.ts";
 
 const notebook = {
   id: "n",

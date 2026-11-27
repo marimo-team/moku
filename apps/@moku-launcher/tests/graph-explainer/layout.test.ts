@@ -1,7 +1,9 @@
 import * as NodeAssert from "node:assert/strict";
+
 import * as Vitest from "vite-plus/test";
-import { layoutView } from "../../src/plugins/graph-explainer/diagram/layout.ts";
+
 import type { Edge } from "../../src/plugins/graph-explainer/diagram/dependencies.ts";
+import { layoutView } from "../../src/plugins/graph-explainer/diagram/layout.ts";
 
 const edges = (...pairs: Array<[string, string]>): Edge[] =>
   pairs.map(([from, to]) => ({ from, to, names: [from] }));

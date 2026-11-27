@@ -1,11 +1,12 @@
+import * as Document from "@moku/editor/Document";
+import { Effect, Exit, Scope } from "effect";
 // @vitest-environment happy-dom
 import { FetchHttpClient } from "effect/http";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
-import { Effect, Exit, Scope } from "effect";
-import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
+
 import * as Workspace from "../src/app/Workspace.ts";
-import * as Document from "@moku/editor/Document";
 
 const notebook = {
   id: "n",

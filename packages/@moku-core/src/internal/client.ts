@@ -1,3 +1,4 @@
+import * as Problems from "@marimo-team/host-protocol/Problems";
 /** Host protocol transport and scoped command lifetimes. @module */
 import {
   Cause,
@@ -15,8 +16,8 @@ import {
 } from "effect";
 import { HttpClient, HttpClientError, HttpClientRequest } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
+
 import { Api } from "./api.ts";
-import * as Problems from "@marimo-team/host-protocol/Problems";
 
 export type Client = Effect.Success<ReturnType<typeof makeClient>>;
 /** A comm POST with its notebook path already bound. */

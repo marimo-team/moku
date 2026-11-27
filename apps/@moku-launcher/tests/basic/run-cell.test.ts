@@ -1,12 +1,13 @@
-import * as Vitest from "vite-plus/test";
-import { Effect } from "effect";
 import * as Protocol from "@moku/core/Protocol";
+import type * as Document from "@moku/editor/Document";
+import { Effect } from "effect";
+import { Schema } from "effect";
+import * as Vitest from "vite-plus/test";
+
 import {
   cell,
   document as revision,
 } from "../../../../packages/@moku-editor/tests/fixture.ts";
-import { Schema } from "effect";
-import type * as Document from "@moku/editor/Document";
 import { runCell } from "../../src/plugins/basic/actions.ts";
 
 function fixture(removed = false) {

@@ -1,11 +1,12 @@
 /** Observe and edit a notebook acquired with Host.notebooks.attach. @module */
 import { Schema, type Effect } from "effect";
+import type { Sse } from "effect/encoding";
 import type { AsyncResult, Atom } from "effect/reactivity";
+
 import type * as Comm from "./experimental/Comm.ts";
-import * as Protocol from "./Protocol.ts";
 import type { Client } from "./internal/client.ts";
 import { ModelError } from "./internal/client.ts";
-import type { Sse } from "effect/encoding";
+import * as Protocol from "./Protocol.ts";
 export { ModelError, isRejection } from "./internal/client.ts";
 
 /** A coherent document revision with its cells in display order. */

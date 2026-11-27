@@ -4,8 +4,10 @@
  * @module
  */
 import type * as React from "react";
-import type { ConsoleOutputProps } from "./types.ts";
+
 import { DisplayView } from "./DisplayView.tsx";
+import type { ConsoleOutputProps } from "./types.ts";
+
 import "./style.css";
 
 /**

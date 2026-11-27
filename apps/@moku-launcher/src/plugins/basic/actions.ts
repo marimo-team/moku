@@ -1,6 +1,6 @@
-import { Effect } from "effect";
-import type { ViewProps } from "@moku/plugin";
 import type * as Document from "@moku/editor/Document";
+import type { ViewProps } from "@moku/plugin";
+import { Effect } from "effect";
 
 /** Flush edits first so execution uses the source currently shown in the editor. */
 export function runCell(

@@ -1,16 +1,17 @@
-// @vitest-environment happy-dom
-import { HttpClient, HttpServerResponse } from "effect/http";
-import { notebookEvents } from "../../../packages/@moku-core/tests/fixtures.ts";
-import * as Vitest from "vite-plus/test";
-import { vi } from "vite-plus/test";
-import * as React from "react";
-import * as ReactRouter from "react-router";
-import * as ReactRouterDOM from "react-router/dom";
-import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";
-import { Atom, AtomRegistry } from "effect/reactivity";
 import { Plugin, type ViewProps } from "@moku/plugin";
 import { Effect, Layer } from "effect";
+// @vitest-environment happy-dom
+import { HttpClient, HttpServerResponse } from "effect/http";
+import { Atom, AtomRegistry } from "effect/reactivity";
+import * as React from "react";
+import * as ReactDOMClient from "react-dom/client";
+import * as ReactRouter from "react-router";
+import * as ReactRouterDOM from "react-router/dom";
+import * as Vitest from "vite-plus/test";
+import { vi } from "vite-plus/test";
+
+import { notebookEvents } from "../../../packages/@moku-core/tests/fixtures.ts";
 import { App } from "../src/app/App.tsx";
 import * as Application from "../src/app/Application.ts";
 import { parseRoute, viewHref, type Route } from "../src/app/routes.ts";

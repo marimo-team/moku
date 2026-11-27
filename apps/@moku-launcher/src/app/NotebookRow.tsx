@@ -1,10 +1,11 @@
-import * as Menu from "@radix-ui/react-dropdown-menu";
-import * as ReactRouter from "react-router";
-import type * as Workspace from "./Workspace.ts";
 import type * as Protocol from "@moku/core/Protocol";
 import type { Plugin } from "@moku/plugin";
+import * as Menu from "@radix-ui/react-dropdown-menu";
+import * as ReactRouter from "react-router";
+
 import { viewHref } from "./routes.ts";
 import { useOpenHost } from "./useOpenHost.ts";
+import type * as Workspace from "./Workspace.ts";
 
 export function NotebookRow({
   notebook,

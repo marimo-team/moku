@@ -5,25 +5,28 @@
  */
 import { Provider } from "jotai";
 import type { ComponentProps, ReactElement } from "react";
+
 import { OutputRenderer } from "@/components/editor/Output";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { store } from "@/core/state/jotai";
-import { useTheme } from "@/theme/useTheme";
 import { userConfigAtom } from "@/core/config/config";
+import { UI_ELEMENT_REGISTRY } from "@/core/dom/uiregistry";
+import { FUNCTIONS_REGISTRY } from "@/core/functions/FunctionRegistry";
+import { RuntimeState } from "@/core/kernel/RuntimeState";
 import { initialModeAtom } from "@/core/mode";
 import { requestClientAtom } from "@/core/network/requests";
-import { FUNCTIONS_REGISTRY } from "@/core/functions/FunctionRegistry";
-import { UI_ELEMENT_REGISTRY } from "@/core/dom/uiregistry";
-import { RuntimeState } from "@/core/kernel/RuntimeState";
+import { store } from "@/core/state/jotai";
 import {
   handleWidgetMessage,
   WIDGET_REGISTRY,
 } from "@/plugins/impl/anywidget/registry";
-import { safeExtractSetUIElementMessageBuffers } from "@/utils/json/base64";
 import { initializePlugins } from "@/plugins/plugins";
-import type { Theme } from "../src/types.ts";
-import type * as RendererSession from "../src/internal/RendererSession.ts";
+import { useTheme } from "@/theme/useTheme";
+import { safeExtractSetUIElementMessageBuffers } from "@/utils/json/base64";
+
 import { normalizeDisplay } from "../src/internal/normalize.ts";
+import type * as RendererSession from "../src/internal/RendererSession.ts";
+import type { Theme } from "../src/types.ts";
+
 import "@/css/index.css";
 
 initializePlugins();

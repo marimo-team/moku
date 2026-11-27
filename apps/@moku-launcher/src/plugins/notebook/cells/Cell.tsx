@@ -1,11 +1,12 @@
-import type * as Document from "@moku/editor/Document";
-import * as React from "react";
-import { CodeEditor } from "./CodeEditor.tsx";
-import { CellOutputs } from "@moku/outputs";
 import * as Outputs from "@moku/core/Outputs";
-import { CellMenu } from "./CellMenu.tsx";
-import * as Source from "./source.ts";
+import type * as Document from "@moku/editor/Document";
+import { CellOutputs } from "@moku/outputs";
+import * as React from "react";
+
 import type * as Currentness from "../currentness.ts";
+import { CellMenu } from "./CellMenu.tsx";
+import { CodeEditor } from "./CodeEditor.tsx";
+import * as Source from "./source.ts";
 
 export function Cell({
   cell,

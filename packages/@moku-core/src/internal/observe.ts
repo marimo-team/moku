@@ -9,8 +9,9 @@ import {
   Semaphore,
   Stream,
 } from "effect";
-import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { Sse } from "effect/encoding";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
+
 import { isRejection, ModelError } from "./client.ts";
 export const observe = Effect.fnUntraced(function* <
   S,

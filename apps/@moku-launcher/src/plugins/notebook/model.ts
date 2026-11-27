@@ -1,15 +1,16 @@
+import type * as Notebook from "@moku/core/Notebook";
+import * as Document from "@moku/editor/Document";
+import { Effect, Option } from "effect";
+import { AsyncResult, Atom } from "effect/reactivity";
+
 /**
  * View-owned document and actions for a notebook supplied by the launcher.
  *
  * @module
  */
 import { empty } from "../empty.ts";
-import { Effect, Option } from "effect";
-import { AsyncResult, Atom } from "effect/reactivity";
-import * as Document from "@moku/editor/Document";
-import type * as Notebook from "@moku/core/Notebook";
-import * as Outputs from "./outputs.ts";
 import * as Actions from "./actions.ts";
+import * as Outputs from "./outputs.ts";
 
 /** Acquires the document and commands for one open Notebook view. */
 function make(notebook: Notebook.Interface) {

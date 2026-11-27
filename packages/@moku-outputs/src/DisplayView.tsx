@@ -4,10 +4,12 @@
  * @module
  */
 import * as React from "react";
-import type { DisplayData, DisplayViewProps } from "./types.ts";
+
 import { loadRenderer, loadStyles } from "./internal/renderer.ts";
 import { ShadowOutput } from "./internal/ShadowOutput.tsx";
 import { OutputContext } from "./Provider.tsx";
+import type { DisplayData, DisplayViewProps } from "./types.ts";
+
 import "./style.css";
 
 function RichDisplay(props: DisplayViewProps): React.ReactElement {

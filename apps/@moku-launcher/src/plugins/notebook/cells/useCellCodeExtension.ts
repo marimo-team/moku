@@ -1,8 +1,9 @@
-import * as React from "react";
-import * as CodeMirrorPython from "@codemirror/lang-python";
 import * as CodeMirrorMarkdown from "@codemirror/lang-markdown";
+import * as CodeMirrorPython from "@codemirror/lang-python";
 import * as CodeMirrorSQL from "@codemirror/lang-sql";
 import * as CodeMirror from "@moku/editor/CodeMirror";
+import * as React from "react";
+
 import { useDocument } from "../DocumentContext.ts";
 import * as Source from "./source.ts";
 

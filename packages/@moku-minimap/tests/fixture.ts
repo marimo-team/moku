@@ -1,5 +1,6 @@
-import { Schema } from "effect";
 import * as Protocol from "@moku/core/Protocol";
+import { Schema } from "effect";
+
 import { emptyState } from "../../@moku-core/tests/fixtures.ts";
 
 export function fixture() {

@@ -1,7 +1,8 @@
 import { Stream } from "effect";
 import { HttpServerResponse } from "effect/http";
-import type * as Protocol from "../src/Protocol.ts";
+
 import type * as Notebook from "../src/Notebook.ts";
+import type * as Protocol from "../src/Protocol.ts";
 
 export function emptyState(): Notebook.State {
   return {

@@ -1,16 +1,16 @@
-import { empty } from "../empty.ts";
 import { useAtom, useAtomValue } from "@effect/atom-react";
-import { AsyncResult, Atom } from "effect/reactivity";
-import * as React from "react";
-import { Cause, Effect } from "effect";
 import * as Outputs from "@moku/core/Outputs";
+import * as Document from "@moku/editor/Document";
 import { CellOutputs } from "@moku/outputs";
 import type { ViewProps } from "@moku/plugin";
-import * as Document from "@moku/editor/Document";
-import { CellEditor } from "./CellEditor.tsx";
-import { useDraftNavigationGuard } from "../notebook/useDraftNavigationGuard.ts";
+import { Cause, Effect } from "effect";
+import { AsyncResult, Atom } from "effect/reactivity";
+import * as React from "react";
 
+import { empty } from "../empty.ts";
+import { useDraftNavigationGuard } from "../notebook/useDraftNavigationGuard.ts";
 import * as Actions from "./actions.ts";
+import { CellEditor } from "./CellEditor.tsx";
 
 type Action = "start" | "run" | "save" | "sync";
 

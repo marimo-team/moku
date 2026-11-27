@@ -4,8 +4,9 @@
  * @module
  */
 import type * as Vite from "vite-plus";
-import { createApi } from "./server.ts";
+
 import { startServer, type ServerOptions } from "./internal/managed.ts";
+import { createApi } from "./server.ts";
 export type { ServerOptions } from "./internal/managed.ts";
 
 export interface Options {

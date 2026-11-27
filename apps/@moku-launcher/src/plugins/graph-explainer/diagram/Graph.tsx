@@ -1,8 +1,9 @@
 /** Rows and dependency rails for a notebook execution graph. @module */
 import * as React from "react";
+
+import type { CellStatus } from "../execution.ts";
 import type { TimelineFrame } from "../timeline/animation.ts";
 import * as Timeline from "../timeline/Timeline.tsx";
-import type { CellStatus } from "../execution.ts";
 import { connectionPriority, connectionTone } from "./connections.ts";
 import { ROW_HEIGHT, type RailEdge } from "./layout.ts";
 import type { GraphRow as RowState } from "./view.ts";

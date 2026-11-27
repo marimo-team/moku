@@ -1,4 +1,5 @@
 import * as Vitest from "vite-plus/test";
+
 import { WidgetUpdates } from "../src/internal/WidgetUpdates.ts";
 
 const slider = (value: number) => ({

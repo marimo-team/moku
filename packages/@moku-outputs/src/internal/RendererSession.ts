@@ -1,3 +1,4 @@
+import type * as CommProtocol from "@moku/core/internal/comm-protocol";
 /**
  * Define the embedded renderer's session contract for one producing runtime.
  *
@@ -7,7 +8,7 @@
  * @module
  */
 import type { Schema } from "effect";
-import type * as CommProtocol from "@moku/core/internal/comm-protocol";
+
 import type { DisplayViewProps } from "../types.ts";
 
 /** Runtime-bound callbacks installed into the marimo renderer's registries. */

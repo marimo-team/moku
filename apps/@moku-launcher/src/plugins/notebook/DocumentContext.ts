@@ -1,5 +1,5 @@
-import * as React from "react";
 import type * as Document from "@moku/editor/Document";
+import * as React from "react";
 
 export const DocumentContext = React.createContext<Document.Interface | null>(null);
 

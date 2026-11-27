@@ -1,10 +1,11 @@
-import * as React from "react";
 import { useAtomValue } from "@effect/atom-react";
-import { AsyncResult } from "effect/reactivity";
-import type { Target } from "./Notebook.ts";
-import type { Plugin } from "@moku/plugin";
-import type * as Application from "./Application.ts";
 import { Provider } from "@moku/outputs";
+import type { Plugin } from "@moku/plugin";
+import { AsyncResult } from "effect/reactivity";
+import * as React from "react";
+
+import type * as Application from "./Application.ts";
+import type { Target } from "./Notebook.ts";
 
 export function ViewInstance({
   target,

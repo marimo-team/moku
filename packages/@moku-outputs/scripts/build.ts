@@ -1,3 +1,4 @@
+import * as NodeChildProcess from "node:child_process";
 /**
  * Build the embedded renderer and its declarations into `dist/`.
  *
@@ -10,9 +11,10 @@ import * as NodeFs from "node:fs/promises";
 import * as NodeModule from "node:module";
 import * as NodePath from "node:path";
 import * as NodeUrl from "node:url";
-import * as NodeChildProcess from "node:child_process";
-import * as Vite from "vite-plus";
+
 import * as TypeScript from "typescript";
+import * as Vite from "vite-plus";
+
 import { checkout } from "../../../scripts/marimo.ts";
 
 const require = NodeModule.createRequire(import.meta.resolve("vite-plus"));

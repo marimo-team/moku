@@ -1,7 +1,8 @@
-import type * as Workspace from "./Workspace.ts";
 import type { Plugin } from "@moku/plugin";
+
 import { useCatalog } from "./catalog.ts";
 import { NotebookRow } from "./NotebookRow.tsx";
+import type * as Workspace from "./Workspace.ts";
 
 export function HostNotebooks({
   connection,

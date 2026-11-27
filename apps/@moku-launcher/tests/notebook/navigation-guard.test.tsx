@@ -1,11 +1,12 @@
+import { RegistryContext } from "@effect/atom-react";
+import { Effect } from "effect";
 // @vitest-environment happy-dom
 import * as React from "react";
 import * as ReactDOMClient from "react-dom/client";
 import * as ReactRouter from "react-router";
 import * as ReactRouterDOM from "react-router/dom";
 import * as Vitest from "vite-plus/test";
-import { RegistryContext } from "@effect/atom-react";
-import { Effect } from "effect";
+
 import { setup } from "../../../../packages/@moku-editor/tests/fixture.ts";
 import { useDraftNavigationGuard } from "../../src/plugins/notebook/useDraftNavigationGuard.ts";
 

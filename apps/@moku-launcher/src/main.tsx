@@ -2,13 +2,13 @@ import { RegistryProvider } from "@effect/atom-react";
 import * as ReactDOMClient from "react-dom/client";
 import * as ReactRouter from "react-router";
 import * as ReactRouterDOM from "react-router/dom";
+
 import { App } from "./app/App.tsx";
 import * as Application from "./app/Application.ts";
-
-import GraphExplainerPlugin from "./plugins/graph-explainer/index.tsx";
-import NotebookEditorPlugin from "./plugins/notebook/index.tsx";
 import BasicPlugin from "./plugins/basic/index.tsx";
+import GraphExplainerPlugin from "./plugins/graph-explainer/index.tsx";
 import MinimapPlugin from "./plugins/minimap/index.tsx";
+import NotebookEditorPlugin from "./plugins/notebook/index.tsx";
 
 import "./style.css";
 

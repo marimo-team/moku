@@ -1,14 +1,14 @@
-import { Schema } from "effect";
+import type { Document } from "@moku/core/Notebook";
 /* Copyright 2026 Marimo. All rights reserved. */
-
+import * as Notebook from "@moku/core/Notebook";
 /**
  * Synchronous document transactions with atomic publication and rollback.
  *
  * @module
  */
 import * as Protocol from "@moku/core/Protocol";
-import type { Document } from "@moku/core/Notebook";
-import * as Notebook from "@moku/core/Notebook";
+import { Schema } from "effect";
+
 import {
   type CellEdit,
   type Draft,

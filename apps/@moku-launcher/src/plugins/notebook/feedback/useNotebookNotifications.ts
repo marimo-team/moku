@@ -1,6 +1,7 @@
-import * as React from "react";
 import type * as Document from "@moku/editor/Document";
 import type { AsyncResult } from "effect/reactivity";
+import * as React from "react";
+
 import * as Problems from "./problems.ts";
 import { useFailureNotification, useNotification } from "./useNotifications.ts";
 

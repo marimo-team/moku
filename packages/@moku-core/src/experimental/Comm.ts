@@ -20,10 +20,11 @@ import {
   Stream,
 } from "effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
-import type * as Events from "../notebook/events.ts";
-import * as CommProtocol from "../internal/comm-protocol.ts";
+
 import type { Client, CommRequest } from "../internal/client.ts";
+import * as CommProtocol from "../internal/comm-protocol.ts";
 import type * as Notebook from "../Notebook.ts";
+import type * as Events from "../notebook/events.ts";
 import * as Protocol from "../Protocol.ts";
 
 type Json = typeof Schema.Json.Type;

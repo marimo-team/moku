@@ -1,10 +1,11 @@
-import * as React from "react";
 import { useAtomValue } from "@effect/atom-react";
-import { AsyncResult, Atom } from "effect/reactivity";
-import type * as Workspace from "./Workspace.ts";
-import { Cause } from "effect";
 import type * as Host from "@moku/core/Host";
 import type * as Notebook from "@moku/core/Notebook";
+import { Cause } from "effect";
+import { AsyncResult, Atom } from "effect/reactivity";
+import * as React from "react";
+
+import type * as Workspace from "./Workspace.ts";
 
 const empty = Atom.make<AsyncResult.AsyncResult<Host.State, Notebook.Error>>(
   AsyncResult.initial(),

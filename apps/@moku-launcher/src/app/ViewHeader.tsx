@@ -1,12 +1,13 @@
-import * as ReactRouter from "react-router";
 import { useAtomValue } from "@effect/atom-react";
-import { AsyncResult } from "effect/reactivity";
-import type * as Notebook from "./Notebook.ts";
-import type * as Workspace from "./Workspace.ts";
 import type { Plugin } from "@moku/plugin";
+import { AsyncResult } from "effect/reactivity";
+import * as ReactRouter from "react-router";
+
 import type * as Application from "./Application.ts";
-import { viewHref } from "./routes.ts";
 import { LauncherBar } from "./LauncherBar.tsx";
+import type * as Notebook from "./Notebook.ts";
+import { viewHref } from "./routes.ts";
+import type * as Workspace from "./Workspace.ts";
 
 export function ViewHeader({
   target,

@@ -1,11 +1,12 @@
-// @vitest-environment happy-dom
-import * as React from "react";
-import * as ReactDOMClient from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";
 import { Effect } from "effect";
 import { AtomRegistry } from "effect/reactivity";
+// @vitest-environment happy-dom
+import * as React from "react";
+import * as ReactDOMClient from "react-dom/client";
 import * as Vitest from "vite-plus/test";
 import { vi } from "vite-plus/test";
+
 import { NotificationList } from "../../src/plugins/notebook/feedback/NotificationList.tsx";
 import {
   dismissAtom,

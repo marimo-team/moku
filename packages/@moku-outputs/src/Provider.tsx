@@ -1,12 +1,13 @@
+import { useAtom, useAtomValue } from "@effect/atom-react";
 /**
  * Connect output renderers to a notebook's runtime capabilities.
  *
  * @module
  */
 import type * as Model from "@moku/core/Notebook";
-import * as React from "react";
-import { useAtom, useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
+import * as React from "react";
+
 import * as RendererConnection from "./internal/RendererConnection.ts";
 import type * as RendererSession from "./internal/RendererSession.ts";
 

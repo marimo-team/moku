@@ -1,14 +1,15 @@
 /** Observe a marimo notebook and send widget commands through its attached viewer. @module */
 import { Effect, Schema, Stream } from "effect";
 import { Sse } from "effect/encoding";
-import { AtomRegistry } from "effect/reactivity";
 import { HttpClient, HttpClientRequest } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
+import { AtomRegistry } from "effect/reactivity";
+
 import { CommError } from "../experimental/Comm.ts";
-import { LegacyCommApi } from "../internal/comm-protocol.ts";
 import type * as Host from "../Host.ts";
-import type { CommRequest, ModelError } from "../internal/client.ts";
 import { NotebookEvent } from "../internal/api.ts";
+import type { CommRequest, ModelError } from "../internal/client.ts";
+import { LegacyCommApi } from "../internal/comm-protocol.ts";
 import type * as Protocol from "../Protocol.ts";
 import type { NotebookState } from "./state.ts";
 

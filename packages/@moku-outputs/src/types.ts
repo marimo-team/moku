@@ -1,10 +1,10 @@
+import type * as Outputs from "@moku/core/Outputs";
 /**
  * Component props derived from the marimo output protocol.
  *
  * @module
  */
 import type * as Protocol from "@moku/core/Protocol";
-import type * as Outputs from "@moku/core/Outputs";
 
 /**
  * A MIME type and its encoded payload from the host.

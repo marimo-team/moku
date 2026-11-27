@@ -8,9 +8,10 @@
  */
 import type * as Notebook from "@moku/core/Notebook";
 import { Cause, Effect, Exit, FiberSet, Semaphore, Stream } from "effect";
+
+import { loadRenderer } from "./renderer.ts";
 import type * as RendererSession from "./RendererSession.ts";
 import { WidgetUpdates } from "./WidgetUpdates.ts";
-import { loadRenderer } from "./renderer.ts";
 
 /** Renderer availability after applying output notifications. */
 export interface State {

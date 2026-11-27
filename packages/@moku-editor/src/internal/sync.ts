@@ -1,3 +1,5 @@
+import * as Notebook from "@moku/core/Notebook";
+import type { Document } from "@moku/core/Notebook";
 /**
  * Synchronize drafts with bounded retries and confirmation from the notebook stream.
  *
@@ -15,9 +17,7 @@ import {
   type Scope,
 } from "effect";
 import { Atom, type AtomRegistry } from "effect/reactivity";
-import * as Notebook from "@moku/core/Notebook";
 
-import type { Document } from "@moku/core/Notebook";
 import * as Draft from "./draft.ts";
 import type * as State from "./state.ts";
 

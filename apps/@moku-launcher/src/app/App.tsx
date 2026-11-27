@@ -1,14 +1,15 @@
 import { useAtomValue } from "@effect/atom-react";
+import type { Plugin } from "@moku/plugin";
 import { AsyncResult, type Atom } from "effect/reactivity";
 import * as ReactRouter from "react-router";
-import type * as Workspace from "./Workspace.ts";
-import { Launcher } from "./Launcher.tsx";
-import { ViewInstance, ViewErrorBoundary } from "./ViewInstance.tsx";
+
 import type * as Application from "./Application.ts";
-import { parseRoute, type Route } from "./routes.ts";
-import type { Plugin } from "@moku/plugin";
-import { ViewHeader } from "./ViewHeader.tsx";
+import { Launcher } from "./Launcher.tsx";
 import { LauncherBar } from "./LauncherBar.tsx";
+import { parseRoute, type Route } from "./routes.ts";
+import { ViewHeader } from "./ViewHeader.tsx";
+import { ViewInstance, ViewErrorBoundary } from "./ViewInstance.tsx";
+import type * as Workspace from "./Workspace.ts";
 
 export function App({ application }: { application: Application.Interface }) {
   const location = ReactRouter.useLocation();

@@ -1,9 +1,10 @@
+import * as Protocol from "@moku/core/Protocol";
 import { Schema } from "effect";
-import * as Vitest from "vite-plus/test";
-import { vi } from "vite-plus/test";
 import { Effect } from "effect";
 import { Atom } from "effect/reactivity";
-import * as Protocol from "@moku/core/Protocol";
+import * as Vitest from "vite-plus/test";
+import { vi } from "vite-plus/test";
+
 import * as Document from "../src/Document.ts";
 import { setup, confirmed } from "./fixture.ts";
 import { cell, document } from "./fixture.ts";

@@ -1,9 +1,10 @@
-import * as React from "react";
 import { useAtom } from "@effect/atom-react";
 import { Cause } from "effect";
 import { AsyncResult, Atom } from "effect/reactivity";
-import type * as Workspace from "./Workspace.ts";
+import * as React from "react";
+
 import type { Target } from "./Notebook.ts";
+import type * as Workspace from "./Workspace.ts";
 
 export function useOpenHost(workspace: Workspace.Interface, target: Target) {
   const { connectionId, notebookId } = target;

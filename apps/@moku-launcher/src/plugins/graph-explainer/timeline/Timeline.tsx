@@ -1,5 +1,6 @@
 /** Shared axis, execution bars, and playhead for the graph timeline. @module */
 import type * as React from "react";
+
 import { duration } from "../execution.ts";
 import type { BarFrame, TimelineFrame } from "./animation.ts";
 import { timelineLabel } from "./scale.ts";

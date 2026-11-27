@@ -1,9 +1,10 @@
+import { useAtomValue } from "@effect/atom-react";
+import type * as Notebook from "@moku/core/Notebook";
+import * as Minimap from "@moku/minimap";
 import { Cause } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import * as React from "react";
-import { useAtomValue } from "@effect/atom-react";
-import * as Minimap from "@moku/minimap";
-import type * as Notebook from "@moku/core/Notebook";
+
 import "@moku/minimap/style.css";
 
 export function NotebookMinimap({ notebook }: Pick<Minimap.Props, "notebook">) {

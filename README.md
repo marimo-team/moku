@@ -23,8 +23,8 @@ The clients share connections, notebook state, editing, and output rendering thr
 A plugin can be as small as a live cell count:
 
 ```tsx
-import { Plugin } from "@moku/plugin";
 import { useAtomValue } from "@effect/atom-react";
+import { Plugin } from "@moku/plugin";
 
 export default Plugin.define({
   id: "cell-count",

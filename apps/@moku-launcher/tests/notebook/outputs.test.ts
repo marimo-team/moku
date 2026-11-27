@@ -1,6 +1,7 @@
+import * as Protocol from "@moku/core/Protocol";
 import { Schema } from "effect";
 import * as Vitest from "vite-plus/test";
-import * as Protocol from "@moku/core/Protocol";
+
 import { emptyState } from "../../../../packages/@moku-core/tests/fixtures.ts";
 import * as Outputs from "../../src/plugins/notebook/outputs.ts";
 

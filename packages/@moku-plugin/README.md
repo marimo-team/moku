@@ -3,8 +3,8 @@
 Define notebook views with scoped setup and cleanup.
 
 ```tsx
-import * as React from "react";
 import { Plugin } from "@moku/plugin";
+import * as React from "react";
 
 const Inspector = React.lazy(() => import("./Inspector"));
 
@@ -22,9 +22,10 @@ export default Plugin.define({
 Load plugins in an Effect scope with an atom registry.
 
 ```ts
+import { Plugin } from "@moku/plugin";
 import { Layer } from "effect";
 import { Atom } from "effect/reactivity";
-import { Plugin } from "@moku/plugin";
+
 import inspector from "./inspector";
 
 const runtime = Atom.runtime(Layer.empty);

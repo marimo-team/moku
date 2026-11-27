@@ -1,3 +1,5 @@
+import * as Host from "@moku/core/Host";
+import { ModelError } from "@moku/core/Notebook";
 /**
  * Host connections and notebook catalogs for the launcher.
  *
@@ -13,12 +15,6 @@ import {
   Schema,
   Semaphore,
 } from "effect";
-import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
-import * as Host from "@moku/core/Host";
-import { ModelError } from "@moku/core/Notebook";
-import * as Notebook from "./Notebook.ts";
-import * as DirectHost from "./DirectHost.ts";
-import { RequestError } from "./request.ts";
 import {
   FetchHttpClient,
   HttpBody,
@@ -26,6 +22,11 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "effect/http";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
+
+import * as DirectHost from "./DirectHost.ts";
+import * as Notebook from "./Notebook.ts";
+import { RequestError } from "./request.ts";
 
 /**
  * A discovered or manually connected host, without its authentication token.

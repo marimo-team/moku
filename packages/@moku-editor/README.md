@@ -3,11 +3,11 @@
 A shared notebook draft that synchronizes edits to marimo and binds cells to CodeMirror.
 
 ```ts
-import { Effect } from "effect";
 import * as CodeMirrorView from "@codemirror/view";
 import * as Host from "@moku/core/Host";
-import * as Document from "@moku/editor/Document";
 import * as CodeMirror from "@moku/editor/CodeMirror";
+import * as Document from "@moku/editor/Document";
+import { Effect } from "effect";
 
 const editing = Effect.gen(function* () {
   const host = yield* Host.make({ baseUrl: "http://localhost:2718/api/marimo/v1" });

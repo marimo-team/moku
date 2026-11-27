@@ -8,15 +8,17 @@
  * @module
  */
 import type * as NodeHttp from "node:http";
-import * as Forward from "./forward.ts";
-import { Schema } from "effect";
+
 import {
   LegacyCommApi,
   LegacySessionId,
   ViewerCredentials,
 } from "@moku/core/internal/comm-protocol";
-import { prepare } from "./protocol.ts";
+import { Schema } from "effect";
+
+import * as Forward from "./forward.ts";
 import { json, readBody } from "./http.ts";
+import { prepare } from "./protocol.ts";
 
 const endpoints = Object.values(LegacyCommApi.groups.LegacyComm.endpoints);
 const isSessionId = Schema.is(LegacySessionId);
